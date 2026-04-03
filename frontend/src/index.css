@@ -6,14 +6,24 @@
 
 :root {
   color-scheme: dark;
+  --bg-forest: #08110a;
+  --bg-canopy: #0f1b13;
+  --bg-moss: #18271d;
+  --surface: rgba(22, 34, 25, 0.78);
+  --surface-strong: rgba(16, 26, 19, 0.92);
+  --border-soft: rgba(164, 194, 150, 0.14);
+  --accent: #9fba77;
+  --accent-strong: #b7cf8f;
+  --text-muted: #b7c2b2;
 }
 
 body {
-  @apply bg-slate-950 font-sans text-slate-100 antialiased;
+  @apply font-sans text-slate-100 antialiased;
   background-image:
-    radial-gradient(circle at top, rgba(245, 158, 11, 0.18), transparent 30%),
-    radial-gradient(circle at bottom right, rgba(14, 165, 233, 0.18), transparent 26%),
-    linear-gradient(180deg, #04101d 0%, #07111f 45%, #020617 100%);
+    radial-gradient(circle at top, rgba(159, 186, 119, 0.18), transparent 24%),
+    radial-gradient(circle at bottom right, rgba(73, 98, 64, 0.28), transparent 28%),
+    linear-gradient(180deg, #08110a 0%, #0d1710 44%, #050a06 100%);
+  background-color: var(--bg-forest);
 }
 
 #root {
@@ -21,7 +31,9 @@ body {
 }
 
 .glass {
-  @apply border border-white/10 bg-white/5 backdrop-blur-xl;
+  border: 1px solid var(--border-soft);
+  background: var(--surface);
+  backdrop-filter: blur(24px);
 }
 
 .section-shell {
@@ -29,19 +41,38 @@ body {
 }
 
 .btn-primary {
-  @apply inline-flex items-center justify-center rounded-full bg-amber-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-300;
+  @apply inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold text-slate-950 transition;
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+}
+
+.btn-primary:hover {
+  filter: brightness(1.05);
 }
 
 .btn-secondary {
-  @apply inline-flex items-center justify-center rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10;
+  @apply inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold text-white transition;
+  border: 1px solid rgba(183, 207, 143, 0.18);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .input {
-  @apply w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-sm text-white outline-none transition focus:border-amber-300 focus:ring-2 focus:ring-amber-300/20;
+  @apply w-full rounded-2xl px-4 py-3 text-sm text-white outline-none transition;
+  border: 1px solid rgba(183, 207, 143, 0.12);
+  background: var(--surface-strong);
+}
+
+.input:focus {
+  border-color: rgba(183, 207, 143, 0.6);
+  box-shadow: 0 0 0 4px rgba(183, 207, 143, 0.12);
 }
 
 .label {
-  @apply mb-2 block text-sm font-medium text-slate-300;
+  @apply mb-2 block text-sm font-medium;
+  color: var(--text-muted);
 }
 
 .card-grid {

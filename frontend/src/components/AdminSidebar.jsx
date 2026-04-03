@@ -12,7 +12,7 @@ const items = [
 function AdminSidebar() {
   return (
     <aside className="glass h-fit rounded-[2rem] p-4">
-      <p className="px-3 pb-4 text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">Bowline Admin</p>
+      <p className="px-3 pb-4 text-xs font-semibold uppercase tracking-[0.3em] text-lime-100/60">Bowline Admin</p>
       <nav className="space-y-2">
         {items.map((item) => (
           <NavLink
@@ -21,7 +21,7 @@ function AdminSidebar() {
             className={({ isActive }) =>
               clsx(
                 'block rounded-2xl px-4 py-3 text-sm font-medium transition',
-                isActive ? 'bg-amber-300 text-slate-950' : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                isActive ? 'bg-lime-200 text-slate-950' : 'text-[#c3cebf] hover:bg-white/5 hover:text-white'
               )
             }
           >

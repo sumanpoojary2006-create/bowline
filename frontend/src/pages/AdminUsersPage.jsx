@@ -47,7 +47,7 @@ function AdminUsersPage() {
       <SectionHeader
         eyebrow="User Management"
         title="Customer records and booking history"
-        description="Review user accounts, total bookings, and historical reservation value."
+        description="Review user accounts, total bookings, and historical booking-request value."
       />
 
       <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
@@ -58,7 +58,7 @@ function AdminUsersPage() {
               <button
                 key={item._id}
                 className={`w-full rounded-[1.5rem] p-4 text-left transition ${
-                  selectedUser?._id === item._id ? 'bg-amber-300 text-slate-950' : 'bg-slate-900/70 text-white'
+                  selectedUser?._id === item._id ? 'bg-lime-200 text-slate-950' : 'bg-slate-900/70 text-white'
                 }`}
                 onClick={() => setSelectedUser(item)}
               >
@@ -83,9 +83,7 @@ function AdminUsersPage() {
                 <p className="mt-2 text-sm text-slate-300">
                   {booking.bookingType} • {formatDate(booking.startDate)} • {formatCurrency(booking.totalPrice)}
                 </p>
-                <p className="mt-1 text-sm text-slate-400">
-                  {booking.status} / {booking.paymentStatus}
-                </p>
+                <p className="mt-1 text-sm text-slate-400">{booking.status}</p>
               </div>
             ))}
           </div>

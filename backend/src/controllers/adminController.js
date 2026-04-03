@@ -16,7 +16,7 @@ export const getDashboardOverview = async (req, res, next) => {
     const totals = bookings.reduce(
       (acc, booking) => {
         acc.bookings += 1;
-        acc.revenue += booking.paymentStatus === 'paid' ? booking.totalPrice : 0;
+        acc.revenue += booking.totalPrice;
         acc.byType[booking.bookingType] += 1;
         return acc;
       },
@@ -61,9 +61,7 @@ export const getUsers = async (req, res, next) => {
           _id: '$user',
           totalBookings: { $sum: 1 },
           totalSpent: {
-            $sum: {
-              $cond: [{ $eq: ['$paymentStatus', 'paid'] }, '$totalPrice', 0],
-            },
+            $sum: '$totalPrice',
           },
         },
       },

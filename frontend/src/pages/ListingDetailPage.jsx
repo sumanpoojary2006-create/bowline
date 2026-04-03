@@ -2,7 +2,7 @@ import { CalendarDaysIcon, MapPinIcon, UserGroupIcon } from '@heroicons/react/24
 import { useEffect, useState } from 'react';
 import DatePicker from 'react-datepicker';
 import toast from 'react-hot-toast';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 import { formatCurrency, formatDate } from '../lib/formatters';
@@ -18,20 +18,23 @@ const tomorrow = () => {
 function ListingDetailPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
+  const queryStartDate = searchParams.get('startDate');
+  const queryEndDate = searchParams.get('endDate');
+  const queryGuests = searchParams.get('guests');
   const [listing, setListing] = useState(null);
   const [related, setRelated] = useState([]);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [booking, setBooking] = useState({
-    startDate: tomorrow(),
-    endDate: tomorrow(),
-    guests: 1,
+    startDate: queryStartDate ? new Date(queryStartDate) : tomorrow(),
+    endDate: queryEndDate ? new Date(queryEndDate) : tomorrow(),
+    guests: Number(queryGuests || 1),
     contactName: '',
     contactEmail: '',
     contactPhone: '',
     specialRequests: '',
-    paymentMethod: 'manual',
   });
   const [availability, setAvailability] = useState(null);
 
@@ -122,7 +125,7 @@ function ListingDetailPage() {
           </div>
           <div className="glass rounded-[2rem] p-6">
             <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400">
-              <span className="rounded-full bg-amber-300 px-3 py-1 font-semibold uppercase tracking-[0.22em] text-slate-950">
+              <span className="rounded-full bg-lime-200 px-3 py-1 font-semibold uppercase tracking-[0.22em] text-slate-950">
                 {listing.type}
               </span>
               <span className="inline-flex items-center gap-2">
@@ -169,10 +172,14 @@ function ListingDetailPage() {
           <div className="glass rounded-[2rem] p-6">
             <div className="flex items-end justify-between gap-3">
               <div>
-                <p className="text-sm text-slate-400">Price</p>
-                <h2 className="mt-2 text-4xl font-bold text-amber-300">{formatCurrency(listing.price)}</h2>
+                <p className="text-sm text-[#b7c2b2]">Indicative price</p>
+                <h2 className="mt-2 text-4xl font-bold text-lime-200">{formatCurrency(listing.price)}</h2>
               </div>
-              <p className="text-sm text-slate-400">per {listing.priceUnit}</p>
+              <p className="text-sm text-[#b7c2b2]">per {listing.priceUnit}</p>
+            </div>
+
+            <div className="mt-5 rounded-[1.5rem] border border-lime-100/10 bg-[#0d1710]/80 p-4 text-sm text-[#c1cbbd]">
+              This page only collects a booking request. No online payment is taken here. Bowline confirms the stay manually after reviewing availability.
             </div>
 
             <form className="mt-6 space-y-4" onSubmit={submitBooking}>
@@ -242,24 +249,13 @@ function ListingDetailPage() {
                   onChange={(event) => setBooking((prev) => ({ ...prev, specialRequests: event.target.value }))}
                 />
               </div>
-              <div>
-                <label className="label">Payment mode</label>
-                <select
-                  className="input"
-                  value={booking.paymentMethod}
-                  onChange={(event) => setBooking((prev) => ({ ...prev, paymentMethod: event.target.value }))}
-                >
-                  <option value="manual">Pay later / manual confirmation</option>
-                  <option value="razorpay">Simulated instant payment</option>
-                </select>
-              </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <button className="btn-secondary" type="button" onClick={checkAvailability} disabled={checking}>
                   {checking ? 'Checking...' : 'Check Availability'}
                 </button>
                 <button className="btn-primary" type="submit">
-                  Confirm Booking
+                  Send Booking Request
                 </button>
               </div>
             </form>
@@ -269,8 +265,8 @@ function ListingDetailPage() {
                 <p className={availability.available ? 'text-emerald-300' : 'text-rose-300'}>
                   {availability.reason}
                 </p>
-                <p className="mt-2 text-slate-300">Unit price: {formatCurrency(availability.pricing.unitPrice)}</p>
-                <p className="text-slate-300">Estimated total: {formatCurrency(availability.pricing.totalPrice)}</p>
+                <p className="mt-2 text-slate-300">Indicative unit price: {formatCurrency(availability.pricing.unitPrice)}</p>
+                <p className="text-slate-300">Estimated booking value: {formatCurrency(availability.pricing.totalPrice)}</p>
                 {availability.pricing.adjustments?.length ? (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {availability.pricing.adjustments.map((item) => (
@@ -287,7 +283,7 @@ function ListingDetailPage() {
           {related.length ? (
             <div>
               <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-xl font-semibold text-white">You might also like</h3>
+                <h3 className="text-xl font-semibold text-white">{listing.type === 'room' ? 'More stays nearby' : 'You might also like'}</h3>
                 <Link className="text-sm text-slate-300" to={`/${listing.type === 'room' ? 'stays' : `${listing.type}s`}`}>
                   See all
                 </Link>

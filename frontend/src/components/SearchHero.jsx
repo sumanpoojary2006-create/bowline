@@ -1,43 +1,66 @@
-import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, MapPinIcon, UserGroupIcon } from '@heroicons/react/24/outline';
+import DatePicker from 'react-datepicker';
 
 function SearchHero({ filters, setFilters, onSubmit }) {
   return (
     <form
       onSubmit={onSubmit}
-      className="glass grid gap-4 rounded-[2rem] p-4 md:grid-cols-[1.3fr_1fr_1fr_auto] md:p-5"
+      className="glass grid gap-3 rounded-[1.75rem] p-3 lg:grid-cols-[1.1fr_0.9fr_0.9fr_0.7fr_auto]"
     >
-      <div>
-        <label className="label">Where or what are you looking for?</label>
+      <label className="rounded-[1.25rem] bg-[#f0edd8] px-4 py-3 text-sm text-slate-900">
+        <span className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+          <MapPinIcon className="h-4 w-4" />
+          Location
+        </span>
         <input
-          className="input"
-          placeholder="Mudigere, trek, camp..."
-          value={filters.search}
-          onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
-        />
-      </div>
-      <div>
-        <label className="label">Experience type</label>
-        <select
-          className="input"
-          value={filters.type}
-          onChange={(event) => setFilters((prev) => ({ ...prev, type: event.target.value }))}
-        >
-          <option value="">All</option>
-          <option value="room">Stays</option>
-          <option value="trek">Treks</option>
-          <option value="camp">Camps</option>
-        </select>
-      </div>
-      <div>
-        <label className="label">Location</label>
-        <input
-          className="input"
+          className="w-full bg-transparent font-medium text-slate-900 outline-none placeholder:text-slate-500"
           placeholder="Chikkamagaluru"
           value={filters.location}
           onChange={(event) => setFilters((prev) => ({ ...prev, location: event.target.value }))}
         />
-      </div>
-      <button className="btn-primary mt-auto gap-2" type="submit">
+      </label>
+
+      <label className="rounded-[1.25rem] bg-[#f0edd8] px-4 py-3 text-sm text-slate-900">
+        <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Check in</span>
+        <DatePicker
+          selected={filters.startDate}
+          onChange={(date) => setFilters((prev) => ({ ...prev, startDate: date }))}
+          className="w-full bg-transparent font-medium text-slate-900 outline-none"
+          minDate={new Date()}
+          dateFormat="EEE, MMM d"
+        />
+      </label>
+
+      <label className="rounded-[1.25rem] bg-[#f0edd8] px-4 py-3 text-sm text-slate-900">
+        <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Check out</span>
+        <DatePicker
+          selected={filters.endDate}
+          onChange={(date) => setFilters((prev) => ({ ...prev, endDate: date }))}
+          className="w-full bg-transparent font-medium text-slate-900 outline-none"
+          minDate={filters.startDate || new Date()}
+          dateFormat="EEE, MMM d"
+        />
+      </label>
+
+      <label className="rounded-[1.25rem] bg-[#f0edd8] px-4 py-3 text-sm text-slate-900">
+        <span className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+          <UserGroupIcon className="h-4 w-4" />
+          Guests
+        </span>
+        <select
+          className="w-full bg-transparent font-medium text-slate-900 outline-none"
+          value={filters.guests}
+          onChange={(event) => setFilters((prev) => ({ ...prev, guests: event.target.value }))}
+        >
+          <option value="1">1 guest</option>
+          <option value="2">2 guests</option>
+          <option value="3">3 guests</option>
+          <option value="4">4 guests</option>
+          <option value="6">6+ guests</option>
+        </select>
+      </label>
+
+      <button className="btn-primary h-full min-h-[72px] gap-2 rounded-[1.25rem] px-6" type="submit">
         <MagnifyingGlassIcon className="h-5 w-5" />
         Search
       </button>

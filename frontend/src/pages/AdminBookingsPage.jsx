@@ -11,7 +11,6 @@ function AdminBookingsPage() {
   const [filters, setFilters] = useState({
     type: '',
     status: '',
-    paymentStatus: '',
   });
 
   const fetchBookings = async () => {
@@ -33,7 +32,7 @@ function AdminBookingsPage() {
 
   useEffect(() => {
     fetchBookings();
-  }, [filters.type, filters.status, filters.paymentStatus]);
+  }, [filters.type, filters.status]);
 
   const updateBooking = async (id, patch) => {
     try {
@@ -45,10 +44,7 @@ function AdminBookingsPage() {
     }
   };
 
-  const revenue = useMemo(
-    () => bookings.reduce((sum, booking) => sum + (booking.paymentStatus === 'paid' ? booking.totalPrice : 0), 0),
-    [bookings]
-  );
+  const estimatedValue = useMemo(() => bookings.reduce((sum, booking) => sum + booking.totalPrice, 0), [bookings]);
 
   if (loading) {
     return <PageLoader label="Loading bookings..." />;
@@ -59,10 +55,10 @@ function AdminBookingsPage() {
       <SectionHeader
         eyebrow="Booking Management"
         title="Track and moderate every reservation"
-        description={`Current filtered revenue: ${formatCurrency(revenue)}`}
+        description={`Current filtered booking value: ${formatCurrency(estimatedValue)}`}
       />
 
-      <div className="grid gap-4 rounded-[2rem] border border-white/10 bg-slate-950/50 p-4 md:grid-cols-3">
+      <div className="grid gap-4 rounded-[2rem] border border-lime-100/10 bg-[#0d1710]/70 p-4 md:grid-cols-2">
         <select className="input" value={filters.type} onChange={(event) => setFilters((prev) => ({ ...prev, type: event.target.value }))}>
           <option value="">All types</option>
           <option value="room">Rooms</option>
@@ -74,13 +70,6 @@ function AdminBookingsPage() {
           <option value="pending">Pending</option>
           <option value="confirmed">Confirmed</option>
           <option value="cancelled">Cancelled</option>
-        </select>
-        <select className="input" value={filters.paymentStatus} onChange={(event) => setFilters((prev) => ({ ...prev, paymentStatus: event.target.value }))}>
-          <option value="">All payments</option>
-          <option value="pending">Pending</option>
-          <option value="paid">Paid</option>
-          <option value="failed">Failed</option>
-          <option value="refunded">Refunded</option>
         </select>
       </div>
 
@@ -101,17 +90,15 @@ function AdminBookingsPage() {
               </div>
               <div className="space-y-3">
                 <div className="rounded-[1.5rem] bg-slate-900/70 p-4">
-                  <p className="text-sm text-slate-400">Value</p>
-                  <p className="mt-2 text-xl font-semibold text-amber-300">{formatCurrency(booking.totalPrice)}</p>
-                  <p className="mt-2 text-sm text-slate-400">
-                    {booking.status} / {booking.paymentStatus}
-                  </p>
+                  <p className="text-sm text-slate-400">Estimated value</p>
+                  <p className="mt-2 text-xl font-semibold text-lime-200">{formatCurrency(booking.totalPrice)}</p>
+                  <p className="mt-2 text-sm text-slate-400">{booking.status}</p>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
-                  <button className="btn-primary" onClick={() => updateBooking(booking._id, { status: 'confirmed', paymentStatus: 'paid' })}>
+                  <button className="btn-primary" onClick={() => updateBooking(booking._id, { status: 'confirmed' })}>
                     Confirm
                   </button>
-                  <button className="btn-secondary" onClick={() => updateBooking(booking._id, { status: 'cancelled', paymentStatus: booking.paymentStatus === 'paid' ? 'refunded' : 'failed' })}>
+                  <button className="btn-secondary" onClick={() => updateBooking(booking._id, { status: 'cancelled' })}>
                     Cancel
                   </button>
                 </div>

@@ -8,16 +8,19 @@ import SectionHeader from '../components/SectionHeader';
 
 const pageConfig = {
   room: {
-    title: 'Stays that balance comfort and wild terrain',
+    title: 'Rooms and stays surrounded by coffee hills and cool air',
     eyebrow: 'Stay Bookings',
+    description: 'Use the filters to find the right room, open the stay, and send a booking request without paying online.',
   },
   trek: {
-    title: 'Treks built for momentum and mountain views',
+    title: 'Treks available around your Bowline stay',
     eyebrow: 'Trek Bookings',
+    description: 'Treks now sit as supporting experiences that guests can add after choosing the right stay.',
   },
   camp: {
-    title: 'Camping programs with structure, warmth, and adventure',
+    title: 'Camp experiences offered as add-on programs',
     eyebrow: 'Camp Bookings',
+    description: 'Browse camp programs when you want something beyond the stay, but keep the room booking at the center of the plan.',
   },
 };
 
@@ -69,10 +72,10 @@ function ListingsPage({ type }) {
       <SectionHeader
         eyebrow={config.eyebrow}
         title={config.title}
-        description="Use filters to narrow inventory, then open any experience to review pricing, details, and availability."
+        description={config.description}
       />
 
-      <div className="mb-8 grid gap-4 rounded-[2rem] border border-white/10 bg-slate-950/50 p-4 md:grid-cols-2 xl:grid-cols-5">
+      <div className="mb-8 grid gap-4 rounded-[2rem] border border-lime-100/10 bg-[#0d1710]/70 p-4 md:grid-cols-2 xl:grid-cols-5">
         <input
           className="input"
           placeholder="Search by name or keyword"

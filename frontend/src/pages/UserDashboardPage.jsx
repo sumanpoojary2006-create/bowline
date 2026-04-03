@@ -69,7 +69,7 @@ function UserDashboardPage() {
       <SectionHeader
         eyebrow="User Dashboard"
         title={`Hello, ${user?.name?.split(' ')[0] || 'Explorer'}`}
-        description="Track bookings, manage your profile, and keep up with booking notifications from one place."
+        description="Track booking requests, manage your profile, and keep up with Bowline follow-up notifications from one place."
       />
 
       <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
@@ -88,10 +88,8 @@ function UserDashboardPage() {
                       </p>
                     </div>
                     <div className="text-left md:text-right">
-                      <p className="text-lg font-bold text-amber-300">{formatCurrency(booking.totalPrice)}</p>
-                      <p className="text-sm text-slate-400">
-                        {booking.status} / {booking.paymentStatus}
-                      </p>
+                      <p className="text-lg font-bold text-lime-200">{formatCurrency(booking.totalPrice)}</p>
+                      <p className="text-sm text-slate-400">{booking.status}</p>
                     </div>
                   </div>
                   {booking.status !== 'cancelled' ? (
@@ -102,7 +100,7 @@ function UserDashboardPage() {
                 </div>
               ))
             ) : (
-              <EmptyState title="No bookings yet" description="Once a booking is created, it will appear here with payment and status details." />
+              <EmptyState title="No bookings yet" description="Once a booking request is created, it will appear here with its current confirmation status." />
             )}
           </div>
         </div>

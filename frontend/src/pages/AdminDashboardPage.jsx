@@ -34,12 +34,12 @@ function AdminDashboardPage() {
       <SectionHeader
         eyebrow="Admin Dashboard"
         title="Command center for inventory and bookings"
-        description="A high-level view of bookings, revenue, notifications, and active Bowline inventory."
+        description="A high-level view of booking requests, estimated booking value, notifications, and active Bowline inventory."
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatsCard label="Total bookings" value={overview.totalBookings} />
-        <StatsCard label="Revenue captured" value={formatCurrency(overview.revenue)} />
+        <StatsCard label="Estimated booking value" value={formatCurrency(overview.revenue)} />
         <StatsCard label="Active listings" value={overview.activeListings} />
         <StatsCard label="Active users" value={overview.activeUsers} />
       </div>
@@ -59,7 +59,6 @@ function AdminDashboardPage() {
                   </div>
                   <div className="text-right text-sm text-slate-400">
                     <p>{booking.status}</p>
-                    <p>{booking.paymentStatus}</p>
                   </div>
                 </div>
               </div>

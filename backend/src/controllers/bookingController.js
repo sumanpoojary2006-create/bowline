@@ -15,7 +15,6 @@ export const createBooking = async (req, res, next) => {
       contactEmail,
       contactPhone,
       specialRequests,
-      paymentMethod = 'manual',
     } = req.body;
 
     const listing = await Listing.findById(listingId);
@@ -58,9 +57,9 @@ export const createBooking = async (req, res, next) => {
         basePrice: pricing.basePrice,
         adjustments: pricing.adjustments,
       },
-      paymentMethod,
-      status: paymentMethod === 'manual' ? 'pending' : 'confirmed',
-      paymentStatus: paymentMethod === 'manual' ? 'pending' : 'paid',
+      paymentMethod: 'manual',
+      status: 'pending',
+      paymentStatus: 'pending',
       contactName,
       contactEmail,
       contactPhone,
