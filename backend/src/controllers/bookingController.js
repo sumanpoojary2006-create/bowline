@@ -2,7 +2,7 @@ import Booking from '../models/Booking.js';
 import Listing from '../models/Listing.js';
 import { calculateBookingPrice } from '../utils/pricing.js';
 import { createNotification, notifyAdmins } from '../utils/notifications.js';
-import { validateListingAvailability } from '../utils/availability.js';
+import { getExistingBookingsForRange, validateListingAvailability } from '../utils/availability.js';
 
 export const createBooking = async (req, res, next) => {
   try {
@@ -173,7 +173,24 @@ export const updateBookingStatus = async (req, res, next) => {
       throw new Error('Booking not found');
     }
 
-    booking.status = req.body.status ?? booking.status;
+    const nextStatus = req.body.status ?? booking.status;
+
+    if (nextStatus === 'confirmed' && booking.listing?.type === 'room') {
+      const overlappingConfirmedBookings = await getExistingBookingsForRange({
+        listingId: booking.listing._id,
+        startDate: booking.startDate,
+        endDate: booking.endDate,
+        statuses: ['confirmed'],
+        excludeBookingId: booking._id,
+      });
+
+      if (overlappingConfirmedBookings.length) {
+        res.status(400);
+        throw new Error('Room already has a confirmed booking for these dates');
+      }
+    }
+
+    booking.status = nextStatus;
     booking.paymentStatus = req.body.paymentStatus ?? booking.paymentStatus;
     await booking.save();
 
