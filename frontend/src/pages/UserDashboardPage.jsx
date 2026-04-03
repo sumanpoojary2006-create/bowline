@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
 import { useAuth } from '../context/AuthContext';
-import { formatCurrency, formatDate } from '../lib/formatters';
+import { formatCurrency, formatDateRange } from '../lib/formatters';
 import PageLoader from '../components/PageLoader';
 import EmptyState from '../components/EmptyState';
 import SectionHeader from '../components/SectionHeader';
@@ -83,9 +83,13 @@ function UserDashboardPage() {
                     <div>
                       <p className="text-sm uppercase tracking-[0.2em] text-slate-500">{booking.bookingType}</p>
                       <h3 className="mt-2 text-xl font-semibold text-white">{booking.listing?.name}</h3>
+                      <p className="mt-2 text-sm text-slate-400">{booking.listing?.location}</p>
                       <p className="mt-2 text-sm text-slate-300">
-                        {formatDate(booking.startDate)} to {formatDate(booking.endDate)} • {booking.guests} guests
+                        Stay: {formatDateRange(booking.startDate, booking.endDate)}
                       </p>
+                      <p className="mt-1 text-sm text-slate-300">Guests: {booking.guests}</p>
+                      <p className="mt-1 text-sm text-slate-400">Contact: {booking.contactName} • {booking.contactPhone || booking.contactEmail}</p>
+                      {booking.specialRequests ? <p className="mt-1 text-sm text-slate-400">Request: {booking.specialRequests}</p> : null}
                     </div>
                     <div className="text-left md:text-right">
                       <p className="text-lg font-bold text-lime-200">{formatCurrency(booking.totalPrice)}</p>

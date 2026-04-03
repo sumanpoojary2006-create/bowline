@@ -30,10 +30,10 @@ function ListingsPage({ type }) {
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
     search: searchParams.get('search') || '',
-    location: searchParams.get('location') || '',
+    location: 'Mudigere, Chikkamagaluru',
     minPrice: '',
     maxPrice: '',
-    capacity: '',
+    capacity: searchParams.get('capacity') || '',
     difficulty: '',
   });
 
@@ -82,12 +82,7 @@ function ListingsPage({ type }) {
           value={filters.search}
           onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
         />
-        <input
-          className="input"
-          placeholder="Location"
-          value={filters.location}
-          onChange={(event) => setFilters((prev) => ({ ...prev, location: event.target.value }))}
-        />
+        <div className="input flex items-center text-[#c4cec0]">Mudigere, Chikkamagaluru</div>
         <input
           className="input"
           placeholder="Min price"

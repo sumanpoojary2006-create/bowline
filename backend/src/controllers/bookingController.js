@@ -24,11 +24,15 @@ export const createBooking = async (req, res, next) => {
       throw new Error('Listing not found');
     }
 
+    const normalizedStartDate = new Date(startDate);
+    const normalizedEndDate = new Date(endDate);
+    const normalizedGuests = Number(guests);
+
     const availability = await validateListingAvailability({
       listing,
-      startDate,
-      endDate,
-      guests,
+      startDate: normalizedStartDate,
+      endDate: normalizedEndDate,
+      guests: normalizedGuests,
     });
 
     if (!availability.available) {
@@ -39,18 +43,18 @@ export const createBooking = async (req, res, next) => {
     const pricing = await calculateBookingPrice({
       listing,
       bookingType: listing.type,
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
-      guests: Number(guests),
+      startDate: normalizedStartDate,
+      endDate: normalizedEndDate,
+      guests: normalizedGuests,
     });
 
     const booking = await Booking.create({
       bookingType: listing.type,
       listing: listing._id,
       user: req.user._id,
-      startDate,
-      endDate,
-      guests,
+      startDate: normalizedStartDate,
+      endDate: normalizedEndDate,
+      guests: normalizedGuests,
       unitPrice: pricing.unitPrice,
       totalPrice: pricing.totalPrice,
       pricingBreakdown: {

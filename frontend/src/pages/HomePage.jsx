@@ -1,38 +1,28 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import DatePicker from 'react-datepicker';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { CalendarDaysIcon, UserGroupIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import api from '../lib/api';
 import SearchHero from '../components/SearchHero';
 import ListingCard from '../components/ListingCard';
 import PageLoader from '../components/PageLoader';
 import EmptyState from '../components/EmptyState';
+import { addDays, ensureCheckoutDate, formatDateParam } from '../lib/dateUtils';
 
 const forestBackdrop =
   'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1800&q=80';
 const valleyBackdrop =
   'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=1600&q=80';
 
-const tomorrow = () => {
-  const date = new Date();
-  date.setDate(date.getDate() + 1);
-  return date;
-};
-
-const plusDays = (days) => {
-  const date = new Date();
-  date.setDate(date.getDate() + days);
-  return date;
-};
-
-const toParamDate = (value) => value?.toISOString().slice(0, 10);
+const tomorrow = () => addDays(new Date(), 1);
 
 function HomePage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [filters, setFilters] = useState({
-    location: 'Chikkamagaluru',
+    location: 'Mudigere, Chikkamagaluru',
     startDate: tomorrow(),
-    endDate: plusDays(2),
+    endDate: addDays(tomorrow(), 1),
     guests: '2',
   });
   const [featuredRooms, setFeaturedRooms] = useState([]);
@@ -41,7 +31,7 @@ function HomePage() {
   const [activeBooking, setActiveBooking] = useState(null);
   const [bookingDraft, setBookingDraft] = useState({
     startDate: tomorrow(),
-    endDate: plusDays(2),
+    endDate: addDays(tomorrow(), 1),
     guests: '2',
   });
 
@@ -65,15 +55,18 @@ function HomePage() {
     fetchHomeData();
   }, []);
 
-  const quickTags = useMemo(() => ['Mudigere', 'Devaramane', 'Chikkamagaluru', 'Malnad Hills'], []);
+  useEffect(() => {
+    if (location.state?.resetBookingModal) {
+      setActiveBooking(null);
+    }
+  }, [location.state]);
 
   const handleSearch = (event) => {
     event.preventDefault();
     const search = new URLSearchParams();
-    if (filters.location) search.set('location', filters.location);
-    if (filters.guests) search.set('capacity', filters.guests);
-    if (filters.startDate) search.set('startDate', toParamDate(filters.startDate));
-    if (filters.endDate) search.set('endDate', toParamDate(filters.endDate));
+    search.set('capacity', filters.guests);
+    search.set('startDate', formatDateParam(filters.startDate));
+    search.set('endDate', formatDateParam(filters.endDate));
     navigate(`/stays?${search.toString()}`);
   };
 
@@ -86,14 +79,31 @@ function HomePage() {
     });
   };
 
+  const updateDraftStartDate = (date) => {
+    setBookingDraft((prev) => ({
+      ...prev,
+      startDate: date,
+      endDate: ensureCheckoutDate(date, prev.endDate, 1),
+    }));
+  };
+
   const confirmBookingPrompt = () => {
     if (!activeBooking) return;
-    const search = new URLSearchParams({
-      startDate: toParamDate(bookingDraft.startDate),
-      endDate: toParamDate(bookingDraft.endDate),
+    const query = new URLSearchParams({
+      startDate: formatDateParam(bookingDraft.startDate),
+      endDate: formatDateParam(bookingDraft.endDate),
       guests: bookingDraft.guests,
     });
-    navigate(`/experiences/${activeBooking.slug}?${search.toString()}`);
+
+    navigate(`/experiences/${activeBooking.slug}?${query.toString()}`, {
+      state: {
+        bookingPrefill: {
+          startDate: formatDateParam(bookingDraft.startDate),
+          endDate: formatDateParam(bookingDraft.endDate),
+          guests: bookingDraft.guests,
+        },
+      },
+    });
   };
 
   return (
@@ -108,24 +118,11 @@ function HomePage() {
               <h1 className="font-display text-5xl leading-tight text-[#f5f0dd] sm:text-6xl">
                 Book Bowline Nature Stay in the hills.
               </h1>
-              <p className="mt-3 text-base text-[#d5ddd2]">Four rooms, one dorm, authentic Malnad food, and host-led nature experiences.</p>
+              <p className="mt-3 text-base text-[#d5ddd2]">Mudigere stay. Real room details. Date-first booking flow.</p>
             </div>
 
             <div className="mt-6">
               <SearchHero filters={filters} setFilters={setFilters} onSubmit={handleSearch} />
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              {quickTags.map((tag) => (
-                <button
-                  key={tag}
-                  className="rounded-full border border-lime-100/12 bg-black/20 px-4 py-2 text-sm text-[#d5ddd2]"
-                  onClick={() => setFilters((prev) => ({ ...prev, location: tag }))}
-                  type="button"
-                >
-                  {tag}
-                </button>
-              ))}
             </div>
           </div>
 
@@ -133,7 +130,7 @@ function HomePage() {
             <div className="mb-4 flex items-center justify-between gap-4">
               <div>
                 <h2 className="text-3xl font-semibold text-[#f5f0dd]">Book Rooms</h2>
-                <p className="mt-1 text-sm text-[#cdd6c9]">Choose your room, confirm dates, then send the booking request.</p>
+                <p className="mt-1 text-sm text-[#cdd6c9]">Pick your room, confirm your dates, and send the booking request.</p>
               </div>
               <Link className="btn-secondary hidden sm:inline-flex" to="/stays">
                 View all
@@ -163,8 +160,8 @@ function HomePage() {
           >
             <div className="grid gap-6 px-6 py-7 lg:grid-cols-[0.85fr_1.15fr]">
               <div>
-                <p className="text-xs uppercase tracking-[0.28em] text-lime-200/80">Adventure awaits</p>
-                <h2 className="mt-3 text-3xl font-semibold text-[#f5f0dd]">What comes with the homestay.</h2>
+                <p className="text-xs uppercase tracking-[0.28em] text-lime-200/80">What comes with the stay</p>
+                <h2 className="mt-3 text-3xl font-semibold text-[#f5f0dd]">Nature experiences around the homestay.</h2>
               </div>
               <div className="grid gap-4 md:grid-cols-3">
                 {adventures.length ? (
@@ -217,7 +214,7 @@ function HomePage() {
                 </span>
                 <DatePicker
                   selected={bookingDraft.startDate}
-                  onChange={(date) => setBookingDraft((prev) => ({ ...prev, startDate: date }))}
+                  onChange={(date) => updateDraftStartDate(date)}
                   className="w-full bg-transparent font-medium text-slate-900 outline-none"
                   minDate={new Date()}
                   dateFormat="EEE, MMM d"
@@ -231,9 +228,14 @@ function HomePage() {
                 </span>
                 <DatePicker
                   selected={bookingDraft.endDate}
-                  onChange={(date) => setBookingDraft((prev) => ({ ...prev, endDate: date }))}
+                  onChange={(date) =>
+                    setBookingDraft((prev) => ({
+                      ...prev,
+                      endDate: ensureCheckoutDate(prev.startDate, date, 1),
+                    }))
+                  }
                   className="w-full bg-transparent font-medium text-slate-900 outline-none"
-                  minDate={bookingDraft.startDate || new Date()}
+                  minDate={addDays(bookingDraft.startDate, 1)}
                   dateFormat="EEE, MMM d"
                 />
               </label>
@@ -252,7 +254,7 @@ function HomePage() {
                   <option value="2">2 guests</option>
                   <option value="3">3 guests</option>
                   <option value="4">4 guests</option>
-                  <option value="6">6+ guests</option>
+                  <option value="5">5 guests</option>
                 </select>
               </label>
             </div>

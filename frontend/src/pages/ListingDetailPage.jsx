@@ -2,41 +2,51 @@ import { CalendarDaysIcon, MapPinIcon, UserGroupIcon } from '@heroicons/react/24
 import { useEffect, useState } from 'react';
 import DatePicker from 'react-datepicker';
 import toast from 'react-hot-toast';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
-import { formatCurrency, formatDate } from '../lib/formatters';
+import { formatCurrency, formatDate, formatDateRange } from '../lib/formatters';
+import { addDays, ensureCheckoutDate, parseDateParam } from '../lib/dateUtils';
 import ListingCard from '../components/ListingCard';
 import PageLoader from '../components/PageLoader';
 
-const tomorrow = () => {
-  const date = new Date();
-  date.setDate(date.getDate() + 1);
-  return date;
-};
+const tomorrow = () => addDays(new Date(), 1);
 
 function ListingDetailPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
-  const queryStartDate = searchParams.get('startDate');
-  const queryEndDate = searchParams.get('endDate');
-  const queryGuests = searchParams.get('guests');
+
+  const statePrefill = location.state?.bookingPrefill || {};
+  const startFromState = parseDateParam(statePrefill.startDate);
+  const endFromState = parseDateParam(statePrefill.endDate);
+  const startFromQuery = parseDateParam(searchParams.get('startDate'));
+  const endFromQuery = parseDateParam(searchParams.get('endDate'));
+
+  const initialStartDate = startFromState || startFromQuery || tomorrow();
+  const initialEndDate = ensureCheckoutDate(initialStartDate, endFromState || endFromQuery || addDays(initialStartDate, 1), 1);
+  const initialGuests = Number(statePrefill.guests || searchParams.get('guests') || 1);
+
   const [listing, setListing] = useState(null);
   const [related, setRelated] = useState([]);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [booking, setBooking] = useState({
-    startDate: queryStartDate ? new Date(queryStartDate) : tomorrow(),
-    endDate: queryEndDate ? new Date(queryEndDate) : tomorrow(),
-    guests: Number(queryGuests || 1),
+    startDate: initialStartDate,
+    endDate: initialEndDate,
+    guests: initialGuests,
     contactName: '',
     contactEmail: '',
     contactPhone: '',
     specialRequests: '',
   });
   const [availability, setAvailability] = useState(null);
+  const stayNights = Math.max(
+    Math.round((booking.endDate.getTime() - booking.startDate.getTime()) / (1000 * 60 * 60 * 24)),
+    1
+  );
 
   useEffect(() => {
     const fetchListing = async () => {
@@ -64,6 +74,23 @@ function ListingDetailPage() {
       }));
     }
   }, [user]);
+
+  const updateStartDate = (date) => {
+    setAvailability(null);
+    setBooking((prev) => ({
+      ...prev,
+      startDate: date,
+      endDate: ensureCheckoutDate(date, prev.endDate, listing?.type === 'room' ? 1 : 0),
+    }));
+  };
+
+  const updateEndDate = (date) => {
+    setAvailability(null);
+    setBooking((prev) => ({
+      ...prev,
+      endDate: ensureCheckoutDate(prev.startDate, date, listing?.type === 'room' ? 1 : 0),
+    }));
+  };
 
   const checkAvailability = async () => {
     if (!listing) return;
@@ -102,7 +129,7 @@ function ListingDetailPage() {
         ...booking,
       });
       toast.success('Booking created');
-      navigate(`/booking/confirmation/${data.booking._id}`, { state: { booking: data.booking } });
+      navigate(`/booking/confirmation/${data.booking._id}`, { state: { booking: data.booking, resetBookingModal: true } });
     } catch (error) {
       toast.error(error.response?.data?.message || 'Unable to create booking');
     }
@@ -130,11 +157,11 @@ function ListingDetailPage() {
               </span>
               <span className="inline-flex items-center gap-2">
                 <MapPinIcon className="h-4 w-4" />
-                {listing.location}
+                Bowline Nature Stay, Devaramane, Mudigere, Chikkamagaluru
               </span>
               <span className="inline-flex items-center gap-2">
                 <CalendarDaysIcon className="h-4 w-4" />
-                {listing.duration || 'Flexible duration'}
+                {listing.duration || 'Stay by selected dates'}
               </span>
               <span className="inline-flex items-center gap-2">
                 <UserGroupIcon className="h-4 w-4" />
@@ -152,19 +179,6 @@ function ListingDetailPage() {
                 </span>
               ))}
             </div>
-
-            {listing.availableDates?.length ? (
-              <div className="mt-8 rounded-[1.5rem] bg-slate-900/70 p-4">
-                <p className="text-sm font-semibold text-white">Available dates</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {listing.availableDates.map((date) => (
-                    <span key={date} className="rounded-full bg-white/5 px-3 py-2 text-xs text-slate-300">
-                      {formatDate(date)}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ) : null}
           </div>
         </div>
 
@@ -172,34 +186,34 @@ function ListingDetailPage() {
           <div className="glass rounded-[2rem] p-6">
             <div className="flex items-end justify-between gap-3">
               <div>
-                <p className="text-sm text-[#b7c2b2]">Indicative price</p>
+                <p className="text-sm text-[#b7c2b2]">Tariff</p>
                 <h2 className="mt-2 text-4xl font-bold text-lime-200">{formatCurrency(listing.price)}</h2>
               </div>
               <p className="text-sm text-[#b7c2b2]">per {listing.priceUnit === 'person' ? 'person' : listing.priceUnit}</p>
             </div>
 
             <div className="mt-5 rounded-[1.5rem] border border-lime-100/10 bg-[#0d1710]/80 p-4 text-sm text-[#c1cbbd]">
-              This page only collects a booking request. Tariffs shown here follow the brochure. Complimentary breakfast is included, while lunch and dinner are available as add-ons at ₹299 each.
+              Complimentary breakfast is included. Lunch and dinner can be added at 299 each. Choose your stay dates below before checking availability.
             </div>
 
             <form className="mt-6 space-y-4" onSubmit={submitBooking}>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="label">Start date</label>
+                  <label className="label">Check-in date</label>
                   <DatePicker
                     selected={booking.startDate}
-                    onChange={(date) => setBooking((prev) => ({ ...prev, startDate: date }))}
+                    onChange={(date) => updateStartDate(date)}
                     className="input"
                     minDate={new Date()}
                   />
                 </div>
                 <div>
-                  <label className="label">End date</label>
+                  <label className="label">Check-out date</label>
                   <DatePicker
                     selected={booking.endDate}
-                    onChange={(date) => setBooking((prev) => ({ ...prev, endDate: date }))}
+                    onChange={(date) => updateEndDate(date)}
                     className="input"
-                    minDate={booking.startDate}
+                    minDate={addDays(booking.startDate, listing.type === 'room' ? 1 : 0)}
                   />
                 </div>
               </div>
@@ -211,7 +225,10 @@ function ListingDetailPage() {
                   min="1"
                   max={listing.capacity}
                   value={booking.guests}
-                  onChange={(event) => setBooking((prev) => ({ ...prev, guests: Number(event.target.value) }))}
+                  onChange={(event) => {
+                    setAvailability(null);
+                    setBooking((prev) => ({ ...prev, guests: Number(event.target.value) }));
+                  }}
                 />
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -262,22 +279,14 @@ function ListingDetailPage() {
 
             {availability ? (
               <div className="mt-5 rounded-[1.5rem] border border-white/10 bg-slate-900/70 p-4 text-sm">
-                <p className={availability.available ? 'text-emerald-300' : 'text-rose-300'}>
-                  {availability.reason}
-                </p>
-                <p className="mt-2 text-slate-300">Indicative unit price: {formatCurrency(availability.pricing.unitPrice)}</p>
-                <p className="text-slate-300">
-                  Estimated booking value: {formatCurrency(availability.pricing.totalPrice)}
-                  {listing.priceUnit === 'person' ? ' for all guests' : ''}
-                </p>
+                <p className={availability.available ? 'text-emerald-300' : 'text-rose-300'}>{availability.reason}</p>
+                <p className="mt-2 text-slate-300">Stay dates: {formatDateRange(booking.startDate, booking.endDate)}</p>
+                <p className="text-slate-300">Duration: {stayNights} {stayNights === 1 ? 'night' : 'nights'}</p>
+                <p className="text-slate-300">Guests: {booking.guests}</p>
+                <p className="text-slate-300">Average nightly tariff: {formatCurrency(availability.pricing.unitPrice)} per person</p>
+                <p className="text-slate-300">Estimated booking value: {formatCurrency(availability.pricing.totalPrice)}</p>
                 {availability.pricing.adjustments?.length ? (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {availability.pricing.adjustments.map((item) => (
-                      <span key={item} className="rounded-full border border-white/10 px-2 py-1 text-xs text-slate-400">
-                        {item}
-                      </span>
-                    ))}
-                  </div>
+                  <p className="mt-2 text-slate-400">Applied tariff notes: {availability.pricing.adjustments.join(', ')}</p>
                 ) : null}
               </div>
             ) : null}

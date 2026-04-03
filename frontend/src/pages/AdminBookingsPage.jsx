@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
-import { formatCurrency, formatDate } from '../lib/formatters';
+import { formatCurrency, formatDateRange } from '../lib/formatters';
 import PageLoader from '../components/PageLoader';
 import SectionHeader from '../components/SectionHeader';
 import EmptyState from '../components/EmptyState';
@@ -119,9 +119,8 @@ function AdminBookingsPage() {
                         <div>
                           <p className="text-xs uppercase tracking-[0.22em] text-slate-500">{booking.bookingType}</p>
                           <h3 className="mt-2 text-xl font-semibold text-white">{booking.listing?.name}</h3>
-                          <p className="mt-2 text-sm text-slate-300">
-                            {booking.user?.name} • {booking.user?.email} • {formatDate(booking.startDate)}
-                          </p>
+                          <p className="mt-2 text-sm text-slate-300">{booking.user?.name} • {booking.user?.email}</p>
+                          <p className="mt-2 text-sm text-slate-300">Stay dates: {formatDateRange(booking.startDate, booking.endDate)}</p>
                           <p className="mt-2 text-sm text-slate-400">
                             Contact: {booking.contactName} • {booking.contactPhone || 'No phone'}
                           </p>

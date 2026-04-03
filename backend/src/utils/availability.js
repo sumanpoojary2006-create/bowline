@@ -4,8 +4,8 @@ export const getExistingBookingsForRange = async ({ listingId, startDate, endDat
   Booking.find({
     listing: listingId,
     status: { $in: ['pending', 'confirmed'] },
-    startDate: { $lte: new Date(endDate) },
-    endDate: { $gte: new Date(startDate) },
+    startDate: { $lt: new Date(endDate) },
+    endDate: { $gt: new Date(startDate) },
   });
 
 export const validateListingAvailability = async ({
@@ -23,6 +23,10 @@ export const validateListingAvailability = async ({
 
   if (normalizedEnd < normalizedStart) {
     return { available: false, reason: 'End date must be after start date' };
+  }
+
+  if (listing.type === 'room' && normalizedEnd <= normalizedStart) {
+    return { available: false, reason: 'Check-out must be at least one day after check-in' };
   }
 
   const existingBookings = await getExistingBookingsForRange({

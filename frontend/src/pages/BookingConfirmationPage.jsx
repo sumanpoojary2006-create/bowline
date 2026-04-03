@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import api from '../lib/api';
-import { formatCurrency, formatDate } from '../lib/formatters';
+import { formatCurrency, formatDateRange } from '../lib/formatters';
 import PageLoader from '../components/PageLoader';
 
 function BookingConfirmationPage() {
@@ -56,23 +56,38 @@ function BookingConfirmationPage() {
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
           <div className="rounded-[1.5rem] bg-slate-900/70 p-5">
-            <p className="text-sm text-slate-400">Experience</p>
+            <p className="text-sm text-slate-400">Stay</p>
             <p className="mt-2 text-xl font-semibold text-white">{booking.listing?.name}</p>
+            <p className="mt-2 text-sm text-slate-300">{booking.listing?.location}</p>
           </div>
           <div className="rounded-[1.5rem] bg-slate-900/70 p-5">
             <p className="text-sm text-slate-400">Estimated booking value</p>
             <p className="mt-2 text-xl font-semibold text-lime-200">{formatCurrency(booking.totalPrice)}</p>
           </div>
           <div className="rounded-[1.5rem] bg-slate-900/70 p-5">
-            <p className="text-sm text-slate-400">Dates</p>
+            <p className="text-sm text-slate-400">Stay dates</p>
             <p className="mt-2 text-white">
-              {formatDate(booking.startDate)} to {formatDate(booking.endDate)}
+              {formatDateRange(booking.startDate, booking.endDate)}
             </p>
           </div>
           <div className="rounded-[1.5rem] bg-slate-900/70 p-5">
             <p className="text-sm text-slate-400">Status</p>
             <p className="mt-2 text-white">{booking.status}</p>
           </div>
+          <div className="rounded-[1.5rem] bg-slate-900/70 p-5">
+            <p className="text-sm text-slate-400">Guests</p>
+            <p className="mt-2 text-white">{booking.guests}</p>
+          </div>
+          <div className="rounded-[1.5rem] bg-slate-900/70 p-5">
+            <p className="text-sm text-slate-400">Contact</p>
+            <p className="mt-2 text-white">{booking.contactName}</p>
+            <p className="text-sm text-slate-300">{booking.contactPhone || booking.contactEmail}</p>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-[1.5rem] bg-slate-900/70 p-5">
+          <p className="text-sm text-slate-400">Special requests</p>
+          <p className="mt-2 text-white">{booking.specialRequests || 'None'}</p>
         </div>
 
         <div className="mt-8 flex flex-wrap gap-3">
