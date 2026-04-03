@@ -93,6 +93,87 @@ export const createBooking = async (req, res, next) => {
   }
 };
 
+export const createAdminManualRoomBooking = async (req, res, next) => {
+  try {
+    const {
+      listingId,
+      startDate,
+      endDate,
+      guests = 1,
+      contactName,
+      contactEmail,
+      contactPhone = '',
+      specialRequests = '',
+    } = req.body;
+
+    if (!listingId || !startDate || !endDate || !contactName || !contactEmail) {
+      res.status(400);
+      throw new Error('Room, dates, contact name, and contact email are required');
+    }
+
+    const listing = await Listing.findById(listingId);
+
+    if (!listing || !listing.active || listing.type !== 'room') {
+      res.status(404);
+      throw new Error('Room listing not found');
+    }
+
+    const normalizedStartDate = new Date(startDate);
+    const normalizedEndDate = new Date(endDate);
+    const normalizedGuests = Number(guests);
+
+    const availability = await validateListingAvailability({
+      listing,
+      startDate: normalizedStartDate,
+      endDate: normalizedEndDate,
+      guests: normalizedGuests,
+    });
+
+    if (!availability.available) {
+      res.status(400);
+      throw new Error(availability.reason);
+    }
+
+    const pricing = await calculateBookingPrice({
+      listing,
+      bookingType: 'room',
+      startDate: normalizedStartDate,
+      endDate: normalizedEndDate,
+      guests: normalizedGuests,
+    });
+
+    const booking = await Booking.create({
+      bookingType: 'room',
+      listing: listing._id,
+      user: req.user._id,
+      startDate: normalizedStartDate,
+      endDate: normalizedEndDate,
+      guests: normalizedGuests,
+      unitPrice: pricing.unitPrice,
+      totalPrice: pricing.totalPrice,
+      pricingBreakdown: {
+        basePrice: pricing.basePrice,
+        adjustments: pricing.adjustments,
+      },
+      paymentMethod: 'manual',
+      status: 'confirmed',
+      paymentStatus: 'pending',
+      contactName: String(contactName).trim(),
+      contactEmail: String(contactEmail).trim().toLowerCase(),
+      contactPhone: String(contactPhone || '').trim(),
+      specialRequests: String(specialRequests || '').trim(),
+    });
+
+    const populatedBooking = await Booking.findById(booking._id)
+      .populate('listing')
+      .populate('user', 'name email phone');
+
+    res.status(201).json({ booking: populatedBooking });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getMyBookings = async (req, res, next) => {
   try {
     const bookings = await Booking.find({ user: req.user._id })

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
 import { formatCurrency, formatDateRange } from '../lib/formatters';
+import { addDays, formatDateParam } from '../lib/dateUtils';
 import PageLoader from '../components/PageLoader';
 import SectionHeader from '../components/SectionHeader';
 import EmptyState from '../components/EmptyState';
@@ -13,11 +14,25 @@ const statusSections = [
 ];
 
 function AdminBookingsPage() {
+  const defaultCheckIn = formatDateParam(new Date());
+  const defaultCheckOut = formatDateParam(addDays(new Date(), 1));
   const [bookings, setBookings] = useState([]);
+  const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [creatingManualBooking, setCreatingManualBooking] = useState(false);
   const [filters, setFilters] = useState({
     type: '',
     status: '',
+  });
+  const [manualForm, setManualForm] = useState({
+    listingId: '',
+    startDate: defaultCheckIn,
+    endDate: defaultCheckOut,
+    guests: 1,
+    contactName: '',
+    contactEmail: '',
+    contactPhone: '',
+    specialRequests: '',
   });
 
   const fetchBookings = async () => {
@@ -35,6 +50,17 @@ function AdminBookingsPage() {
   useEffect(() => {
     document.title = 'Bowline Admin | Bookings';
     fetchBookings();
+
+    const fetchRooms = async () => {
+      try {
+        const { data } = await api.get('/listings/admin/all');
+        setRooms(data.listings.filter((listing) => listing.type === 'room' && listing.active));
+      } catch (error) {
+        toast.error(error.response?.data?.message || 'Unable to load room inventory');
+      }
+    };
+
+    fetchRooms();
   }, []);
 
   useEffect(() => {
@@ -48,6 +74,38 @@ function AdminBookingsPage() {
       fetchBookings();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Unable to update booking');
+    }
+  };
+
+  const selectedRoom = useMemo(
+    () => rooms.find((room) => room._id === manualForm.listingId) || null,
+    [rooms, manualForm.listingId]
+  );
+
+  const createManualBooking = async (event) => {
+    event.preventDefault();
+    setCreatingManualBooking(true);
+    try {
+      const payload = {
+        ...manualForm,
+        guests: Number(manualForm.guests),
+      };
+
+      await api.post('/bookings/admin/manual-room', payload);
+      toast.success('Manual room booking created and confirmed');
+      setManualForm((prev) => ({
+        ...prev,
+        guests: 1,
+        contactName: '',
+        contactEmail: '',
+        contactPhone: '',
+        specialRequests: '',
+      }));
+      fetchBookings();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Unable to create manual booking');
+    } finally {
+      setCreatingManualBooking(false);
     }
   };
 
@@ -82,6 +140,105 @@ function AdminBookingsPage() {
         title="Track and moderate every reservation"
         description={`Current filtered booking value: ${formatCurrency(estimatedValue)}`}
       />
+
+      <form className="grid gap-4 rounded-[2rem] border border-lime-100/10 bg-[#0d1710]/70 p-5" onSubmit={createManualBooking}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-xl font-semibold text-white">Manual room booking</h3>
+            <p className="mt-1 text-sm text-[#c4cec0]">
+              Create a confirmed booking directly from admin. Once created, overlapping dates appear fully booked to users.
+            </p>
+          </div>
+          <button className="btn-primary" type="submit" disabled={creatingManualBooking}>
+            {creatingManualBooking ? 'Creating...' : 'Create & Confirm'}
+          </button>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <select
+            className="input"
+            value={manualForm.listingId}
+            onChange={(event) => setManualForm((prev) => ({ ...prev, listingId: event.target.value }))}
+            required
+          >
+            <option value="">Select room</option>
+            {rooms.map((room) => (
+              <option key={room._id} value={room._id}>
+                {room.name} (max {room.capacity})
+              </option>
+            ))}
+          </select>
+
+          <input
+            className="input"
+            type="date"
+            value={manualForm.startDate}
+            onChange={(event) => {
+              const nextStart = event.target.value;
+              setManualForm((prev) => {
+                const minimumCheckout = formatDateParam(addDays(new Date(nextStart), 1));
+                return {
+                  ...prev,
+                  startDate: nextStart,
+                  endDate: prev.endDate < minimumCheckout ? minimumCheckout : prev.endDate,
+                };
+              });
+            }}
+            required
+          />
+
+          <input
+            className="input"
+            type="date"
+            value={manualForm.endDate}
+            min={formatDateParam(addDays(new Date(manualForm.startDate), 1))}
+            onChange={(event) => setManualForm((prev) => ({ ...prev, endDate: event.target.value }))}
+            required
+          />
+
+          <input
+            className="input"
+            type="number"
+            min="1"
+            max={selectedRoom?.capacity || 20}
+            value={manualForm.guests}
+            onChange={(event) => setManualForm((prev) => ({ ...prev, guests: event.target.value }))}
+            placeholder="Guests"
+            required
+          />
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <input
+            className="input"
+            value={manualForm.contactName}
+            onChange={(event) => setManualForm((prev) => ({ ...prev, contactName: event.target.value }))}
+            placeholder="Guest name"
+            required
+          />
+          <input
+            className="input"
+            type="email"
+            value={manualForm.contactEmail}
+            onChange={(event) => setManualForm((prev) => ({ ...prev, contactEmail: event.target.value }))}
+            placeholder="Guest email"
+            required
+          />
+          <input
+            className="input"
+            value={manualForm.contactPhone}
+            onChange={(event) => setManualForm((prev) => ({ ...prev, contactPhone: event.target.value }))}
+            placeholder="Guest phone"
+          />
+        </div>
+
+        <textarea
+          className="input min-h-24"
+          value={manualForm.specialRequests}
+          onChange={(event) => setManualForm((prev) => ({ ...prev, specialRequests: event.target.value }))}
+          placeholder="Internal notes or guest requests"
+        />
+      </form>
 
       <div className="grid gap-4 rounded-[2rem] border border-lime-100/10 bg-[#0d1710]/70 p-4 md:grid-cols-2">
         <select className="input" value={filters.type} onChange={(event) => setFilters((prev) => ({ ...prev, type: event.target.value }))}>
