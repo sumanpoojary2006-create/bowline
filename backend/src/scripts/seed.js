@@ -10,122 +10,199 @@ import { slugify } from '../utils/slugify.js';
 
 dotenv.config();
 
-const listingSeeds = [
+const sharedAmenities = [
+  '24x7 Hot Water',
+  'Free Wi-Fi',
+  'On-site Parking',
+  'Power Backup',
+  'First-aid Facility',
+  'Refrigerator',
+  'Hot Water Kettle',
+  'Toiletries - Shower Gel',
+];
+
+const sharedFacilities = [
+  'Shared Kitchen',
+  'Shared Hall & Dining Area',
+  'Projector (Common Hall)',
+  'Common Washing Machine',
+  'Sound System',
+  'BBQ Grill (Group Bookings Only)',
+  'Coffee Plantation Stroll',
+  'Nature Walk',
+  'Campfire (Weather Permitting)',
+];
+
+const roomSeeds = [
   {
     type: 'room',
-    name: 'Tranquil Nest',
-    location: 'Mudigere, Chikkamagaluru',
-    shortDescription: 'A calm mountain-facing room for couples and small families.',
+    name: 'Cozy 1',
+    location: 'Bowline Nature Stay, Devaramane, Mudigere, Chikkamagaluru',
+    shortDescription: 'Ground-floor room with one double bed, two single beds, and an attached bathroom.',
     description:
-      'A warm queen room with plantation views, breakfast, bonfire access, and guided nature walks.',
-    price: 5600,
-    priceUnit: 'night',
-    maxOccupancy: 3,
-    capacity: 3,
-    amenities: ['WiFi', 'Hot Water', 'Mountain View', 'Breakfast'],
-    facilities: ['Camp Fire', 'Coffee Plantation', 'Nature Walk'],
+      'Cozy 1 is a ground-floor room at Bowline Nature Stay with a minimum occupancy of 2 and a maximum occupancy of 4. The brochure lists one double bed, two single beds, complimentary breakfast, and access to all shared homestay amenities and common spaces. Child tariff is 50% of adult tariff for ages 6 to 12.',
+    price: 1799,
+    priceUnit: 'person',
+    maxOccupancy: 4,
+    capacity: 4,
+    amenities: sharedAmenities,
+    facilities: [
+      ...sharedFacilities,
+      'Attached Bathroom',
+      'Authentic Malnad Cuisine',
+      'Host-guided Local Experiences',
+    ],
     images: [
       'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80',
     ],
     availabilityStatus: 'available',
     featured: true,
+    manualPriceOverride: null,
   },
   {
     type: 'room',
-    name: 'Deluxe Ridge Penthouse',
-    location: 'Mudigere, Chikkamagaluru',
-    shortDescription: 'A panoramic penthouse with kitchen access and dramatic valley views.',
+    name: 'Cozy 2',
+    location: 'Bowline Nature Stay, Devaramane, Mudigere, Chikkamagaluru',
+    shortDescription: 'Ground-floor room with one double bed, two single beds, and an attached bathroom.',
     description:
-      'This penthouse includes a king bed, private kitchenette, work corner, wraparound balcony, and easy access to guided off-road experiences.',
-    price: 8000,
-    priceUnit: 'night',
+      'Cozy 2 mirrors the brochure configuration of Cozy 1 with a minimum occupancy of 2 and a maximum occupancy of 4. It includes one double bed, two single beds, complimentary breakfast, and full access to the common dining, kitchen, and activity spaces inside the homestay.',
+    price: 1799,
+    priceUnit: 'person',
     maxOccupancy: 4,
     capacity: 4,
-    amenities: ['WiFi', 'Private Kitchen', 'King Bed', 'Balcony'],
-    facilities: ['Projector Show', 'Camp Fire', 'Coffee Plantation'],
+    amenities: sharedAmenities,
+    facilities: [
+      ...sharedFacilities,
+      'Attached Bathroom',
+      'Authentic Malnad Cuisine',
+      'Host-guided Local Experiences',
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1505693536294-233b40443e1d?auto=format&fit=crop&w=1200&q=80',
+    ],
+    availabilityStatus: 'available',
+    featured: true,
+    manualPriceOverride: null,
+  },
+  {
+    type: 'room',
+    name: 'Cozy Mini',
+    location: 'Bowline Nature Stay, Devaramane, Mudigere, Chikkamagaluru',
+    shortDescription: 'First-floor compact room with three single beds and an attached bathroom.',
+    description:
+      'Cozy Mini is a first-floor room with a minimum occupancy of 1 and a maximum occupancy of 3. The brochure lists three single beds, complimentary breakfast, and access to Bowline’s shared kitchen, common hall, dining area, and guided homestay experiences.',
+    price: 1699,
+    priceUnit: 'person',
+    maxOccupancy: 3,
+    capacity: 3,
+    amenities: sharedAmenities,
+    facilities: [
+      ...sharedFacilities,
+      'Attached Bathroom',
+      'Ideal for Solo or Small Group Stays',
+    ],
     images: [
       'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80',
     ],
-    availabilityStatus: 'limited',
+    availabilityStatus: 'available',
     featured: true,
+    manualPriceOverride: null,
   },
   {
-    type: 'trek',
-    name: 'Ettina Bhuja Sunrise Trek',
-    location: 'Mudigere, Karnataka',
-    shortDescription: 'A scenic guided ridge trek with sunrise views and local breakfast.',
+    type: 'room',
+    name: 'Dormitory (Open Loft)',
+    location: 'Bowline Nature Stay, Devaramane, Mudigere, Chikkamagaluru',
+    shortDescription: 'First-floor open loft dorm with five single beds and one shared bathroom.',
     description:
-      'An early morning trek ideal for new and intermediate hikers, covering forest paths, ridges, and a hearty local breakfast at basecamp.',
-    price: 1999,
+      'The dormitory at Bowline Nature Stay is an open loft setup on the first floor with a minimum occupancy of 1 and a maximum occupancy of 5. The brochure notes five single beds, one shared bathroom, complimentary breakfast, and access to all common amenities and activity areas.',
+    price: 1299,
     priceUnit: 'person',
+    maxOccupancy: 5,
+    capacity: 5,
+    amenities: sharedAmenities,
+    facilities: [
+      ...sharedFacilities,
+      'Shared Bathroom',
+      'Open Loft Layout',
+      'Budget-friendly Group Stay',
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1200&q=80',
+    ],
+    availabilityStatus: 'available',
+    featured: false,
+    manualPriceOverride: null,
+  },
+  {
+    type: 'room',
+    name: 'Pent House',
+    location: 'Bowline Nature Stay, Devaramane, Mudigere, Chikkamagaluru',
+    shortDescription: 'Second-floor pent house with one double bed, two single beds, and an attached bathroom.',
+    description:
+      'The Pent House sits on the second floor with a minimum occupancy of 2 and a maximum occupancy of 4. According to the brochure, it includes one double bed, two single beds, complimentary breakfast, attached bathroom access, and the same homestay-led guided experiences offered across the property.',
+    price: 2199,
+    priceUnit: 'person',
+    maxOccupancy: 4,
+    capacity: 4,
+    amenities: sharedAmenities,
+    facilities: [
+      ...sharedFacilities,
+      'Attached Bathroom',
+      'Second-floor Stay',
+      'Best Overall View Point Inside Property',
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1200&q=80',
+    ],
+    availabilityStatus: 'limited',
+    featured: true,
+    manualPriceOverride: null,
+  },
+];
+
+const activitySeeds = [
+  {
+    type: 'trek',
+    name: 'Offbeat Trekking',
+    location: 'Devaramane & nearby trails, Mudigere',
+    shortDescription: 'A guided offbeat trek offered only with package stays or two-night homestay bookings.',
+    description:
+      'The brochure lists offbeat trekking as one of Bowline Nature Stay’s included experiences for package guests or visitors staying for two nights. It is positioned as a guided outdoor activity led from the homestay itself.',
+    price: 0,
+    priceUnit: 'package',
     capacity: 20,
     difficulty: 'Moderate',
-    duration: '1 Day',
-    facilities: ['Guide', 'Breakfast', 'Transport Add-on'],
+    duration: 'Depends on route',
+    facilities: ['Included for package / 2 night stay', 'Guided by hosts', 'Forest Trail Access'],
     images: [
       'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=80',
     ],
-    availableDates: ['2026-04-10', '2026-04-17', '2026-04-24'],
-    availabilityStatus: 'available',
-    featured: true,
-  },
-  {
-    type: 'trek',
-    name: 'Devaramane Forest Trail',
-    location: 'Devaramane, Karnataka',
-    shortDescription: 'A softer guided forest trail for families and first-timers.',
-    description:
-      'Walk through coffee estates and dense greenery with a local naturalist, waterfall stop, and optional packed lunch.',
-    price: 1499,
-    priceUnit: 'person',
-    capacity: 15,
-    difficulty: 'Easy',
-    duration: '6 Hours',
-    facilities: ['Naturalist Guide', 'Snacks', 'Waterfall Visit'],
-    images: [
-      'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80',
-    ],
     availableDates: ['2026-04-12', '2026-04-19', '2026-04-26'],
     availabilityStatus: 'available',
+    featured: false,
   },
   {
     type: 'camp',
-    name: 'Bowline Wilderness Camp',
-    location: 'Chikkamagaluru',
-    shortDescription: 'An immersive weekend camp with survival drills, first aid, and campfire circles.',
+    name: 'Campfire & Nature Evening',
+    location: 'Bowline Nature Stay, Mudigere',
+    shortDescription: 'An in-house evening experience with campfire, indoor games, and shared common spaces.',
     description:
-      'Learn rope craft, navigation, first aid, and confidence-building outdoor routines in a guided camp environment for teenagers and adults.',
-    price: 3999,
+      'The brochure highlights campfire access depending on weather, indoor and outdoor games, a mini library, projector use in the common hall, and sound system access as part of the Bowline homestay experience.',
+    price: 99,
     priceUnit: 'package',
-    capacity: 30,
-    duration: '2 Days',
-    facilities: ['Meals', 'Tent Stay', 'Survival Skills', 'First Aid'],
+    capacity: 20,
+    duration: 'Evening',
+    facilities: ['Campfire (Depends on weather)', 'Indoor & Outdoor Games', 'Mini Library', 'Projector Hall'],
     images: [
       'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=1200&q=80',
     ],
-    availableDates: ['2026-05-02', '2026-05-16', '2026-06-06'],
+    availableDates: ['2026-04-12', '2026-04-19', '2026-04-26'],
     availabilityStatus: 'available',
-    featured: true,
-  },
-  {
-    type: 'camp',
-    name: 'Monsoon Wellness Camp',
-    location: 'Mudigere',
-    shortDescription: 'A restorative camp with yoga, forest walks, and mindful outdoor routines.',
-    description:
-      'Designed for small groups that want a slower and more reflective outdoor escape with guided yoga and rain-soaked plantation experiences.',
-    price: 3499,
-    priceUnit: 'package',
-    capacity: 24,
-    duration: '2 Days',
-    facilities: ['Yoga Sessions', 'All Meals', 'Rain Walk', 'Bonfire'],
-    images: [
-      'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80',
-    ],
-    availableDates: ['2026-06-20', '2026-07-04'],
-    availabilityStatus: 'limited',
+    featured: false,
   },
 ];
+
+const listingSeeds = [...roomSeeds, ...activitySeeds];
 
 const seed = async () => {
   await connectDb();
@@ -159,72 +236,109 @@ const seed = async () => {
       ...listing,
       slug: slugify(listing.name),
       seo: {
-        metaTitle: `Bowline | ${listing.name}`,
+        metaTitle: `Bowline Nature Stay | ${listing.name}`,
         metaDescription: listing.shortDescription,
       },
     }))
   );
 
-  const room = listings.find((listing) => listing.type === 'room');
-  const trek = listings.find((listing) => listing.type === 'trek');
+  const cozy1 = listings.find((listing) => listing.slug === slugify('Cozy 1'));
+  const cozy2 = listings.find((listing) => listing.slug === slugify('Cozy 2'));
+  const cozyMini = listings.find((listing) => listing.slug === slugify('Cozy Mini'));
+  const dormitory = listings.find((listing) => listing.slug === slugify('Dormitory (Open Loft)'));
+  const pentHouse = listings.find((listing) => listing.slug === slugify('Pent House'));
 
   await PricingRule.insertMany([
     {
-      name: 'Weekend stay surcharge',
+      name: 'Cozy 1 weekend tariff',
+      listing: cozy1._id,
       listingType: 'room',
-      startDate: new Date('2026-04-01'),
+      startDate: new Date('2026-01-01'),
       endDate: new Date('2026-12-31'),
       adjustmentType: 'flat',
-      adjustmentValue: 500,
-      priority: 2,
+      adjustmentValue: 200,
+      priority: 3,
       active: true,
     },
     {
-      name: 'Summer adventure promo',
-      listing: trek._id,
-      listingType: 'trek',
-      startDate: new Date('2026-04-01'),
-      endDate: new Date('2026-05-30'),
-      adjustmentType: 'percentage',
-      adjustmentValue: -10,
+      name: 'Cozy 2 weekend tariff',
+      listing: cozy2._id,
+      listingType: 'room',
+      startDate: new Date('2026-01-01'),
+      endDate: new Date('2026-12-31'),
+      adjustmentType: 'flat',
+      adjustmentValue: 200,
+      priority: 3,
+      active: true,
+    },
+    {
+      name: 'Cozy Mini weekend tariff',
+      listing: cozyMini._id,
+      listingType: 'room',
+      startDate: new Date('2026-01-01'),
+      endDate: new Date('2026-12-31'),
+      adjustmentType: 'flat',
+      adjustmentValue: 100,
+      priority: 3,
+      active: true,
+    },
+    {
+      name: 'Dormitory weekend tariff',
+      listing: dormitory._id,
+      listingType: 'room',
+      startDate: new Date('2026-01-01'),
+      endDate: new Date('2026-12-31'),
+      adjustmentType: 'flat',
+      adjustmentValue: 100,
+      priority: 3,
+      active: true,
+    },
+    {
+      name: 'Pent House weekend tariff',
+      listing: pentHouse._id,
+      listingType: 'room',
+      startDate: new Date('2026-01-01'),
+      endDate: new Date('2026-12-31'),
+      adjustmentType: 'flat',
+      adjustmentValue: 300,
       priority: 3,
       active: true,
     },
   ]);
 
   await Booking.create({
-    bookingType: room.type,
-    listing: room._id,
+    bookingType: cozy1.type,
+    listing: cozy1._id,
     user: user._id,
-    startDate: new Date('2026-04-11'),
-    endDate: new Date('2026-04-13'),
+    startDate: new Date('2026-04-14'),
+    endDate: new Date('2026-04-16'),
     guests: 2,
-    unitPrice: 6100,
-    totalPrice: 12200,
+    unitPrice: 1799,
+    totalPrice: 7196,
     pricingBreakdown: {
-      basePrice: 5600,
-      adjustments: ['Weekend stay surcharge: ₹500'],
+      basePrice: 1799,
+      adjustments: [],
     },
     status: 'confirmed',
-    paymentStatus: 'paid',
+    paymentStatus: 'pending',
     paymentMethod: 'manual',
     contactName: 'Trail Explorer',
     contactEmail: 'explorer@bowline.com',
     contactPhone: '+91 9876543210',
-    specialRequests: 'Need early breakfast before trek.',
+    specialRequests: 'Would like lunch and dinner add-on for both days.',
   });
 
   await Notification.insertMany([
     {
       user: admin._id,
-      title: 'Seed data ready',
-      message: 'The Bowline admin dashboard has been initialized with sample listings and bookings.',
+      title: 'Bowline Nature Stay data loaded',
+      message: 'Brochure-based room inventory, tariffs, and amenities are ready in the admin dashboard.',
       type: 'system',
     },
     {
       user: user._id,
-      title: 'Welcome to Bowline',
-      message: 'Your sample user account is ready. Explore stays, treks, and camps.',
+      title: 'Welcome to Bowline Nature Stay',
+      message: 'Explore the brochure-based room inventory and send a booking request for your stay.',
       type: 'system',
     },
   ]);

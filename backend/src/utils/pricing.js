@@ -37,7 +37,12 @@ export const calculateBookingPrice = async ({
 }) => {
   const units = calculateDurationUnits(bookingType, startDate, endDate);
   const effectiveBase = listing.manualPriceOverride ?? listing.price;
-  const multiplier = bookingType === 'room' ? units : guests;
+  const multiplier =
+    bookingType === 'room'
+      ? listing.priceUnit === 'person'
+        ? units * guests
+        : units
+      : guests;
   let unitPrice = effectiveBase;
   const adjustments = [];
 

@@ -175,11 +175,11 @@ function ListingDetailPage() {
                 <p className="text-sm text-[#b7c2b2]">Indicative price</p>
                 <h2 className="mt-2 text-4xl font-bold text-lime-200">{formatCurrency(listing.price)}</h2>
               </div>
-              <p className="text-sm text-[#b7c2b2]">per {listing.priceUnit}</p>
+              <p className="text-sm text-[#b7c2b2]">per {listing.priceUnit === 'person' ? 'person' : listing.priceUnit}</p>
             </div>
 
             <div className="mt-5 rounded-[1.5rem] border border-lime-100/10 bg-[#0d1710]/80 p-4 text-sm text-[#c1cbbd]">
-              This page only collects a booking request. No online payment is taken here. Bowline confirms the stay manually after reviewing availability.
+              This page only collects a booking request. Tariffs shown here follow the brochure. Complimentary breakfast is included, while lunch and dinner are available as add-ons at ₹299 each.
             </div>
 
             <form className="mt-6 space-y-4" onSubmit={submitBooking}>
@@ -266,7 +266,10 @@ function ListingDetailPage() {
                   {availability.reason}
                 </p>
                 <p className="mt-2 text-slate-300">Indicative unit price: {formatCurrency(availability.pricing.unitPrice)}</p>
-                <p className="text-slate-300">Estimated booking value: {formatCurrency(availability.pricing.totalPrice)}</p>
+                <p className="text-slate-300">
+                  Estimated booking value: {formatCurrency(availability.pricing.totalPrice)}
+                  {listing.priceUnit === 'person' ? ' for all guests' : ''}
+                </p>
                 {availability.pricing.adjustments?.length ? (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {availability.pricing.adjustments.map((item) => (

@@ -46,7 +46,7 @@ function HomePage() {
   });
 
   useEffect(() => {
-    document.title = 'Bowline | Book Nature Rooms';
+    document.title = 'Bowline Nature Stay | Book Your Hillside Stay';
 
     const fetchHomeData = async () => {
       try {
@@ -65,7 +65,7 @@ function HomePage() {
     fetchHomeData();
   }, []);
 
-  const quickTags = useMemo(() => ['Coorg', 'Chikkamagaluru', 'Wayanad', 'Sakleshpur'], []);
+  const quickTags = useMemo(() => ['Mudigere', 'Devaramane', 'Chikkamagaluru', 'Malnad Hills'], []);
 
   const handleSearch = (event) => {
     event.preventDefault();
@@ -106,9 +106,9 @@ function HomePage() {
           <div className="mx-auto max-w-5xl rounded-[2.5rem] border border-lime-100/10 bg-black/20 p-6 backdrop-blur-sm sm:p-8">
             <div className="max-w-2xl">
               <h1 className="font-display text-5xl leading-tight text-[#f5f0dd] sm:text-6xl">
-                Find your perfect stay in nature.
+                Book Bowline Nature Stay in the hills.
               </h1>
-              <p className="mt-3 text-base text-[#d5ddd2]">Pick dates first. Then book the room that fits.</p>
+              <p className="mt-3 text-base text-[#d5ddd2]">Four rooms, one dorm, authentic Malnad food, and host-led nature experiences.</p>
             </div>
 
             <div className="mt-6">
@@ -133,7 +133,7 @@ function HomePage() {
             <div className="mb-4 flex items-center justify-between gap-4">
               <div>
                 <h2 className="text-3xl font-semibold text-[#f5f0dd]">Book Rooms</h2>
-                <p className="mt-1 text-sm text-[#cdd6c9]">Choose a stay. Press book now. Confirm dates.</p>
+                <p className="mt-1 text-sm text-[#cdd6c9]">Choose your room, confirm dates, then send the booking request.</p>
               </div>
               <Link className="btn-secondary hidden sm:inline-flex" to="/stays">
                 View all
@@ -164,7 +164,7 @@ function HomePage() {
             <div className="grid gap-6 px-6 py-7 lg:grid-cols-[0.85fr_1.15fr]">
               <div>
                 <p className="text-xs uppercase tracking-[0.28em] text-lime-200/80">Adventure awaits</p>
-                <h2 className="mt-3 text-3xl font-semibold text-[#f5f0dd]">Treks and camps come after the stay.</h2>
+                <h2 className="mt-3 text-3xl font-semibold text-[#f5f0dd]">What comes with the homestay.</h2>
               </div>
               <div className="grid gap-4 md:grid-cols-3">
                 {adventures.length ? (
@@ -180,13 +180,13 @@ function HomePage() {
                 ) : (
                   <>
                     <div className="rounded-[1.5rem] border border-lime-100/10 bg-black/25 p-4 backdrop-blur-sm">
-                      <p className="text-lg font-semibold text-[#f5f0dd]">Plantation Stay</p>
+                      <p className="text-lg font-semibold text-[#f5f0dd]">Offbeat Trekking</p>
                     </div>
                     <div className="rounded-[1.5rem] border border-lime-100/10 bg-black/25 p-4 backdrop-blur-sm">
-                      <p className="text-lg font-semibold text-[#f5f0dd]">Bonfire Camping</p>
+                      <p className="text-lg font-semibold text-[#f5f0dd]">Hidden Waterfall</p>
                     </div>
                     <div className="rounded-[1.5rem] border border-lime-100/10 bg-black/25 p-4 backdrop-blur-sm">
-                      <p className="text-lg font-semibold text-[#f5f0dd]">Mountain Trekking</p>
+                      <p className="text-lg font-semibold text-[#f5f0dd]">Coffee Plantation Stroll</p>
                     </div>
                   </>
                 )}

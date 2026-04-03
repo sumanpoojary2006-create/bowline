@@ -8,9 +8,9 @@ import SectionHeader from '../components/SectionHeader';
 
 const pageConfig = {
   room: {
-    title: 'Rooms and stays surrounded by coffee hills and cool air',
+    title: 'Brochure-based room inventory from Bowline Nature Stay',
     eyebrow: 'Stay Bookings',
-    description: 'Use the filters to find the right room, open the stay, and send a booking request without paying online.',
+    description: 'Browse Cozy 1, Cozy 2, Cozy Mini, the Dormitory, and the Pent House with brochure-matched per-person weekday pricing.',
   },
   trek: {
     title: 'Treks available around your Bowline stay',
