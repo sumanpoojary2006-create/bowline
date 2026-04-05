@@ -7,7 +7,7 @@ A full-stack booking platform for Bowline stays, treks, and camping experiences.
 - Frontend: React + Vite + Tailwind CSS
 - Backend: Node.js + Express
 - Database: MongoDB + Mongoose
-- Auth: JWT + bcrypt
+- Auth: JWT + bcrypt + optional Google sign-in
 - Storage: Firebase Cloud Storage ready
 - Hosting: Vercel-ready frontend + `/api` serverless routing
 - Payments: Razorpay-ready mock flow with pluggable provider support
@@ -62,13 +62,20 @@ Bowline/
 
    If these are omitted, uploads fall back to local file storage for development.
 
-5. Seed sample data:
+5. If you want Google login, configure:
+
+   - `GOOGLE_CLIENT_ID` in `backend/.env`
+   - `VITE_GOOGLE_CLIENT_ID` in `frontend/.env`
+
+   Both values should use the same Google OAuth Web Client ID.
+
+6. Seed sample data:
 
    ```bash
    npm run seed
    ```
 
-6. Run both apps:
+7. Run both apps:
 
    ```bash
    npm run dev
@@ -103,6 +110,7 @@ Frontend runs on `http://localhost:5173` and backend on `http://localhost:5000`.
 
 - `POST /api/auth/signup`
 - `POST /api/auth/login`
+- `POST /api/auth/google`
 - `GET /api/auth/me`
 - `PUT /api/auth/profile`
 

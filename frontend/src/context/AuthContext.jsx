@@ -43,6 +43,13 @@ export function AuthProvider({ children }) {
     return data;
   };
 
+  const googleLogin = async (credential) => {
+    const { data } = await api.post('/auth/google', { credential });
+    persistAuth(data);
+    toast.success(`Welcome, ${data.user.name.split(' ')[0]}`);
+    return data;
+  };
+
   const signup = async (values) => {
     const { data } = await api.post('/auth/signup', values);
     persistAuth(data);
@@ -68,6 +75,7 @@ export function AuthProvider({ children }) {
       loading,
       isAuthenticated: Boolean(user),
       login,
+      googleLogin,
       signup,
       logout,
       updateProfile,

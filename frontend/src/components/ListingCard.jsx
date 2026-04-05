@@ -16,7 +16,8 @@ function ListingCard({
   detailLabel = 'View More',
   showPrice = true,
 }) {
-  const canBook = listing.type === 'room' && typeof onBookNow === 'function';
+  const isRoom = listing.type === 'room';
+  const canBook = isRoom && typeof onBookNow === 'function';
 
   return (
     <motion.article whileHover={{ y: -6 }} className="glass overflow-hidden rounded-[1.75rem] shadow-[0_18px_50px_rgba(0,0,0,0.28)]">
@@ -62,14 +63,21 @@ function ListingCard({
         <p className="line-clamp-2 text-sm text-[#d7ded3]">{listing.shortDescription || listing.description}</p>
 
         <div className="flex gap-2">
-          <Link className="btn-secondary flex-1 rounded-[1rem] px-4 py-2.5" to={`/experiences/${listing.slug}`}>
-            {detailLabel}
-          </Link>
-          {canBook ? (
-            <button className="btn-primary flex-1 rounded-[1rem] px-4 py-2.5" onClick={() => onBookNow(listing)} type="button">
-              Book Now
-            </button>
-          ) : null}
+          {isRoom ? (
+            canBook ? (
+              <button className="btn-primary w-full rounded-[1rem] px-4 py-2.5" onClick={() => onBookNow(listing)} type="button">
+                Book Now
+              </button>
+            ) : (
+              <Link className="btn-primary w-full rounded-[1rem] px-4 py-2.5" to={`/book/${listing.slug}`}>
+                Book Now
+              </Link>
+            )
+          ) : (
+            <Link className="btn-secondary w-full rounded-[1rem] px-4 py-2.5" to={`/experiences/${listing.slug}`}>
+              {detailLabel}
+            </Link>
+          )}
         </div>
       </div>
     </motion.article>

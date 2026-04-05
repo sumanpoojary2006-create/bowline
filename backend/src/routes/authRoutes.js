@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   getCurrentUser,
+  googleLogin,
   login,
   signup,
   updateProfile,
@@ -11,6 +12,7 @@ const router = Router();
 
 router.post('/signup', signup);
 router.post('/login', login);
+router.post('/google', googleLogin);
 router.get('/me', protect, getCurrentUser);
 router.put('/profile', protect, updateProfile);
 

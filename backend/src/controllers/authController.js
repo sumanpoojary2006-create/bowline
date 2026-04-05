@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+import { OAuth2Client } from 'google-auth-library';
 import User from '../models/User.js';
 import { generateToken } from '../utils/token.js';
 
@@ -13,6 +15,14 @@ const formatAuthResponse = (user) => ({
     preferences: user.preferences,
   },
 });
+
+const googleClient = new OAuth2Client();
+
+const getAllowedGoogleClientIds = () =>
+  String(process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_IDS || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
 
 export const signup = async (req, res, next) => {
   try {
@@ -51,6 +61,58 @@ export const login = async (req, res, next) => {
     if (!user || !(await user.comparePassword(password))) {
       res.status(401);
       throw new Error('Invalid email or password');
+    }
+
+    res.json(formatAuthResponse(user));
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const googleLogin = async (req, res, next) => {
+  try {
+    const { credential } = req.body;
+
+    if (!credential) {
+      res.status(400);
+      throw new Error('Google credential is required');
+    }
+
+    const allowedClientIds = getAllowedGoogleClientIds();
+    if (!allowedClientIds.length) {
+      res.status(500);
+      throw new Error('Google login is not configured on the server');
+    }
+
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: allowedClientIds,
+    });
+    const payload = ticket.getPayload();
+
+    if (!payload?.email || !payload.email_verified) {
+      res.status(401);
+      throw new Error('Google account email is not verified');
+    }
+
+    let user = await User.findOne({ email: payload.email.toLowerCase() });
+
+    if (!user) {
+      user = await User.create({
+        name: payload.name || payload.email.split('@')[0],
+        email: payload.email.toLowerCase(),
+        password: `google-${crypto.randomUUID()}`,
+        avatar: payload.picture || '',
+      });
+    } else {
+      const updates = {};
+      if (!user.name && payload.name) updates.name = payload.name;
+      if (!user.avatar && payload.picture) updates.avatar = payload.picture;
+
+      if (Object.keys(updates).length) {
+        Object.assign(user, updates);
+        await user.save();
+      }
     }
 
     res.json(formatAuthResponse(user));

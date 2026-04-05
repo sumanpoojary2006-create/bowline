@@ -6,7 +6,7 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'reac
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 import { formatCurrency, formatDateRange } from '../lib/formatters';
-import { addDays, ensureCheckoutDate, parseDateParam } from '../lib/dateUtils';
+import { addDays, ensureCheckoutDate, formatDateParam, parseDateParam } from '../lib/dateUtils';
 import ListingCard from '../components/ListingCard';
 import PageLoader from '../components/PageLoader';
 
@@ -33,6 +33,7 @@ function ListingDetailPage({ bookingFirst = false }) {
 
   const [listing, setListing] = useState(null);
   const [related, setRelated] = useState([]);
+  const [recommendedRooms, setRecommendedRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [booking, setBooking] = useState({
@@ -54,9 +55,25 @@ function ListingDetailPage({ bookingFirst = false }) {
     const fetchListing = async () => {
       setLoading(true);
       try {
+        if (isBookingIntent) {
+          const [listingRes, roomsRes] = await Promise.all([
+            api.get(`/listings/${slug}`),
+            api.get('/listings', { params: { type: 'room', limit: 100 } }),
+          ]);
+
+          setListing(listingRes.data.listing);
+          setRelated(listingRes.data.related);
+          setRecommendedRooms(
+            roomsRes.data.listings.filter((room) => room._id !== listingRes.data.listing._id)
+          );
+          document.title = `Bowline | ${listingRes.data.listing.name}`;
+          return;
+        }
+
         const { data } = await api.get(`/listings/${slug}`);
         setListing(data.listing);
         setRelated(data.related);
+        setRecommendedRooms([]);
         document.title = `Bowline | ${data.listing.name}`;
       } finally {
         setLoading(false);
@@ -64,7 +81,7 @@ function ListingDetailPage({ bookingFirst = false }) {
     };
 
     fetchListing();
-  }, [slug]);
+  }, [slug, isBookingIntent]);
 
   useEffect(() => {
     if (user) {
@@ -140,6 +157,24 @@ function ListingDetailPage({ bookingFirst = false }) {
     } catch (error) {
       toast.error(error.response?.data?.message || 'Unable to create booking');
     }
+  };
+
+  const openRecommendedRoomBooking = (room) => {
+    const query = new URLSearchParams({
+      startDate: formatDateParam(booking.startDate),
+      endDate: formatDateParam(booking.endDate),
+      guests: String(booking.guests),
+    });
+
+    navigate(`/book/${room.slug}?${query.toString()}`, {
+      state: {
+        bookingPrefill: {
+          startDate: formatDateParam(booking.startDate),
+          endDate: formatDateParam(booking.endDate),
+          guests: String(booking.guests),
+        },
+      },
+    });
   };
 
   if (loading) {
@@ -299,19 +334,41 @@ function ListingDetailPage({ bookingFirst = false }) {
             ) : null}
           </div>
 
-          {related.length ? (
+          {(isBookingIntent && listing.type === 'room' ? recommendedRooms.length : related.length) ? (
             <div>
               <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-xl font-semibold text-white">{listing.type === 'room' ? 'More stays nearby' : 'You might also like'}</h3>
-                <Link className="text-sm text-slate-300" to={`/${listing.type === 'room' ? 'stays' : `${listing.type}s`}`}>
-                  See all
-                </Link>
+                <h3 className="text-xl font-semibold text-white">
+                  {isBookingIntent && listing.type === 'room'
+                    ? 'Other rooms you might be interested in'
+                    : listing.type === 'room'
+                      ? 'More stays nearby'
+                      : 'You might also like'}
+                </h3>
+                {isBookingIntent && listing.type === 'room' ? null : (
+                  <Link className="text-sm text-slate-300" to={`/${listing.type === 'room' ? 'stays' : `${listing.type}s`}`}>
+                    See all
+                  </Link>
+                )}
               </div>
-              <div className="space-y-4">
-                {related.map((item) => (
-                  <ListingCard key={item._id} listing={item} />
-                ))}
-              </div>
+              {isBookingIntent && listing.type === 'room' ? (
+                <div className="flex gap-4 overflow-x-auto pb-2">
+                  {recommendedRooms.map((item) => (
+                    <div key={item._id} className="min-w-[290px] max-w-[290px] flex-shrink-0">
+                      <ListingCard
+                        listing={item}
+                        onBookNow={openRecommendedRoomBooking}
+                        compact
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {related.map((item) => (
+                    <ListingCard key={item._id} listing={item} />
+                  ))}
+                </div>
+              )}
             </div>
           ) : null}
         </div>
