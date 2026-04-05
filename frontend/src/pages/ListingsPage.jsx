@@ -80,7 +80,7 @@ function ListingsPage({ type }) {
       guests: selectedGuests,
     });
 
-    navigate(`/experiences/${listing.slug}?${bookingQuery.toString()}`, {
+    navigate(`/book/${listing.slug}?${bookingQuery.toString()}`, {
       state: {
         bookingPrefill: {
           startDate: selectedStartDate,

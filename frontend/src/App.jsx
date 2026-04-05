@@ -29,6 +29,7 @@ function App() {
           <Route path="/treks" element={<ListingsPage type="trek" />} />
           <Route path="/camps" element={<ListingsPage type="camp" />} />
           <Route path="/experiences/:slug" element={<ListingDetailPage />} />
+          <Route path="/book/:slug" element={<ListingDetailPage bookingFirst />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route

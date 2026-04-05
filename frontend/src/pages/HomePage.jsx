@@ -148,7 +148,7 @@ function HomePage() {
       guests: bookingDraft.guests,
     });
 
-    navigate(`/experiences/${activeBooking.slug}?${query.toString()}`, {
+    navigate(`/book/${activeBooking.slug}?${query.toString()}`, {
       state: {
         bookingPrefill: {
           startDate: formatDateParam(bookingDraft.startDate),

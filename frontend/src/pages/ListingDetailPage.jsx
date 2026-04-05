@@ -1,23 +1,25 @@
 import { CalendarDaysIcon, MapPinIcon, UserGroupIcon } from '@heroicons/react/24/outline';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import DatePicker from 'react-datepicker';
 import toast from 'react-hot-toast';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
-import { formatCurrency, formatDate, formatDateRange } from '../lib/formatters';
+import { formatCurrency, formatDateRange } from '../lib/formatters';
 import { addDays, ensureCheckoutDate, parseDateParam } from '../lib/dateUtils';
 import ListingCard from '../components/ListingCard';
 import PageLoader from '../components/PageLoader';
 
 const tomorrow = () => addDays(new Date(), 1);
 
-function ListingDetailPage() {
+function ListingDetailPage({ bookingFirst = false }) {
   const { slug } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
+  const bookingFormRef = useRef(null);
+  const isBookingIntent = Boolean(bookingFirst || searchParams.get('intent') === 'book');
 
   const statePrefill = location.state?.bookingPrefill || {};
   const startFromState = parseDateParam(statePrefill.startDate);
@@ -74,6 +76,11 @@ function ListingDetailPage() {
       }));
     }
   }, [user]);
+
+  useEffect(() => {
+    if (!isBookingIntent || loading || !bookingFormRef.current) return;
+    bookingFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [isBookingIntent, loading]);
 
   const updateStartDate = (date) => {
     setAvailability(null);
@@ -142,7 +149,7 @@ function ListingDetailPage() {
   return (
     <section className="section-shell py-12">
       <div className="grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="space-y-6">
+        <div className={`space-y-6 ${isBookingIntent ? 'order-2' : ''}`}>
           <div className="overflow-hidden rounded-[2.5rem] border border-white/10">
             <img
               src={listing.images?.[0] || 'https://placehold.co/1200x800'}
@@ -182,8 +189,8 @@ function ListingDetailPage() {
           </div>
         </div>
 
-        <div className="space-y-6">
-          <div className="glass rounded-[2rem] p-6">
+        <div className={`space-y-6 ${isBookingIntent ? 'order-1' : ''}`}>
+          <div ref={bookingFormRef} className="glass rounded-[2rem] p-6">
             <div className="flex items-end justify-between gap-3">
               <div>
                 <p className="text-sm text-[#b7c2b2]">Tariff</p>
