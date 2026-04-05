@@ -1,4 +1,4 @@
-import { MapPinIcon, MagnifyingGlassIcon, UserGroupIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, UserGroupIcon } from '@heroicons/react/24/outline';
 import DatePicker from 'react-datepicker';
 import { addDays, ensureCheckoutDate } from '../lib/dateUtils';
 
@@ -14,16 +14,8 @@ function SearchHero({ filters, setFilters, onSubmit }) {
   return (
     <form
       onSubmit={onSubmit}
-      className="glass grid gap-3 rounded-[1.75rem] p-3 lg:grid-cols-[0.9fr_0.9fr_0.9fr_auto]"
+      className="glass grid gap-3 rounded-[1.75rem] p-3 lg:grid-cols-[0.95fr_0.95fr_0.95fr_auto]"
     >
-      <div className="rounded-[1.25rem] bg-[#f0edd8] px-4 py-3 text-sm text-slate-900">
-        <span className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-          <MapPinIcon className="h-4 w-4" />
-          Location
-        </span>
-        <p className="font-medium text-slate-900">Mudigere, Chikkamagaluru</p>
-      </div>
-
       <label className="rounded-[1.25rem] bg-[#f0edd8] px-4 py-3 text-sm text-slate-900">
         <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Check in</span>
         <DatePicker

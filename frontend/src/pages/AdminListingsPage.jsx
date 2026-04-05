@@ -21,7 +21,7 @@ const emptyForm = {
   duration: '',
   availabilityStatus: 'available',
   availableDates: '',
-  existingImages: '',
+  existingImages: [],
   featured: false,
   active: true,
   manualPriceOverride: '',
@@ -64,7 +64,7 @@ const parseListingToForm = (listing) => ({
   duration: listing.duration,
   availabilityStatus: listing.availabilityStatus,
   availableDates: listing.availableDates?.map((date) => date.slice(0, 10)).join(', '),
-  existingImages: listing.images?.join(', '),
+  existingImages: listing.images || [],
   featured: listing.featured,
   active: listing.active,
   manualPriceOverride: listing.manualPriceOverride || '',
@@ -79,6 +79,7 @@ function AdminListingsPage() {
   const [activeType, setActiveType] = useState('room');
   const [form, setForm] = useState(emptyForm);
   const [files, setFiles] = useState([]);
+  const [imageUrlDraft, setImageUrlDraft] = useState('');
 
   const selectedListing = useMemo(
     () => listings.find((listing) => listing._id === selectedId) || null,
@@ -108,16 +109,19 @@ function AdminListingsPage() {
   useEffect(() => {
     if (!selectedListing) {
       setForm((prev) => ({ ...emptyForm, type: prev.type || activeType }));
+      setImageUrlDraft('');
       return;
     }
 
     setActiveType(selectedListing.type);
     setForm(parseListingToForm(selectedListing));
+    setImageUrlDraft('');
   }, [selectedListing, activeType]);
 
   const resetForm = (type = activeType) => {
     setSelectedId(null);
     setFiles([]);
+    setImageUrlDraft('');
     setForm({ ...emptyForm, type });
   };
 
@@ -131,12 +135,36 @@ function AdminListingsPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  const addImageUrl = () => {
+    const value = imageUrlDraft.trim();
+    if (!value) return;
+
+    setForm((prev) => ({
+      ...prev,
+      existingImages: prev.existingImages.includes(value)
+        ? prev.existingImages
+        : [...prev.existingImages, value],
+    }));
+    setImageUrlDraft('');
+  };
+
+  const removeExistingImage = (targetImage) => {
+    setForm((prev) => ({
+      ...prev,
+      existingImages: prev.existingImages.filter((image) => image !== targetImage),
+    }));
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
 
     try {
       const payload = new FormData();
       Object.entries(form).forEach(([key, value]) => {
+        if (key === 'existingImages') {
+          payload.append(key, JSON.stringify(value));
+          return;
+        }
         payload.append(key, value);
       });
       files.forEach((file) => payload.append('images', file));
@@ -376,13 +404,40 @@ function AdminListingsPage() {
                 onChange={(event) => setField('description', event.target.value)}
               />
             </div>
-            <div className="md:col-span-2">
-              <textarea
-                className="input min-h-24"
-                placeholder="Existing image URLs (comma separated)"
-                value={form.existingImages}
-                onChange={(event) => setField('existingImages', event.target.value)}
-              />
+            <div className="md:col-span-2 space-y-3">
+              <label className="label">Listing images</label>
+              {form.existingImages.length ? (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {form.existingImages.map((image) => (
+                    <div key={image} className="rounded-2xl border border-lime-100/10 bg-[#0d1710]/80 p-2">
+                      <img src={image} alt="Listing preview" className="h-24 w-full rounded-xl object-cover" />
+                      <button
+                        type="button"
+                        className="mt-2 w-full rounded-full border border-rose-400/30 px-3 py-2 text-xs font-semibold text-rose-300"
+                        onClick={() => removeExistingImage(image)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="rounded-2xl border border-dashed border-lime-100/12 bg-[#0d1710]/70 px-4 py-3 text-sm text-[#c1cbbd]">
+                  No images added yet.
+                </p>
+              )}
+
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <input
+                  className="input flex-1"
+                  placeholder="Paste image URL and click Add"
+                  value={imageUrlDraft}
+                  onChange={(event) => setImageUrlDraft(event.target.value)}
+                />
+                <button type="button" className="btn-secondary" onClick={addImageUrl}>
+                  Add URL
+                </button>
+              </div>
             </div>
             <div className="md:col-span-2">
               <label className="label">Upload images</label>

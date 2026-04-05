@@ -1,41 +1,47 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../lib/api';
 import ListingCard from '../components/ListingCard';
 import EmptyState from '../components/EmptyState';
 import PageLoader from '../components/PageLoader';
 import SectionHeader from '../components/SectionHeader';
+import { addDays, formatDateParam } from '../lib/dateUtils';
+import { formatDateRange } from '../lib/formatters';
 
 const pageConfig = {
   room: {
-    title: 'Brochure-based room inventory from Bowline Nature Stay',
+    title: 'Available rooms for your selected stay dates',
     eyebrow: 'Stay Bookings',
-    description: 'Browse Cozy 1, Cozy 2, Cozy Mini, the Dormitory, and the Pent House with brochure-matched per-person weekday pricing.',
+    description: 'Compare room options with pricing, then use View More or Book Now to continue.',
   },
   trek: {
-    title: 'Treks available around your Bowline stay',
+    title: 'Adventure options around Bowline',
     eyebrow: 'Trek Bookings',
-    description: 'Treks now sit as supporting experiences that guests can add after choosing the right stay.',
+    description: 'Explore trek options after selecting your stay.',
   },
   camp: {
-    title: 'Camp experiences offered as add-on programs',
+    title: 'Camp experiences as add-ons',
     eyebrow: 'Camp Bookings',
-    description: 'Browse camp programs when you want something beyond the stay, but keep the room booking at the center of the plan.',
+    description: 'Review camp programs that can complement your stay.',
   },
 };
 
 function ListingsPage({ type }) {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
     search: searchParams.get('search') || '',
-    location: 'Mudigere, Chikkamagaluru',
-    minPrice: '',
-    maxPrice: '',
     capacity: searchParams.get('capacity') || '',
     difficulty: '',
   });
+
+  const defaultStartDate = formatDateParam(new Date());
+  const defaultEndDate = formatDateParam(addDays(new Date(), 1));
+  const selectedStartDate = searchParams.get('startDate') || defaultStartDate;
+  const selectedEndDate = searchParams.get('endDate') || defaultEndDate;
+  const selectedGuests = filters.capacity || searchParams.get('capacity') || '1';
 
   const config = pageConfig[type];
 
@@ -67,6 +73,24 @@ function ListingsPage({ type }) {
     fetchListings();
   }, [query]);
 
+  const handleBookNow = (listing) => {
+    const bookingQuery = new URLSearchParams({
+      startDate: selectedStartDate,
+      endDate: selectedEndDate,
+      guests: selectedGuests,
+    });
+
+    navigate(`/experiences/${listing.slug}?${bookingQuery.toString()}`, {
+      state: {
+        bookingPrefill: {
+          startDate: selectedStartDate,
+          endDate: selectedEndDate,
+          guests: selectedGuests,
+        },
+      },
+    });
+  };
+
   return (
     <section className="section-shell py-12">
       <SectionHeader
@@ -75,60 +99,74 @@ function ListingsPage({ type }) {
         description={config.description}
       />
 
-      <div className="mb-8 grid gap-4 rounded-[2rem] border border-lime-100/10 bg-[#0d1710]/70 p-4 md:grid-cols-2 xl:grid-cols-5">
-        <input
-          className="input"
-          placeholder="Search by name or keyword"
-          value={filters.search}
-          onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
-        />
-        <div className="input flex items-center text-[#c4cec0]">Mudigere, Chikkamagaluru</div>
-        <input
-          className="input"
-          placeholder="Min price"
-          type="number"
-          value={filters.minPrice}
-          onChange={(event) => setFilters((prev) => ({ ...prev, minPrice: event.target.value }))}
-        />
-        <input
-          className="input"
-          placeholder={type === 'room' ? 'Guests' : 'Capacity'}
-          type="number"
-          value={filters.capacity}
-          onChange={(event) => setFilters((prev) => ({ ...prev, capacity: event.target.value }))}
-        />
-        {type === 'trek' ? (
-          <select
-            className="input"
-            value={filters.difficulty}
-            onChange={(event) => setFilters((prev) => ({ ...prev, difficulty: event.target.value }))}
-          >
-            <option value="">All difficulties</option>
-            <option value="Easy">Easy</option>
-            <option value="Moderate">Moderate</option>
-            <option value="Challenging">Challenging</option>
-          </select>
-        ) : (
+      {type === 'room' ? (
+        <div className="mb-8 space-y-4 rounded-[2rem] border border-lime-100/10 bg-[#0d1710]/75 p-5">
+          <div className="rounded-[1.25rem] border border-lime-100/10 bg-black/20 px-4 py-3 text-sm text-[#d2dbcf]">
+            Requirement: {formatDateRange(selectedStartDate, selectedEndDate)} • {selectedGuests} guest(s) • Mudigere
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <input
+              className="input"
+              placeholder="Search room by name or feature"
+              value={filters.search}
+              onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
+            />
+            <input
+              className="input"
+              placeholder="Guests"
+              type="number"
+              min="1"
+              value={filters.capacity}
+              onChange={(event) => setFilters((prev) => ({ ...prev, capacity: event.target.value }))}
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="mb-8 grid gap-4 rounded-[2rem] border border-lime-100/10 bg-[#0d1710]/70 p-4 md:grid-cols-2 xl:grid-cols-3">
           <input
             className="input"
-            placeholder="Max price"
-            type="number"
-            value={filters.maxPrice}
-            onChange={(event) => setFilters((prev) => ({ ...prev, maxPrice: event.target.value }))}
+            placeholder="Search by name or keyword"
+            value={filters.search}
+            onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
           />
-        )}
-      </div>
+          <input
+            className="input"
+            placeholder="Capacity"
+            type="number"
+            value={filters.capacity}
+            onChange={(event) => setFilters((prev) => ({ ...prev, capacity: event.target.value }))}
+          />
+          {type === 'trek' ? (
+            <select
+              className="input"
+              value={filters.difficulty}
+              onChange={(event) => setFilters((prev) => ({ ...prev, difficulty: event.target.value }))}
+            >
+              <option value="">All difficulties</option>
+              <option value="Easy">Easy</option>
+              <option value="Moderate">Moderate</option>
+              <option value="Challenging">Challenging</option>
+            </select>
+          ) : null}
+        </div>
+      )}
 
       {loading ? (
         <PageLoader label="Loading Bowline inventory..." />
       ) : listings.length ? (
         <div className="card-grid">
           {listings.map((listing) => (
-            <ListingCard key={listing._id} listing={listing} />
+            <ListingCard
+              key={listing._id}
+              listing={listing}
+              detailLabel="View More"
+              onBookNow={type === 'room' ? handleBookNow : undefined}
+              showPrice
+            />
           ))}
         </div>
       ) : (
-        <EmptyState title="No matching experiences found" description="Try adjusting the filters or add more inventory from the admin dashboard." />
+        <EmptyState title="No matching experiences found" description="Try adjusting your requirement details or add more inventory from the admin dashboard." />
       )}
     </section>
   );

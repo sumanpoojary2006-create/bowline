@@ -9,8 +9,13 @@ const typeLabels = {
   camp: 'Camp',
 };
 
-function ListingCard({ listing, onBookNow, compact = false }) {
-  const detailLabel = compact ? 'View' : 'View Details';
+function ListingCard({
+  listing,
+  onBookNow,
+  compact = false,
+  detailLabel = 'View More',
+  showPrice = true,
+}) {
   const canBook = listing.type === 'room' && typeof onBookNow === 'function';
 
   return (
@@ -42,10 +47,16 @@ function ListingCard({ listing, onBookNow, compact = false }) {
               {listing.location || 'Chikkamagaluru'}
             </div>
           </div>
-          <div className="text-right">
-            <p className="text-[11px] uppercase tracking-[0.2em] text-lime-100/45">From</p>
-            <p className="text-lg font-bold text-lime-200">{formatCurrency(listing.price)}</p>
-          </div>
+          {showPrice ? (
+            <div className="text-right">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-lime-100/45">From</p>
+              <p className="text-lg font-bold text-lime-200">{formatCurrency(listing.price)}</p>
+            </div>
+          ) : (
+            <span className="rounded-full border border-lime-100/15 px-3 py-1 text-xs text-[#c4cec0]">
+              Price after date selection
+            </span>
+          )}
         </div>
 
         <p className="line-clamp-2 text-sm text-[#d7ded3]">{listing.shortDescription || listing.description}</p>
@@ -58,11 +69,7 @@ function ListingCard({ listing, onBookNow, compact = false }) {
             <button className="btn-primary flex-1 rounded-[1rem] px-4 py-2.5" onClick={() => onBookNow(listing)} type="button">
               Book Now
             </button>
-          ) : (
-            <Link className="btn-primary flex-1 rounded-[1rem] px-4 py-2.5" to={`/experiences/${listing.slug}`}>
-              View Now
-            </Link>
-          )}
+          ) : null}
         </div>
       </div>
     </motion.article>
