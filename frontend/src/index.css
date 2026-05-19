@@ -90,3 +90,8 @@ body {
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
+
+/* Ensure date picker dropdown renders above sticky bars and modals */
+.react-datepicker-popper {
+  z-index: 60 !important;
+}

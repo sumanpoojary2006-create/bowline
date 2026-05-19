@@ -37,7 +37,6 @@ function SearchHero({ filters, setFilters, onSubmit }) {
             className="w-full bg-transparent text-base font-medium text-slate-900 outline-none"
             minDate={new Date()}
             dateFormat="MMM d"
-            withPortal
           />
         </label>
 
@@ -54,7 +53,6 @@ function SearchHero({ filters, setFilters, onSubmit }) {
             className="w-full bg-transparent text-base font-medium text-slate-900 outline-none"
             minDate={filters.startDate ? addDays(filters.startDate, 1) : addDays(new Date(), 1)}
             dateFormat="MMM d"
-            withPortal
           />
         </label>
       </div>

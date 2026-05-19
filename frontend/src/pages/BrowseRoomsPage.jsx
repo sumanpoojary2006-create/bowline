@@ -109,7 +109,6 @@ function BrowseRoomsPage() {
               className="w-full bg-transparent text-base font-medium text-slate-900 outline-none"
               minDate={new Date()}
               dateFormat="MMM d"
-              withPortal
             />
           </label>
 
@@ -128,7 +127,6 @@ function BrowseRoomsPage() {
               className="w-full bg-transparent text-base font-medium text-slate-900 outline-none"
               minDate={addDays(filters.startDate, 1)}
               dateFormat="MMM d"
-              withPortal
             />
           </label>
         </div>
