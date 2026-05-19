@@ -39,7 +39,7 @@ function CalendarMonth({ year, month, bookedRanges, startDate, endDate, onDayCli
   for (let d = 1; d <= lastDay.getDate(); d++) cells.push(new Date(year, month, d));
 
   return (
-    <div>
+    <div className="w-full">
       {/* Day name headers */}
       <div className="mb-1 grid grid-cols-7">
         {DAY_NAMES.map((d) => (
@@ -52,7 +52,7 @@ function CalendarMonth({ year, month, bookedRanges, startDate, endDate, onDayCli
       {/* Date cells */}
       <div className="grid grid-cols-7">
         {cells.map((date, idx) => {
-          if (!date) return <div key={`empty-${idx}`} />;
+          if (!date) return <div key={`empty-${idx}`} className="h-10" />;
 
           const booked = isBookedDay(date, bookedRanges);
           const isPast = date < today;
@@ -62,8 +62,7 @@ function CalendarMonth({ year, month, bookedRanges, startDate, endDate, onDayCli
           const disabled = booked || isPast;
 
           let base = 'flex items-center justify-center text-sm select-none ';
-          // Make cells square using padding-based height
-          let size = 'aspect-square w-full ';
+          let size = 'h-10 w-full ';
           let style = '';
 
           if (disabled) {
