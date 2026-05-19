@@ -48,7 +48,7 @@ function CheckoutPage() {
     e.preventDefault();
 
     if (!user) {
-      navigate('/login', { state: { from: '/checkout' } });
+      navigate('/login', { state: { from: { pathname: '/checkout' } } });
       return;
     }
 

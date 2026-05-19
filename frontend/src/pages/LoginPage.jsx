@@ -17,15 +17,18 @@ function LoginPage() {
     document.title = 'Bowline | Login';
   }, []);
 
+  const resolveNextPath = (data) => {
+    const from = location.state?.from;
+    if (from) return typeof from === 'string' ? from : from.pathname + (from.search || '');
+    return data.user.role === 'admin' ? '/admin/overview' : '/';
+  };
+
   const submit = async (event) => {
     event.preventDefault();
     setSubmitting(true);
     try {
       const data = await login(form);
-      const nextPath =
-        location.state?.from?.pathname ||
-        (data.user.role === 'admin' ? '/admin/overview' : '/dashboard');
-      navigate(nextPath, { replace: true });
+      navigate(resolveNextPath(data), { replace: true });
     } catch (error) {
       toast.error(error.response?.data?.message || 'Unable to log in');
     } finally {
@@ -42,10 +45,7 @@ function LoginPage() {
     setGoogleSubmitting(true);
     try {
       const data = await googleLogin(credentialResponse.credential);
-      const nextPath =
-        location.state?.from?.pathname ||
-        (data.user.role === 'admin' ? '/admin/overview' : '/dashboard');
-      navigate(nextPath, { replace: true });
+      navigate(resolveNextPath(data), { replace: true });
     } catch (error) {
       toast.error(error.response?.data?.message || 'Google login failed');
     } finally {

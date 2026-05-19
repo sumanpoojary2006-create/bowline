@@ -141,7 +141,14 @@ function ListingDetailPage({ bookingFirst = false }) {
     event.preventDefault();
 
     if (!user) {
-      navigate('/login', { state: { from: `/experiences/${slug}` } });
+      navigate('/login', {
+        state: {
+          from: {
+            pathname: `/book/${slug}`,
+            search: `?startDate=${formatDateParam(booking.startDate)}&endDate=${formatDateParam(booking.endDate)}&guests=${booking.guests}`,
+          },
+        },
+      });
       return;
     }
 
