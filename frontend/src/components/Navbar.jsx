@@ -80,25 +80,28 @@ function Navbar() {
           )}
         </div>
 
-        <button
-          onClick={() => openCart(true)}
-          className="relative rounded-full border border-lime-100/10 p-2 text-[#d5ddd2] md:hidden"
-          aria-label="Open booking cart"
-        >
-          <ShoppingBagIcon className="h-5 w-5" />
-          {items.length > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-lime-400 text-[10px] font-bold text-slate-900">
-              {items.length}
-            </span>
-          )}
-        </button>
-        <button
-          className="flex h-11 w-11 items-center justify-center rounded-full border border-lime-100/10 text-white md:hidden"
-          onClick={() => setOpen((value) => !value)}
-          aria-label="Toggle menu"
-        >
-          {open ? <XMarkIcon className="h-6 w-6" /> : <Bars3Icon className="h-6 w-6" />}
-        </button>
+        {/* Mobile: cart + hamburger grouped together on the right */}
+        <div className="flex items-center gap-2 md:hidden">
+          <button
+            onClick={() => openCart(true)}
+            className="relative flex h-11 w-11 items-center justify-center rounded-full border border-lime-100/10 text-[#d5ddd2]"
+            aria-label="Open booking cart"
+          >
+            <ShoppingBagIcon className="h-5 w-5" />
+            {items.length > 0 && (
+              <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-lime-400 text-[10px] font-bold text-slate-900">
+                {items.length}
+              </span>
+            )}
+          </button>
+          <button
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-lime-100/10 text-white"
+            onClick={() => setOpen((value) => !value)}
+            aria-label="Toggle menu"
+          >
+            {open ? <XMarkIcon className="h-6 w-6" /> : <Bars3Icon className="h-6 w-6" />}
+          </button>
+        </div>
       </div>
 
       {open && (

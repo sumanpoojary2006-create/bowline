@@ -6,7 +6,7 @@ function Footer() {
           <p className="font-display text-2xl text-white">Bowline</p>
           <p>Bowline Nature Stay is a homestay in the hills with authentic Malnad food, shared spaces, and host-led local experiences.</p>
         </div>
-        <div className="space-y-1 text-right">
+        <div className="space-y-1 md:text-right">
           <p>Devaramane, Mudigere, Chikkamagaluru</p>
           <p>www.bowlinestays.com</p>
           <p>Complimentary breakfast | Lunch 299 | Dinner 299 | Snacks 99</p>
