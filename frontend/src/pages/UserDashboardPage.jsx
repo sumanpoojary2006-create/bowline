@@ -86,7 +86,7 @@ function UserDashboardPage() {
         description="Track your booking status, stay dates, and full booking details in one place."
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <div className="glass rounded-[1.5rem] p-5">
           <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Total bookings</p>
           <p className="mt-2 text-3xl font-bold text-[#f5f0dd]">{bookingStats.total}</p>

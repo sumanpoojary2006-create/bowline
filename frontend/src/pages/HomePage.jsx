@@ -171,10 +171,10 @@ function HomePage() {
               <p className="inline-flex rounded-full border border-lime-100/20 bg-black/20 px-4 py-2 text-xs uppercase tracking-[0.22em] text-[#cfd8cb]">
                 Mudigere, Chikkamagaluru
               </p>
-              <h1 className="mt-4 font-display text-5xl leading-tight text-[#f5f0dd] sm:text-6xl">
+              <h1 className="mt-4 font-display text-3xl leading-tight text-[#f5f0dd] sm:text-5xl lg:text-6xl">
                 Find your stay, then book in one clear flow.
               </h1>
-              <p className="mt-3 text-base text-[#d5ddd2]">
+              <p className="mt-3 text-sm text-[#d5ddd2] sm:text-base">
                 Choose dates and guests first. Search takes you to available rooms with pricing.
               </p>
             </div>
@@ -185,7 +185,7 @@ function HomePage() {
           </div>
 
           <div className="mx-auto max-w-6xl rounded-[2rem] border border-lime-100/10 bg-[#0a130d]/70 p-5">
-            <div className="flex flex-wrap gap-3">
+            <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-none">
               {[
                 { id: 'homestay', label: 'Homestay' },
                 { id: 'adventure', label: 'Adventure' },
@@ -195,7 +195,7 @@ function HomePage() {
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveHighlight(tab.id)}
-                  className={`rounded-full px-5 py-2.5 text-sm font-semibold transition ${
+                  className={`flex-shrink-0 rounded-full px-5 py-2.5 text-sm font-semibold transition ${
                     activeHighlight === tab.id
                       ? 'bg-lime-200 text-slate-950'
                       : 'border border-lime-100/15 bg-white/5 text-[#d2dbcf]'
@@ -302,8 +302,8 @@ function HomePage() {
       </section>
 
       {activeBooking ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4">
-          <div className="glass w-full max-w-xl rounded-[2rem] p-6">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/65 px-4 pb-4 sm:items-center">
+          <div className="glass w-full max-w-xl overflow-y-auto rounded-[2rem] p-5 sm:p-6" style={{ maxHeight: 'calc(100dvh - 2rem)' }}>
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.28em] text-lime-200/80">Book now</p>

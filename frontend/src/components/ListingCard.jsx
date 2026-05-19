@@ -65,16 +65,16 @@ function ListingCard({
         <div className="flex gap-2">
           {isRoom ? (
             canBook ? (
-              <button className="btn-primary w-full rounded-[1rem] px-4 py-2.5" onClick={() => onBookNow(listing)} type="button">
+              <button className="btn-primary w-full rounded-[1rem] px-4" onClick={() => onBookNow(listing)} type="button">
                 Book Now
               </button>
             ) : (
-              <Link className="btn-primary w-full rounded-[1rem] px-4 py-2.5" to={`/book/${listing.slug}`}>
+              <Link className="btn-primary w-full rounded-[1rem] px-4" to={`/book/${listing.slug}`}>
                 Book Now
               </Link>
             )
           ) : (
-            <Link className="btn-secondary w-full rounded-[1rem] px-4 py-2.5" to={`/experiences/${listing.slug}`}>
+            <Link className="btn-secondary w-full rounded-[1rem] px-4" to={`/experiences/${listing.slug}`}>
               {detailLabel}
             </Link>
           )}

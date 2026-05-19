@@ -93,49 +93,56 @@ function Navbar() {
           )}
         </button>
         <button
-          className="rounded-full border border-lime-100/10 p-2 text-white md:hidden"
+          className="flex h-11 w-11 items-center justify-center rounded-full border border-lime-100/10 text-white md:hidden"
           onClick={() => setOpen((value) => !value)}
+          aria-label="Toggle menu"
         >
           {open ? <XMarkIcon className="h-6 w-6" /> : <Bars3Icon className="h-6 w-6" />}
         </button>
       </div>
 
       {open && (
-        <div className="section-shell pb-5 md:hidden">
-          <div className="glass space-y-3 rounded-3xl p-4">
+        <div className="section-shell pb-4 md:hidden">
+          <div className="glass rounded-3xl p-3">
             {links.map((link) => (
               <NavLink
                 key={link.to}
                 to={link.to}
                 onClick={() => setOpen(false)}
-                className="block rounded-2xl px-4 py-3 text-sm text-[#e0e7db] hover:bg-white/5"
+                className={({ isActive }) =>
+                  `block rounded-2xl px-4 py-3.5 text-sm font-medium transition ${
+                    isActive ? 'bg-white/10 text-white' : 'text-[#e0e7db] hover:bg-white/5'
+                  }`
+                }
               >
                 {link.label}
               </NavLink>
             ))}
-            {user ? (
-              <>
-                <Link
-                  to={user.role === 'admin' ? '/admin/overview' : '/dashboard'}
-                  onClick={() => setOpen(false)}
-                  className="block rounded-2xl px-4 py-3 text-sm text-[#e0e7db] hover:bg-white/5"
-                >
-                  Dashboard
-                </Link>
-                <button className="btn-primary w-full" onClick={logout}>
-                  Logout
-                </button>
-              </>
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Link className="btn-secondary" onClick={() => setOpen(false)} to="/login">
-                  Login
-                </Link>
-                <Link className="btn-primary" onClick={() => setOpen(false)} to="/stays">
-                  Book Now
-                </Link>
-              </div>
-            )}
+            <div className="mt-3 border-t border-white/10 pt-3">
+              {user ? (
+                <div className="grid gap-2">
+                  <Link
+                    to={user.role === 'admin' ? '/admin/overview' : '/dashboard'}
+                    onClick={() => setOpen(false)}
+                    className="btn-secondary w-full"
+                  >
+                    {user.role === 'admin' ? 'Admin Panel' : 'My Bookings'}
+                  </Link>
+                  <button className="btn-primary w-full" onClick={logout}>
+                    Logout
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <Link className="btn-secondary" onClick={() => setOpen(false)} to="/login">
+                    Login
+                  </Link>
+                  <Link className="btn-primary" onClick={() => setOpen(false)} to="/stays">
+                    Book Now
+                  </Link>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

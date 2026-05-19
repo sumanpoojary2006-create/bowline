@@ -88,71 +88,76 @@ function BrowseRoomsPage() {
 
   return (
     <section className="section-shell py-12">
-      <h1 className="mb-6 font-display text-4xl text-white">Find Available Rooms</h1>
+      <h1 className="mb-6 font-display text-2xl text-white sm:text-4xl">Find Available Rooms</h1>
 
-      <form
-        onSubmit={handleSearch}
-        className="glass mb-8 grid gap-3 rounded-[1.75rem] p-3 lg:grid-cols-[1fr_1fr_1fr_auto]"
-      >
-        <label className="rounded-[1.25rem] bg-[#f0edd8] px-4 py-3 text-sm text-slate-900">
-          <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-            Check in
-          </span>
-          <DatePicker
-            selected={filters.startDate}
-            onChange={(date) =>
-              setFilters((prev) => ({
-                ...prev,
-                startDate: date,
-                endDate: ensureCheckoutDate(date, prev.endDate, 1),
-              }))
-            }
-            className="w-full bg-transparent font-medium text-slate-900 outline-none"
-            minDate={new Date()}
-            dateFormat="EEE, MMM d"
-          />
-        </label>
+      <form onSubmit={handleSearch} className="glass mb-8 grid gap-3 rounded-[1.75rem] p-3">
+        {/* Dates row — always side by side */}
+        <div className="grid grid-cols-2 gap-3">
+          <label className="rounded-[1.25rem] bg-[#f0edd8] px-4 py-3 text-sm text-slate-900">
+            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+              Check in
+            </span>
+            <DatePicker
+              selected={filters.startDate}
+              onChange={(date) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  startDate: date,
+                  endDate: ensureCheckoutDate(date, prev.endDate, 1),
+                }))
+              }
+              className="w-full bg-transparent text-base font-medium text-slate-900 outline-none"
+              minDate={new Date()}
+              dateFormat="MMM d"
+              withPortal
+            />
+          </label>
 
-        <label className="rounded-[1.25rem] bg-[#f0edd8] px-4 py-3 text-sm text-slate-900">
-          <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-            Check out
-          </span>
-          <DatePicker
-            selected={filters.endDate}
-            onChange={(date) =>
-              setFilters((prev) => ({
-                ...prev,
-                endDate: ensureCheckoutDate(prev.startDate, date, 1),
-              }))
-            }
-            className="w-full bg-transparent font-medium text-slate-900 outline-none"
-            minDate={addDays(filters.startDate, 1)}
-            dateFormat="EEE, MMM d"
-          />
-        </label>
+          <label className="rounded-[1.25rem] bg-[#f0edd8] px-4 py-3 text-sm text-slate-900">
+            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+              Check out
+            </span>
+            <DatePicker
+              selected={filters.endDate}
+              onChange={(date) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  endDate: ensureCheckoutDate(prev.startDate, date, 1),
+                }))
+              }
+              className="w-full bg-transparent text-base font-medium text-slate-900 outline-none"
+              minDate={addDays(filters.startDate, 1)}
+              dateFormat="MMM d"
+              withPortal
+            />
+          </label>
+        </div>
 
-        <label className="rounded-[1.25rem] bg-[#f0edd8] px-4 py-3 text-sm text-slate-900">
-          <span className="mb-1 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-            <UserGroupIcon className="h-3.5 w-3.5" />
-            Guests
-          </span>
-          <select
-            className="w-full bg-transparent font-medium text-slate-900 outline-none"
-            value={filters.guests}
-            onChange={(e) => setFilters((prev) => ({ ...prev, guests: Number(e.target.value) }))}
-          >
-            {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
-              <option key={n} value={n}>
-                {n} {n === 1 ? 'guest' : 'guests'}
-              </option>
-            ))}
-          </select>
-        </label>
+        {/* Guests + Search */}
+        <div className="flex gap-3">
+          <label className="flex-1 rounded-[1.25rem] bg-[#f0edd8] px-4 py-3 text-sm text-slate-900">
+            <span className="mb-1 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+              <UserGroupIcon className="h-3.5 w-3.5" />
+              Guests
+            </span>
+            <select
+              className="w-full bg-transparent text-base font-medium text-slate-900 outline-none"
+              value={filters.guests}
+              onChange={(e) => setFilters((prev) => ({ ...prev, guests: Number(e.target.value) }))}
+            >
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+                <option key={n} value={n}>
+                  {n} {n === 1 ? 'guest' : 'guests'}
+                </option>
+              ))}
+            </select>
+          </label>
 
-        <button className="btn-primary gap-2 rounded-[1.25rem] px-6" type="submit">
-          <MagnifyingGlassIcon className="h-5 w-5" />
-          Search
-        </button>
+          <button className="btn-primary gap-2 rounded-[1.25rem] px-6" type="submit">
+            <MagnifyingGlassIcon className="h-5 w-5" />
+            <span>Search</span>
+          </button>
+        </div>
       </form>
 
       {loading && <PageLoader label="Checking availability..." />}

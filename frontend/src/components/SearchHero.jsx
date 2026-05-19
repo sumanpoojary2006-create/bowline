@@ -26,37 +26,40 @@ function SearchHero({ filters, setFilters, onSubmit }) {
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="glass grid gap-3 rounded-[1.75rem] p-3 lg:grid-cols-[0.95fr_0.95fr_0.95fr_auto]"
-    >
-      <label className="rounded-[1.25rem] bg-[#f0edd8] px-4 py-3 text-sm text-slate-900">
-        <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Check in</span>
-        <DatePicker
-          selected={filters.startDate}
-          onChange={(date) => updateStartDate(date)}
-          className="w-full bg-transparent font-medium text-slate-900 outline-none"
-          minDate={new Date()}
-          dateFormat="EEE, MMM d"
-        />
-      </label>
+    <form onSubmit={handleSubmit} className="glass grid gap-3 rounded-[1.75rem] p-3">
+      {/* Dates side-by-side on all screen sizes */}
+      <div className="grid grid-cols-2 gap-3">
+        <label className="rounded-[1.25rem] bg-[#f0edd8] px-4 py-3 text-sm text-slate-900">
+          <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Check in</span>
+          <DatePicker
+            selected={filters.startDate}
+            onChange={(date) => updateStartDate(date)}
+            className="w-full bg-transparent text-base font-medium text-slate-900 outline-none"
+            minDate={new Date()}
+            dateFormat="MMM d"
+            withPortal
+          />
+        </label>
 
-      <label className="rounded-[1.25rem] bg-[#f0edd8] px-4 py-3 text-sm text-slate-900">
-        <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Check out</span>
-        <DatePicker
-          selected={filters.endDate}
-          onChange={(date) =>
-            setFilters((prev) => ({
-              ...prev,
-              endDate: ensureCheckoutDate(prev.startDate, date, 1),
-            }))
-          }
-          className="w-full bg-transparent font-medium text-slate-900 outline-none"
-          minDate={filters.startDate ? addDays(filters.startDate, 1) : addDays(new Date(), 1)}
-          dateFormat="EEE, MMM d"
-        />
-      </label>
+        <label className="rounded-[1.25rem] bg-[#f0edd8] px-4 py-3 text-sm text-slate-900">
+          <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Check out</span>
+          <DatePicker
+            selected={filters.endDate}
+            onChange={(date) =>
+              setFilters((prev) => ({
+                ...prev,
+                endDate: ensureCheckoutDate(prev.startDate, date, 1),
+              }))
+            }
+            className="w-full bg-transparent text-base font-medium text-slate-900 outline-none"
+            minDate={filters.startDate ? addDays(filters.startDate, 1) : addDays(new Date(), 1)}
+            dateFormat="MMM d"
+            withPortal
+          />
+        </label>
+      </div>
 
+      {/* Guests + Search: side-by-side on sm+, stacked on xs */}
       <div className="flex gap-3">
         <label className="flex-1 rounded-[1.25rem] bg-[#f0edd8] px-4 py-3 text-sm text-slate-900">
           <span className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
@@ -64,7 +67,7 @@ function SearchHero({ filters, setFilters, onSubmit }) {
             Guests
           </span>
           <select
-            className="w-full bg-transparent font-medium text-slate-900 outline-none"
+            className="w-full bg-transparent text-base font-medium text-slate-900 outline-none"
             value={filters.guests}
             onChange={(event) => setFilters((prev) => ({ ...prev, guests: event.target.value }))}
           >
@@ -76,9 +79,9 @@ function SearchHero({ filters, setFilters, onSubmit }) {
           </select>
         </label>
 
-        <button className="btn-primary min-h-[72px] gap-2 rounded-[1.25rem] px-6" type="submit">
+        <button className="btn-primary gap-2 rounded-[1.25rem] px-6 lg:px-8" type="submit">
           <MagnifyingGlassIcon className="h-5 w-5" />
-          Search
+          <span className="hidden sm:inline">Search</span>
         </button>
       </div>
     </form>

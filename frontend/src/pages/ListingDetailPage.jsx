@@ -1,5 +1,5 @@
 import { CalendarDaysIcon, MapPinIcon, ShoppingBagIcon, UserGroupIcon } from '@heroicons/react/24/outline';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import DatePicker from 'react-datepicker';
 import toast from 'react-hot-toast';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -39,6 +39,7 @@ function ListingDetailPage({ bookingFirst = false }) {
   const [recommendedRooms, setRecommendedRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
+  const [stickyBarVisible, setStickyBarVisible] = useState(true);
   const [booking, setBooking] = useState({
     startDate: initialStartDate,
     endDate: initialEndDate,
@@ -101,6 +102,17 @@ function ListingDetailPage({ bookingFirst = false }) {
     if (!isBookingIntent || loading || !bookingFormRef.current) return;
     bookingFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [isBookingIntent, loading]);
+
+  // Hide sticky bar when booking form is in viewport
+  useEffect(() => {
+    if (!bookingFormRef.current) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setStickyBarVisible(!entry.isIntersecting),
+      { threshold: 0.1 }
+    );
+    observer.observe(bookingFormRef.current);
+    return () => observer.disconnect();
+  }, [loading]);
 
   const updateStartDate = (date) => {
     setAvailability(null);
@@ -192,14 +204,14 @@ function ListingDetailPage({ bookingFirst = false }) {
   }
 
   return (
-    <section className="section-shell py-12">
+    <section className="section-shell pb-28 pt-8 sm:py-12">
       <div className="grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
         <div className={`space-y-6 ${isBookingIntent ? 'order-2' : ''}`}>
           <div className="overflow-hidden rounded-[2.5rem] border border-white/10">
             <img
               src={listing.images?.[0] || 'https://placehold.co/1200x800'}
               alt={listing.name}
-              className="h-[420px] w-full object-cover"
+              className="h-56 w-full object-cover sm:h-[420px]"
             />
           </div>
           <div className="glass rounded-[2rem] p-6">
@@ -426,6 +438,26 @@ function ListingDetailPage({ bookingFirst = false }) {
           ) : null}
         </div>
       </div>
+
+      {/* Sticky mobile booking bar — hidden once booking form is in view */}
+      {listing && stickyBarVisible && (
+        <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-white/10 bg-[#0d1710]/95 px-4 py-3 backdrop-blur-xl sm:hidden">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs text-slate-400">From</p>
+              <p className="text-lg font-bold text-lime-200">{formatCurrency(listing.price)}</p>
+              <p className="text-xs text-slate-400">per {listing.priceUnit === 'person' ? 'person' : listing.priceUnit}</p>
+            </div>
+            <button
+              type="button"
+              className="btn-primary flex-1 rounded-[1.25rem] text-base"
+              onClick={() => bookingFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            >
+              Book Now
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

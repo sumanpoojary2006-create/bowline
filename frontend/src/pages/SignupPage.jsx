@@ -35,8 +35,8 @@ function SignupPage() {
     <section className="section-shell py-16">
       <div className="mx-auto max-w-2xl glass rounded-[2rem] p-8">
         <p className="text-xs uppercase tracking-[0.3em] text-amber-300">Create account</p>
-        <h1 className="mt-4 font-display text-5xl text-white">Start planning with Bowline</h1>
-        <form className="mt-8 grid gap-4 sm:grid-cols-2" onSubmit={submit}>
+        <h1 className="mt-3 font-display text-3xl text-white sm:text-5xl">Start planning with Bowline</h1>
+        <form className="mt-6 grid gap-4 sm:grid-cols-2" onSubmit={submit}>
           <div className="sm:col-span-2">
             <label className="label">Full name</label>
             <input

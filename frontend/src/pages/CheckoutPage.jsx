@@ -96,10 +96,10 @@ function CheckoutPage() {
 
   return (
     <section className="section-shell py-12">
-      <h1 className="mb-8 font-display text-4xl text-white">Checkout</h1>
+      <h1 className="mb-6 font-display text-2xl text-white sm:text-4xl">Checkout</h1>
 
-      <div className="grid gap-8 lg:grid-cols-[1fr_400px]">
-        <div className="space-y-6">
+      <div className="grid gap-6 lg:grid-cols-[1fr_400px]">
+        <div className="order-2 space-y-6 lg:order-1">
           <div className="glass rounded-[2rem] p-6">
             <h2 className="mb-4 text-lg font-semibold text-white">Your Rooms</h2>
             <ul className="space-y-4">
@@ -183,7 +183,7 @@ function CheckoutPage() {
           </div>
         </div>
 
-        <div className="space-y-6">
+        <div className="order-1 space-y-6 lg:order-2">
           <div className="glass rounded-[2rem] p-6">
             <h2 className="mb-4 text-lg font-semibold text-white">Order Summary</h2>
             <div className="space-y-2 text-sm text-slate-300">

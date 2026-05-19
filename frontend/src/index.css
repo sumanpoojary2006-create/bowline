@@ -41,8 +41,9 @@ body {
 }
 
 .btn-primary {
-  @apply inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold text-slate-950 transition;
+  @apply inline-flex min-h-[48px] items-center justify-center rounded-full px-5 py-3 text-sm font-semibold text-slate-950 transition;
   background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+  touch-action: manipulation;
 }
 
 .btn-primary:hover {
@@ -50,9 +51,10 @@ body {
 }
 
 .btn-secondary {
-  @apply inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold text-white transition;
+  @apply inline-flex min-h-[48px] items-center justify-center rounded-full px-5 py-3 text-sm font-semibold text-white transition;
   border: 1px solid rgba(183, 207, 143, 0.18);
   background: rgba(255, 255, 255, 0.04);
+  touch-action: manipulation;
 }
 
 .btn-secondary:hover {
@@ -60,9 +62,11 @@ body {
 }
 
 .input {
-  @apply w-full rounded-2xl px-4 py-3 text-sm text-white outline-none transition;
+  /* text-base = 16px prevents iOS auto-zoom on focus */
+  @apply w-full rounded-2xl px-4 py-3.5 text-base text-white outline-none transition;
   border: 1px solid rgba(183, 207, 143, 0.12);
   background: var(--surface-strong);
+  touch-action: manipulation;
 }
 
 .input:focus {
@@ -76,5 +80,13 @@ body {
 }
 
 .card-grid {
-  @apply grid gap-6 md:grid-cols-2 xl:grid-cols-3;
+  @apply grid gap-5 sm:grid-cols-2 xl:grid-cols-3;
+}
+
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
 }
