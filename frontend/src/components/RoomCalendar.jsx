@@ -38,14 +38,14 @@ function CalendarMonth({ year, month, bookedRanges, startDate, endDate, onDayCli
 
   return (
     <div>
-      <div className="mb-2 grid grid-cols-7 text-center">
+      <div className="mb-1 grid grid-cols-7 text-center">
         {DAY_NAMES.map((d) => (
-          <span key={d} className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+          <span key={d} className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 py-1">
             {d}
           </span>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-y-1">
+      <div className="grid grid-cols-7">
         {days.map((date, idx) => {
           if (!date) return <span key={`empty-${idx}`} />;
 
@@ -57,18 +57,18 @@ function CalendarMonth({ year, month, bookedRanges, startDate, endDate, onDayCli
           const disabled = booked || isPast;
 
           let cls =
-            'flex h-8 w-8 mx-auto items-center justify-center rounded-full text-sm transition-colors select-none ';
+            'flex h-10 w-full items-center justify-center text-sm transition-colors select-none touch-manipulation ';
 
           if (disabled) {
             cls += booked
               ? 'bg-rose-900/40 text-rose-400 line-through cursor-not-allowed'
               : 'text-slate-600 cursor-not-allowed';
           } else if (isStart || isEnd) {
-            cls += 'bg-lime-400 text-slate-900 font-bold cursor-pointer';
+            cls += 'bg-lime-400 text-slate-900 font-bold cursor-pointer rounded-full';
           } else if (inRange) {
-            cls += 'bg-lime-400/20 text-lime-200 cursor-pointer rounded-none';
+            cls += 'bg-lime-400/20 text-lime-200 cursor-pointer';
           } else {
-            cls += 'text-slate-200 hover:bg-white/10 cursor-pointer';
+            cls += 'text-slate-200 hover:bg-white/10 cursor-pointer rounded-full';
           }
 
           return (
@@ -166,34 +166,51 @@ function RoomCalendar({ listingId, listingType, startDate, endDate, onStartDate,
     new Date(y, m, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-400">
-          {selecting === 'start' ? 'Select check-in date' : 'Select check-out date'}
-        </p>
-        <div className="flex items-center gap-3">
+    <div className="space-y-3">
+      {/* Instruction */}
+      <p className="text-sm font-medium text-lime-300">
+        {selecting === 'start' ? '① Select check-in date' : '② Now select check-out date'}
+      </p>
+
+      {/* Mobile: one month + prev/next arrows */}
+      <div className="sm:hidden">
+        <div className="mb-2 flex items-center justify-between">
           <button
             type="button"
             onClick={prevMonth}
-            className="rounded-full p-1 text-slate-400 hover:text-white"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-slate-400 hover:bg-white/10 hover:text-white"
           >
-            <ChevronLeftIcon className="h-4 w-4" />
+            <ChevronLeftIcon className="h-5 w-5" />
           </button>
+          <p className="text-sm font-semibold text-slate-200">{monthName(viewMonth, viewYear)}</p>
           <button
             type="button"
             onClick={nextMonth}
-            className="rounded-full p-1 text-slate-400 hover:text-white"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-slate-400 hover:bg-white/10 hover:text-white"
           >
-            <ChevronRightIcon className="h-4 w-4" />
+            <ChevronRightIcon className="h-5 w-5" />
           </button>
         </div>
+        <CalendarMonth
+          year={viewYear}
+          month={viewMonth}
+          bookedRanges={bookedRanges}
+          startDate={startDate}
+          endDate={endDate}
+          onDayClick={handleDayClick}
+        />
       </div>
 
-      <div className="grid gap-8 sm:grid-cols-2">
+      {/* Desktop: two months side by side */}
+      <div className="hidden sm:grid sm:grid-cols-2 sm:gap-8">
         <div>
-          <p className="mb-3 text-center text-sm font-semibold text-slate-300">
-            {monthName(viewMonth, viewYear)}
-          </p>
+          <div className="mb-2 flex items-center justify-between">
+            <button type="button" onClick={prevMonth} className="rounded-full p-1 text-slate-400 hover:text-white">
+              <ChevronLeftIcon className="h-4 w-4" />
+            </button>
+            <p className="text-sm font-semibold text-slate-300">{monthName(viewMonth, viewYear)}</p>
+            <span className="w-6" />
+          </div>
           <CalendarMonth
             year={viewYear}
             month={viewMonth}
@@ -204,9 +221,13 @@ function RoomCalendar({ listingId, listingType, startDate, endDate, onStartDate,
           />
         </div>
         <div>
-          <p className="mb-3 text-center text-sm font-semibold text-slate-300">
-            {monthName(nextViewMonth, nextViewYear)}
-          </p>
+          <div className="mb-2 flex items-center justify-between">
+            <span className="w-6" />
+            <p className="text-sm font-semibold text-slate-300">{monthName(nextViewMonth, nextViewYear)}</p>
+            <button type="button" onClick={nextMonth} className="rounded-full p-1 text-slate-400 hover:text-white">
+              <ChevronRightIcon className="h-4 w-4" />
+            </button>
+          </div>
           <CalendarMonth
             year={nextViewYear}
             month={nextViewMonth}
