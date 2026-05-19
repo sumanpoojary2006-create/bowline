@@ -6,6 +6,7 @@ import {
   pushToSheet,
   pullFromSheet,
   inboundWebhook,
+  importLegacy,
 } from '../controllers/syncController.js';
 
 const router = Router();
@@ -15,6 +16,7 @@ router.post('/inbound', inboundWebhook);
 
 // Admin-only endpoints
 router.get('/status', protect, authorize('admin'), getSyncStatus);
+router.post('/import-legacy', protect, authorize('admin'), importLegacy);
 router.post('/setup', protect, authorize('admin'), setupSheets);
 router.post('/push', protect, authorize('admin'), pushToSheet);
 router.post('/pull', protect, authorize('admin'), pullFromSheet);

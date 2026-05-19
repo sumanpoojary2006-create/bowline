@@ -1,6 +1,10 @@
 import Booking from '../models/Booking.js';
 import Listing from '../models/Listing.js';
 import { calculateBookingPrice } from '../utils/pricing.js';
+import { createReadStream } from 'fs';
+import { readFile } from 'fs/promises';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import {
   isSheetsConfigured,
   readMonthSheet,
@@ -9,10 +13,113 @@ import {
   clearBookingFromSheet,
   ensureSheetStructure,
   ROOM_COLUMNS,
+  SHEET_ROOM_TO_LISTING,
   sheetNameForDate,
   parseSheetName,
   MONTH_NAMES,
 } from '../utils/googleSheets.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// ── Legacy room name → MongoDB Listing name ─────────────────────────────────
+const LEGACY_ROOM_MAP = {
+  'Cozy 1':    'Cozy 1',
+  'Cozy 2':    'Cozy 2',
+  'Cozy Mini': 'Cozy Mini',
+  'Dorm':      'Dormitory (Open Loft)',
+  'Penthouse': 'Pent House',
+};
+
+// ── POST /api/sync/import-legacy ────────────────────────────────────────────
+// One-time import of bookings from BNS_bookings_2026.json into the DB.
+// Idempotent: skips any booking that already exists for the same room + dates.
+export const importLegacy = async (req, res, next) => {
+  try {
+    const dataPath = join(__dirname, '../data/legacy_bookings_2026.json');
+    const raw = await readFile(dataPath, 'utf8');
+    const legacyBookings = JSON.parse(raw);
+
+    const adminUser = await import('../models/User.js').then((m) =>
+      m.default.findOne({ role: 'admin' })
+    );
+    if (!adminUser) {
+      res.status(500);
+      throw new Error('No admin user found — run the seed script first.');
+    }
+
+    const results = { created: 0, skipped: 0, errors: [] };
+
+    for (const lb of legacyBookings) {
+      try {
+        const dbName = LEGACY_ROOM_MAP[lb.roomName] || lb.roomName;
+        const listing = await Listing.findOne({
+          name: new RegExp(`^${dbName}$`, 'i'),
+          type: 'room',
+        });
+
+        if (!listing) {
+          results.errors.push(`Room not found: "${lb.roomName}" (tried "${dbName}")`);
+          continue;
+        }
+
+        const startDate = new Date(lb.startDate);
+        const endDate = new Date(lb.endDate);
+
+        // Skip if a non-cancelled booking already covers these exact dates
+        const exists = await Booking.findOne({
+          listing: listing._id,
+          startDate,
+          endDate,
+          status: { $ne: 'cancelled' },
+        });
+
+        if (exists) {
+          results.skipped++;
+          continue;
+        }
+
+        const pricing = await calculateBookingPrice({
+          listing,
+          bookingType: 'room',
+          startDate,
+          endDate,
+          guests: 1,
+        });
+
+        await Booking.create({
+          bookingType: 'room',
+          listing: listing._id,
+          user: adminUser._id,
+          startDate,
+          endDate,
+          guests: 1,
+          unitPrice: pricing.unitPrice,
+          totalPrice: pricing.totalPrice,
+          pricingBreakdown: { basePrice: pricing.basePrice, adjustments: pricing.adjustments },
+          status: lb.status === 'confirmed' ? 'confirmed' : 'pending',
+          paymentStatus: 'pending',
+          paymentMethod: 'manual',
+          contactName: lb.guestName,
+          contactEmail: 'legacy-import@bowline.internal',
+          contactPhone: '',
+          specialRequests: 'Imported from BNS 2026 spreadsheet',
+        });
+
+        results.created++;
+      } catch (err) {
+        results.errors.push(`${lb.roomName} ${lb.startDate}: ${err.message}`);
+      }
+    }
+
+    res.json({
+      message: `Import complete: ${results.created} created, ${results.skipped} already existed`,
+      ...results,
+      total: legacyBookings.length,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
 
 // ── GET /api/sync/status ────────────────────────────────────────────────────
 export const getSyncStatus = (req, res) => {
@@ -93,8 +200,9 @@ export const pullFromSheet = async (req, res, next) => {
           const sheetBookings = groupCellsIntoBookings(cells, roomName);
 
           for (const sb of sheetBookings) {
+            const dbName = SHEET_ROOM_TO_LISTING[sb.roomName] || sb.roomName;
             const listing = await Listing.findOne({
-              name: new RegExp(`^${sb.roomName}$`, 'i'),
+              name: new RegExp(`^${dbName}$`, 'i'),
               type: 'room',
             });
             if (!listing) continue;
@@ -186,14 +294,15 @@ export const inboundWebhook = async (req, res, next) => {
       throw new Error('sheetName, roomName, and cells[] are required');
     }
 
+    const dbRoomName = SHEET_ROOM_TO_LISTING[roomName] || roomName;
     const listing = await Listing.findOne({
-      name: new RegExp(`^${roomName}$`, 'i'),
+      name: new RegExp(`^${dbRoomName}$`, 'i'),
       type: 'room',
     });
 
     if (!listing) {
       res.status(404);
-      throw new Error(`Room listing "${roomName}" not found in database`);
+      throw new Error(`Room listing "${dbRoomName}" not found in database`);
     }
 
     const normalizedCells = cells.map((c) => ({

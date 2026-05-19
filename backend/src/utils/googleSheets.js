@@ -8,16 +8,22 @@ import { google } from 'googleapis';
 // Col E  = Dorm
 // Col F  = Penthouse
 //
-// Room names MUST exactly match Listing.name values in MongoDB.
-// Adjust ROOM_COLUMNS if your listing names differ.
+// ROOM_COLUMNS keys are the SHORT names used in the sheet headers.
+// SHEET_ROOM_TO_LISTING maps those short names to the exact Listing.name in MongoDB.
 
+// Keys = exact MongoDB Listing.name values (also used as sheet column headers)
 export const ROOM_COLUMNS = {
-  'Cozy 1':    { col: 'B', idx: 2 },
-  'Cozy 2':    { col: 'C', idx: 3 },
-  'Cozy Mini': { col: 'D', idx: 4 },
-  'Dorm':      { col: 'E', idx: 5 },
-  'Penthouse': { col: 'F', idx: 6 },
+  'Cozy 1':               { col: 'B', idx: 2 },
+  'Cozy 2':               { col: 'C', idx: 3 },
+  'Cozy Mini':            { col: 'D', idx: 4 },
+  'Dormitory (Open Loft)':{ col: 'E', idx: 5 },
+  'Pent House':           { col: 'F', idx: 6 },
 };
+
+// Maps sheet column header → MongoDB Listing.name (identity here since keys already match)
+export const SHEET_ROOM_TO_LISTING = Object.fromEntries(
+  Object.keys(ROOM_COLUMNS).map((name) => [name, name])
+);
 
 export const COLUMN_TO_ROOM = Object.fromEntries(
   Object.entries(ROOM_COLUMNS).map(([name, { col }]) => [col, name])
@@ -330,7 +336,7 @@ export async function ensureSheetStructure(year = 2026) {
     const name = `${MONTH_NAMES[m]} ${String(year).slice(-2)}`;
     const daysInMonth = new Date(year, m + 1, 0).getDate();
 
-    const headerRow = ['Date', ...Object.keys(ROOM_COLUMNS)];
+    const headerRow = ['Date', 'Cozy 1', 'Cozy 2', 'Cozy Mini', 'Dormitory (Open Loft)', 'Pent House'];
     const dateRows = Array.from({ length: daysInMonth }, (_, i) => {
       const d = new Date(year, m, i + 1);
       return [d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })];

@@ -4,6 +4,7 @@ import {
   CheckCircleIcon,
   ClipboardDocumentIcon,
   Cog6ToothIcon,
+  DocumentArrowUpIcon,
   ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 import { useEffect, useState } from 'react';
@@ -49,6 +50,8 @@ function AdminSyncPage() {
   const [setupYear, setSetupYear] = useState(2026);
   const [settingUp, setSettingUp] = useState(false);
   const [pullResult, setPullResult] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
 
   useEffect(() => {
     document.title = 'Bowline Admin | Sheets Sync';
@@ -79,6 +82,20 @@ function AdminSyncPage() {
       toast.error(err.response?.data?.message || 'Push failed');
     } finally {
       setPushing(false);
+    }
+  };
+
+  const handleImportLegacy = async () => {
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const { data } = await api.post('/sync/import-legacy');
+      setImportResult(data);
+      toast.success(data.message);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Import failed');
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -178,6 +195,63 @@ function AdminSyncPage() {
           </p>
         </div>
       )}
+
+      {/* Legacy import */}
+      <div className="glass rounded-[2rem] p-6 space-y-4 border border-amber-400/20">
+        <h2 className="text-base font-semibold text-white flex items-center gap-2">
+          <DocumentArrowUpIcon className="h-5 w-5 text-amber-300" />
+          Import Legacy Data — BNS 2026 Spreadsheet
+        </h2>
+        <p className="text-sm text-slate-400">
+          Imports all 110 bookings parsed from the original <strong className="text-slate-200">BNS Calender 2026.xlsx</strong> file
+          into the product. Covers Jan–Jul 2026 across all 5 rooms.
+          Already-existing bookings are skipped so this is safe to run more than once.
+        </p>
+
+        <div className="rounded-[1.25rem] border border-white/10 bg-white/5 p-4 text-xs text-slate-300 space-y-1">
+          <p className="font-semibold text-slate-200">What will be imported:</p>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-0.5 mt-2">
+            {[
+              ['Cozy 1', '32 bookings'],
+              ['Cozy 2', '18 bookings'],
+              ['Cozy Mini', '15 bookings'],
+              ['Dormitory', '6 bookings'],
+              ['Pent House', '39 bookings'],
+            ].map(([room, count]) => (
+              <div key={room} className="flex justify-between">
+                <span className="text-slate-400">{room}</span>
+                <span className="text-lime-300 font-semibold">{count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <button
+          className="btn-primary w-full"
+          onClick={handleImportLegacy}
+          disabled={importing}
+        >
+          {importing ? 'Importing…' : 'Import 110 Bookings into Product'}
+        </button>
+
+        {importResult && (
+          <div className="rounded-[1.25rem] border border-white/10 bg-white/5 p-4 text-sm space-y-1.5">
+            <p className="font-semibold text-white">{importResult.message}</p>
+            <div className="text-xs text-slate-400 space-y-0.5">
+              <p><span className="text-lime-300 font-semibold">{importResult.created}</span> new bookings created</p>
+              <p><span className="text-slate-400 font-semibold">{importResult.skipped}</span> already existed (skipped)</p>
+              {importResult.errors?.length > 0 && (
+                <div className="mt-2 text-rose-400">
+                  <p>{importResult.errors.length} errors:</p>
+                  <ul className="mt-1 space-y-0.5 font-mono text-[10px]">
+                    {importResult.errors.slice(0, 5).map((e, i) => <li key={i}>{e}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Setup */}
       <div className="glass rounded-[2rem] p-6 space-y-4">
