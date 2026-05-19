@@ -5,6 +5,7 @@ const items = [
   { label: 'Overview', to: '/admin/overview' },
   { label: 'Listings', to: '/admin/listings' },
   { label: 'Bookings', to: '/admin/bookings' },
+  { label: 'Room Calendar', to: '/admin/calendar' },
   { label: 'Users', to: '/admin/users' },
   { label: 'Pricing', to: '/admin/pricing' },
 ];

@@ -1,14 +1,16 @@
-import { CalendarDaysIcon, MapPinIcon, UserGroupIcon } from '@heroicons/react/24/outline';
+import { CalendarDaysIcon, MapPinIcon, ShoppingBagIcon, UserGroupIcon } from '@heroicons/react/24/outline';
 import { useEffect, useRef, useState } from 'react';
 import DatePicker from 'react-datepicker';
 import toast from 'react-hot-toast';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useBookingCart } from '../context/BookingCartContext';
 import api from '../lib/api';
 import { formatCurrency, formatDateRange } from '../lib/formatters';
 import { addDays, ensureCheckoutDate, formatDateParam, parseDateParam } from '../lib/dateUtils';
 import ListingCard from '../components/ListingCard';
 import PageLoader from '../components/PageLoader';
+import RoomCalendar from '../components/RoomCalendar';
 
 const tomorrow = () => addDays(new Date(), 1);
 
@@ -18,6 +20,7 @@ function ListingDetailPage({ bookingFirst = false }) {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
+  const { addItem } = useBookingCart();
   const bookingFormRef = useRef(null);
   const isBookingIntent = Boolean(bookingFirst || searchParams.get('intent') === 'book');
 
@@ -239,26 +242,56 @@ function ListingDetailPage({ bookingFirst = false }) {
             </div>
 
             <form className="mt-6 space-y-4" onSubmit={submitBooking}>
-              <div className="grid gap-4 sm:grid-cols-2">
+              {listing.type === 'room' ? (
                 <div>
-                  <label className="label">Check-in date</label>
-                  <DatePicker
-                    selected={booking.startDate}
-                    onChange={(date) => updateStartDate(date)}
-                    className="input"
-                    minDate={new Date()}
-                  />
+                  <label className="label">Select dates</label>
+                  <div className="mt-2 rounded-[1.5rem] border border-white/10 bg-[#0d1710]/80 p-4">
+                    <RoomCalendar
+                      listingId={listing._id}
+                      listingType={listing.type}
+                      startDate={booking.startDate}
+                      endDate={booking.endDate}
+                      onStartDate={updateStartDate}
+                      onEndDate={updateEndDate}
+                    />
+                    <div className="mt-4 grid grid-cols-2 gap-3 border-t border-white/10 pt-4 text-sm text-slate-300">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-slate-500">Check-in</p>
+                        <p className="font-semibold text-white">
+                          {booking.startDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-slate-500">Check-out</p>
+                        <p className="font-semibold text-white">
+                          {booking.endDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label className="label">Check-out date</label>
-                  <DatePicker
-                    selected={booking.endDate}
-                    onChange={(date) => updateEndDate(date)}
-                    className="input"
-                    minDate={addDays(booking.startDate, listing.type === 'room' ? 1 : 0)}
-                  />
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="label">Check-in date</label>
+                    <DatePicker
+                      selected={booking.startDate}
+                      onChange={(date) => updateStartDate(date)}
+                      className="input"
+                      minDate={new Date()}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Check-out date</label>
+                    <DatePicker
+                      selected={booking.endDate}
+                      onChange={(date) => updateEndDate(date)}
+                      className="input"
+                      minDate={addDays(booking.startDate, 0)}
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
               <div>
                 <label className="label">Guests</label>
                 <input
@@ -317,6 +350,19 @@ function ListingDetailPage({ bookingFirst = false }) {
                   Send Booking Request
                 </button>
               </div>
+              {listing.type === 'room' && (
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-center gap-2 rounded-[1.25rem] border border-white/20 bg-white/5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+                  onClick={() => {
+                    addItem(listing, booking.startDate, booking.endDate, booking.guests);
+                    toast.success(`${listing.name} added to cart`);
+                  }}
+                >
+                  <ShoppingBagIcon className="h-4 w-4" />
+                  Add to Cart
+                </button>
+              )}
             </form>
 
             {availability ? (

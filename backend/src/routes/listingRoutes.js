@@ -5,8 +5,11 @@ import {
   createListing,
   deleteListing,
   getAdminListings,
+  getBookedDatesForListing,
   getListingBySlug,
   getListings,
+  getNextAvailableForListing,
+  getRoomsWithAvailability,
   updateListing,
 } from '../controllers/listingController.js';
 import { authorize, protect } from '../middleware/auth.js';
@@ -16,6 +19,9 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 router.get('/', getListings);
 router.get('/admin/all', protect, authorize('admin'), getAdminListings);
+router.get('/availability/rooms', getRoomsWithAvailability);
+router.get('/:id/booked-dates', getBookedDatesForListing);
+router.get('/:id/next-available', getNextAvailableForListing);
 router.get('/:slug', getListingBySlug);
 router.post('/:id/availability', checkAvailability);
 router.post('/', protect, authorize('admin'), upload.array('images', 6), createListing);

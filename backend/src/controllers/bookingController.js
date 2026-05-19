@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import Booking from '../models/Booking.js';
 import Listing from '../models/Listing.js';
 import { calculateBookingPrice } from '../utils/pricing.js';
@@ -88,6 +89,118 @@ export const createBooking = async (req, res, next) => {
       .populate('user', 'name email phone');
 
     res.status(201).json({ booking: populatedBooking });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createMultiBooking = async (req, res, next) => {
+  try {
+    const {
+      items,
+      contactName,
+      contactEmail,
+      contactPhone,
+      specialRequests,
+      isGroupBooking,
+      groupName,
+    } = req.body;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      res.status(400);
+      throw new Error('At least one booking item is required');
+    }
+
+    const groupId = isGroupBooking || items.length > 1 ? randomUUID() : null;
+
+    const validationErrors = [];
+    const preparedItems = [];
+
+    for (const item of items) {
+      const { listingId, startDate, endDate, guests } = item;
+      const listing = await Listing.findById(listingId);
+
+      if (!listing || !listing.active) {
+        validationErrors.push(`Listing ${listingId} not found`);
+        continue;
+      }
+
+      const normalizedStart = new Date(startDate);
+      const normalizedEnd = new Date(endDate);
+      const normalizedGuests = Number(guests) || 1;
+
+      const availability = await validateListingAvailability({
+        listing,
+        startDate: normalizedStart,
+        endDate: normalizedEnd,
+        guests: normalizedGuests,
+      });
+
+      if (!availability.available) {
+        validationErrors.push(`${listing.name}: ${availability.reason}`);
+        continue;
+      }
+
+      const pricing = await calculateBookingPrice({
+        listing,
+        bookingType: listing.type,
+        startDate: normalizedStart,
+        endDate: normalizedEnd,
+        guests: normalizedGuests,
+      });
+
+      preparedItems.push({ listing, normalizedStart, normalizedEnd, normalizedGuests, pricing });
+    }
+
+    if (validationErrors.length > 0) {
+      res.status(400);
+      throw new Error(validationErrors.join('; '));
+    }
+
+    const createdBookings = await Promise.all(
+      preparedItems.map(({ listing, normalizedStart, normalizedEnd, normalizedGuests, pricing }) =>
+        Booking.create({
+          bookingType: listing.type,
+          listing: listing._id,
+          user: req.user._id,
+          startDate: normalizedStart,
+          endDate: normalizedEnd,
+          guests: normalizedGuests,
+          unitPrice: pricing.unitPrice,
+          totalPrice: pricing.totalPrice,
+          pricingBreakdown: { basePrice: pricing.basePrice, adjustments: pricing.adjustments },
+          paymentMethod: 'manual',
+          status: 'pending',
+          paymentStatus: 'pending',
+          contactName,
+          contactEmail,
+          contactPhone: contactPhone || '',
+          specialRequests: specialRequests || '',
+          groupId,
+          groupName: groupName || '',
+          isGroupBooking: Boolean(isGroupBooking),
+        })
+      )
+    );
+
+    await createNotification({
+      userId: req.user._id,
+      title: 'Booking request received',
+      message: `Your booking for ${createdBookings.length} room${createdBookings.length > 1 ? 's' : ''} has been placed successfully.`,
+      type: 'booking',
+    });
+
+    await notifyAdmins({
+      title: 'New booking received',
+      message: `${req.user.name} placed a booking for ${createdBookings.length} room${createdBookings.length > 1 ? 's' : ''}.`,
+      type: 'booking',
+    });
+
+    const populatedBookings = await Booking.find({ _id: { $in: createdBookings.map((b) => b._id) } })
+      .populate('listing')
+      .populate('user', 'name email phone');
+
+    res.status(201).json({ bookings: populatedBookings, groupId });
   } catch (error) {
     next(error);
   }
@@ -238,6 +351,37 @@ export const getAllBookings = async (req, res, next) => {
       .sort({ createdAt: -1 });
 
     res.json({ bookings });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getCalendarBookings = async (req, res, next) => {
+  try {
+    const { month } = req.query;
+
+    let rangeStart, rangeEnd;
+    if (month && /^\d{4}-\d{2}$/.test(month)) {
+      const [year, mon] = month.split('-').map(Number);
+      rangeStart = new Date(year, mon - 1, 1);
+      rangeEnd = new Date(year, mon, 1);
+    } else {
+      const now = new Date();
+      rangeStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      rangeEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    }
+
+    const bookings = await Booking.find({
+      bookingType: 'room',
+      status: { $in: ['pending', 'confirmed'] },
+      startDate: { $lt: rangeEnd },
+      endDate: { $gt: rangeStart },
+    })
+      .populate('listing', 'name _id')
+      .populate('user', 'name email')
+      .sort({ startDate: 1 });
+
+    res.json({ bookings, rangeStart, rangeEnd });
   } catch (error) {
     next(error);
   }

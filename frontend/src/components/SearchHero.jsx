@@ -1,8 +1,11 @@
 import { MagnifyingGlassIcon, UserGroupIcon } from '@heroicons/react/24/outline';
 import DatePicker from 'react-datepicker';
-import { addDays, ensureCheckoutDate } from '../lib/dateUtils';
+import { useNavigate } from 'react-router-dom';
+import { addDays, ensureCheckoutDate, formatDateParam } from '../lib/dateUtils';
 
 function SearchHero({ filters, setFilters, onSubmit }) {
+  const navigate = useNavigate();
+
   const updateStartDate = (date) => {
     setFilters((prev) => ({
       ...prev,
@@ -11,9 +14,20 @@ function SearchHero({ filters, setFilters, onSubmit }) {
     }));
   };
 
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (filters.startDate && filters.endDate) {
+      navigate(
+        `/browse?startDate=${formatDateParam(filters.startDate)}&endDate=${formatDateParam(filters.endDate)}&guests=${filters.guests || 1}`
+      );
+    } else if (onSubmit) {
+      onSubmit(e);
+    }
+  };
+
   return (
     <form
-      onSubmit={onSubmit}
+      onSubmit={handleSubmit}
       className="glass grid gap-3 rounded-[1.75rem] p-3 lg:grid-cols-[0.95fr_0.95fr_0.95fr_auto]"
     >
       <label className="rounded-[1.25rem] bg-[#f0edd8] px-4 py-3 text-sm text-slate-900">

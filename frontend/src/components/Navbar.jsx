@@ -1,11 +1,13 @@
-import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
+import { Bars3Icon, ShoppingBagIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
+import { useBookingCart } from '../context/BookingCartContext';
 import bowlineLogo from '../assets/bowline-logo.png';
 
 const links = [
+  { label: 'Browse Rooms', to: '/browse' },
   { label: 'Homestays', to: '/stays' },
   { label: 'Treks', to: '/treks' },
   { label: 'Camps', to: '/camps' },
@@ -14,6 +16,7 @@ const links = [
 function Navbar() {
   const [open, setOpen] = useState(false);
   const { user, logout } = useAuth();
+  const { items, setIsOpen: openCart } = useBookingCart();
 
   return (
     <header className="sticky top-0 z-40 border-b border-lime-100/10 bg-[#0a130d]/72 backdrop-blur-xl">
@@ -44,6 +47,18 @@ function Navbar() {
         </nav>
 
         <div className="hidden items-center gap-3 md:flex">
+          <button
+            onClick={() => openCart(true)}
+            className="relative rounded-full border border-lime-100/10 p-2 text-[#d5ddd2] transition hover:text-white"
+            aria-label="Open booking cart"
+          >
+            <ShoppingBagIcon className="h-5 w-5" />
+            {items.length > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-lime-400 text-[10px] font-bold text-slate-900">
+                {items.length}
+              </span>
+            )}
+          </button>
           {user ? (
             <>
               <Link className="btn-secondary" to={user.role === 'admin' ? '/admin/overview' : '/dashboard'}>
@@ -65,6 +80,18 @@ function Navbar() {
           )}
         </div>
 
+        <button
+          onClick={() => openCart(true)}
+          className="relative rounded-full border border-lime-100/10 p-2 text-[#d5ddd2] md:hidden"
+          aria-label="Open booking cart"
+        >
+          <ShoppingBagIcon className="h-5 w-5" />
+          {items.length > 0 && (
+            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-lime-400 text-[10px] font-bold text-slate-900">
+              {items.length}
+            </span>
+          )}
+        </button>
         <button
           className="rounded-full border border-lime-100/10 p-2 text-white md:hidden"
           onClick={() => setOpen((value) => !value)}

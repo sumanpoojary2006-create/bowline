@@ -1,5 +1,44 @@
 import Booking from '../models/Booking.js';
 
+export const getBookedDateRanges = async (listingId, fromDate, toDate) => {
+  const bookings = await Booking.find({
+    listing: listingId,
+    status: { $in: ['confirmed', 'pending'] },
+    startDate: { $lt: new Date(toDate) },
+    endDate: { $gt: new Date(fromDate) },
+  }).select('startDate endDate status');
+
+  return bookings.map((b) => ({
+    startDate: b.startDate,
+    endDate: b.endDate,
+    status: b.status,
+  }));
+};
+
+export const getNextAvailableWindow = async (listingId, nights, fromDate, maxDaysAhead = 90) => {
+  const ceiling = new Date(fromDate);
+  ceiling.setDate(ceiling.getDate() + maxDaysAhead);
+
+  const bookedRanges = await getBookedDateRanges(listingId, fromDate, ceiling);
+
+  const isWindowFree = (start, end) =>
+    !bookedRanges.some(
+      (r) => r.status === 'confirmed' && r.startDate < end && r.endDate > start
+    );
+
+  const cursor = new Date(fromDate);
+  while (cursor < ceiling) {
+    const windowEnd = new Date(cursor);
+    windowEnd.setDate(windowEnd.getDate() + nights);
+    if (windowEnd > ceiling) break;
+    if (isWindowFree(cursor, windowEnd)) {
+      return { startDate: new Date(cursor), endDate: windowEnd };
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return null;
+};
+
 export const getExistingBookingsForRange = async ({
   listingId,
   startDate,

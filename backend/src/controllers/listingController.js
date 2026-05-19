@@ -1,7 +1,7 @@
 import Listing from '../models/Listing.js';
 import { slugify } from '../utils/slugify.js';
 import { calculateBookingPrice } from '../utils/pricing.js';
-import { validateListingAvailability } from '../utils/availability.js';
+import { validateListingAvailability, getBookedDateRanges, getNextAvailableWindow } from '../utils/availability.js';
 import { persistUploadedFiles } from '../utils/upload.js';
 
 const parseArray = (value) => {
@@ -174,6 +174,79 @@ export const deleteListing = async (req, res, next) => {
     await listing.save();
 
     res.json({ message: 'Listing archived successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getRoomsWithAvailability = async (req, res, next) => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    if (!startDate || !endDate) {
+      res.status(400);
+      throw new Error('startDate and endDate are required');
+    }
+
+    const rooms = await Listing.find({ type: 'room', active: true }).sort({ featured: -1 });
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    const results = await Promise.all(
+      rooms.map(async (room) => {
+        const { available, reason } = await validateListingAvailability({
+          listing: room,
+          startDate: start,
+          endDate: end,
+          guests: 1,
+        });
+        return { ...room.toObject(), isAvailable: available, unavailableReason: available ? null : reason };
+      })
+    );
+
+    res.json({ rooms: results });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getBookedDatesForListing = async (req, res, next) => {
+  try {
+    const listing = await Listing.findById(req.params.id);
+
+    if (!listing) {
+      res.status(404);
+      throw new Error('Listing not found');
+    }
+
+    const months = Math.min(Number(req.query.months) || 3, 12);
+    const from = new Date();
+    from.setHours(0, 0, 0, 0);
+    const to = new Date(from);
+    to.setMonth(to.getMonth() + months);
+
+    const ranges = await getBookedDateRanges(listing._id, from, to);
+
+    res.json({ bookedRanges: ranges });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getNextAvailableForListing = async (req, res, next) => {
+  try {
+    const listing = await Listing.findById(req.params.id);
+    if (!listing) {
+      res.status(404);
+      throw new Error('Listing not found');
+    }
+
+    const nights = Math.max(Number(req.query.nights) || 1, 1);
+    const from = req.query.from ? new Date(req.query.from) : new Date();
+
+    const result = await getNextAvailableWindow(listing._id, nights, from);
+    res.json(result || {});
   } catch (error) {
     next(error);
   }
