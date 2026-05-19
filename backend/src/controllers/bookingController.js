@@ -4,6 +4,17 @@ import Listing from '../models/Listing.js';
 import { calculateBookingPrice } from '../utils/pricing.js';
 import { createNotification, notifyAdmins } from '../utils/notifications.js';
 import { getExistingBookingsForRange, validateListingAvailability } from '../utils/availability.js';
+import { writeBookingToSheet, clearBookingFromSheet, isSheetsConfigured } from '../utils/googleSheets.js';
+
+function syncToSheet(booking) {
+  if (!isSheetsConfigured()) return;
+  writeBookingToSheet(booking).catch(() => {});
+}
+
+function unsyncFromSheet(booking) {
+  if (!isSheetsConfigured()) return;
+  clearBookingFromSheet(booking).catch(() => {});
+}
 
 export const createBooking = async (req, res, next) => {
   try {
@@ -88,6 +99,7 @@ export const createBooking = async (req, res, next) => {
       .populate('listing')
       .populate('user', 'name email phone');
 
+    syncToSheet(populatedBooking);
     res.status(201).json({ booking: populatedBooking });
   } catch (error) {
     next(error);
@@ -281,6 +293,7 @@ export const createAdminManualRoomBooking = async (req, res, next) => {
       .populate('listing')
       .populate('user', 'name email phone');
 
+    syncToSheet(populatedBooking);
     res.status(201).json({ booking: populatedBooking });
   } catch (error) {
     next(error);
@@ -316,6 +329,7 @@ export const cancelMyBooking = async (req, res, next) => {
       booking.paymentStatus = 'refunded';
     }
     await booking.save();
+    unsyncFromSheet(booking);
 
     await createNotification({
       userId: req.user._id,
@@ -418,6 +432,12 @@ export const updateBookingStatus = async (req, res, next) => {
     booking.status = nextStatus;
     booking.paymentStatus = req.body.paymentStatus ?? booking.paymentStatus;
     await booking.save();
+
+    if (nextStatus === 'cancelled') {
+      unsyncFromSheet(booking);
+    } else {
+      syncToSheet(booking);
+    }
 
     await createNotification({
       userId: booking.user._id,
