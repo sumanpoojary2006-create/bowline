@@ -52,7 +52,7 @@ function CalendarMonth({ year, month, bookedRanges, startDate, endDate, onDayCli
       {/* Date cells */}
       <div className="grid grid-cols-7">
         {cells.map((date, idx) => {
-          if (!date) return <div key={`empty-${idx}`} className="h-10" />;
+          if (!date) return <div key={`empty-${idx}`} />;
 
           const booked = isBookedDay(date, bookedRanges);
           const isPast = date < today;
@@ -62,7 +62,7 @@ function CalendarMonth({ year, month, bookedRanges, startDate, endDate, onDayCli
           const disabled = booked || isPast;
 
           let base = 'flex items-center justify-center text-sm select-none ';
-          let size = 'h-10 w-full ';
+          let size = 'aspect-square w-full ';
           let style = '';
 
           if (disabled) {

@@ -206,7 +206,7 @@ function ListingDetailPage({ bookingFirst = false }) {
   return (
     <section className="section-shell pb-28 pt-8 sm:py-12">
       <div className="grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className={`space-y-6 ${isBookingIntent ? 'order-2' : ''}`}>
+        <div className={`min-w-0 space-y-6 ${isBookingIntent ? 'order-2' : ''}`}>
           <div className="overflow-hidden rounded-[2.5rem] border border-white/10">
             <img
               src={listing.images?.[0] || 'https://placehold.co/1200x800'}
@@ -246,7 +246,7 @@ function ListingDetailPage({ bookingFirst = false }) {
           </div>
         </div>
 
-        <div className={`space-y-6 ${isBookingIntent ? 'order-1' : ''}`}>
+        <div className={`min-w-0 space-y-6 ${isBookingIntent ? 'order-1' : ''}`}>
           <div ref={bookingFormRef} className="glass rounded-[2rem] p-6">
             <div className="flex items-end justify-between gap-3">
               <div>
