@@ -3,7 +3,7 @@ import Booking from '../models/Booking.js';
 import Listing from '../models/Listing.js';
 import { calculateBookingPrice } from '../utils/pricing.js';
 import { findValidCoupon, normalizeCouponCode } from '../utils/coupons.js';
-import { createNotification, notifyAdmins } from '../utils/notifications.js';
+import { createNotification, notifyAdmins, formatBookingNotificationDetails } from '../utils/notifications.js';
 import { getExistingBookingsForRange, validateListingAvailability } from '../utils/availability.js';
 import { writeBookingToSheet, writeFullBookingToSheet, clearBookingFromSheet, isSheetsConfigured } from '../utils/googleSheets.js';
 import { sendBookingConfirmationEmail } from '../utils/bookingConfirmationEmail.js';
@@ -136,6 +136,10 @@ export const createBooking = async (req, res, next) => {
     await notifyAdmins({
       title: 'New booking received',
       message: `${contactName} placed a booking for ${listing.name}.`,
+      emailBody: `${contactName} placed a booking for ${listing.name}.\n\n${formatBookingNotificationDetails({
+        ...booking.toObject(),
+        listing,
+      })}`,
       type: 'booking',
     });
 
@@ -309,6 +313,9 @@ export const createMultiBooking = async (req, res, next) => {
     await notifyAdmins({
       title: 'New booking received',
       message: `${req.user.name} placed a booking for ${createdBookings.length} room${createdBookings.length > 1 ? 's' : ''}.`,
+      emailBody: `${req.user.name} placed a booking for ${createdBookings.length} room${createdBookings.length > 1 ? 's' : ''}.\n\n${formatBookingNotificationDetails(
+        createdBookings.map((booking, index) => ({ ...booking.toObject(), listing: preparedItems[index].listing }))
+      )}`,
       type: 'booking',
     });
 

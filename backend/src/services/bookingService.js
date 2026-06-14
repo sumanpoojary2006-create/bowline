@@ -1,7 +1,7 @@
 import Booking from '../models/Booking.js';
 import { calculateBookingPrice } from '../utils/pricing.js';
 import { validateListingAvailability } from '../utils/availability.js';
-import { createNotification, notifyAdmins } from '../utils/notifications.js';
+import { createNotification, notifyAdmins, formatBookingNotificationDetails } from '../utils/notifications.js';
 import { writeBookingToSheet, writeFullBookingToSheet, isSheetsConfigured } from '../utils/googleSheets.js';
 
 function syncToSheet(booking) {
@@ -87,6 +87,10 @@ export const createRoomBooking = async ({
   await notifyAdmins({
     title: 'New booking received',
     message: `${contactName} placed a booking for ${listing.name} via WhatsApp.`,
+    emailBody: `${contactName} placed a booking for ${listing.name} via WhatsApp.\n\n${formatBookingNotificationDetails({
+      ...booking.toObject(),
+      listing,
+    })}`,
     type: 'booking',
   });
 
