@@ -1,7 +1,10 @@
+import AdventureGearCelebration from './AdventureGearCelebration';
+
 function BookingSuccessOverlay({ onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm animate-[fadeIn_0.25s_ease-out]">
-      <div className="glass w-full max-w-sm rounded-[2rem] p-8 text-center animate-[popIn_0.35s_ease-out]">
+      <AdventureGearCelebration />
+      <div className="glass relative w-full max-w-sm rounded-[2rem] p-8 text-center animate-[popIn_0.35s_ease-out]">
         <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-lime-400/10">
           <svg viewBox="0 0 52 52" className="h-16 w-16">
             <circle
@@ -29,9 +32,7 @@ function BookingSuccessOverlay({ onClose }) {
         </div>
 
         <h2 className="mt-6 font-display text-2xl text-white">Booking Confirmed!</h2>
-        <p className="mt-3 text-sm text-slate-300">
-          Invoice and booking details have been sent to your email.
-        </p>
+        <p className="mt-3 text-sm text-slate-300">Invoice has been sent to your email.</p>
 
         <button type="button" onClick={onClose} className="btn-primary mt-8 w-full">
           Go to Dashboard

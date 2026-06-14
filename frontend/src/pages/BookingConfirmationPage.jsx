@@ -3,12 +3,14 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 import api from '../lib/api';
 import { formatCurrency, formatDateRange } from '../lib/formatters';
 import PageLoader from '../components/PageLoader';
+import BookingSuccessOverlay from '../components/BookingSuccessOverlay';
 
 function BookingConfirmationPage() {
   const { id } = useParams();
   const location = useLocation();
   const [booking, setBooking] = useState(location.state?.booking || null);
   const [loading, setLoading] = useState(!location.state?.booking);
+  const [showCelebration, setShowCelebration] = useState(Boolean(location.state?.showCelebration));
 
   useEffect(() => {
     document.title = 'Bowline | Booking Confirmed';
@@ -47,6 +49,7 @@ function BookingConfirmationPage() {
 
   return (
     <section className="section-shell py-16">
+      {showCelebration && <BookingSuccessOverlay onClose={() => setShowCelebration(false)} />}
       <div className="mx-auto max-w-3xl glass rounded-[2.5rem] p-8">
         <p className="text-xs uppercase tracking-[0.35em] text-emerald-300">Booking received</p>
         <h1 className="mt-4 font-display text-5xl text-white">Your Bowline plan is in motion</h1>

@@ -145,9 +145,8 @@ function HomePage() {
           contact: bookingDraft,
         });
 
-        toast.success('Payment successful! Your booking is confirmed.');
         navigate(`/booking/confirmation/${booking._id}`, {
-          state: { booking: result.bookings[0], resetBookingModal: true },
+          state: { booking: result.bookings[0], resetBookingModal: true, showCelebration: true },
         });
       } catch (paymentError) {
         if (paymentError.message === 'PAYMENT_CANCELLED') {
