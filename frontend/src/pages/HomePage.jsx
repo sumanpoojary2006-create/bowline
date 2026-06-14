@@ -228,11 +228,11 @@ function HomePage() {
                 {loading ? (
                   <PageLoader label="Loading rooms..." />
                 ) : rooms.length ? (
-                  <div className="flex snap-x snap-mandatory gap-5 overflow-x-auto pb-2">
+                  <div className="flex flex-col gap-5 sm:flex-row sm:snap-x sm:snap-mandatory sm:gap-5 sm:overflow-x-auto sm:pb-2">
                     {rooms.map((listing) => (
                       <div
                         key={listing._id}
-                        className="w-[85%] flex-shrink-0 snap-start sm:w-[45%] lg:w-[calc((100%-2.5rem)/3)]"
+                        className="w-full flex-shrink-0 sm:w-[45%] sm:snap-start lg:w-[calc((100%-2.5rem)/3)]"
                       >
                         <ListingCard
                           listing={listing}
