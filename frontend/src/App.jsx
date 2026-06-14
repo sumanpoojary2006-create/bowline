@@ -3,9 +3,11 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import PublicLayout from './layouts/PublicLayout';
 import AdminLayout from './layouts/AdminLayout';
 import ProtectedRoute from './components/ProtectedRoute';
+import EmployeeProtectedRoute from './components/EmployeeProtectedRoute';
 import PageLoader from './components/PageLoader';
 import BookingCartDrawer from './components/BookingCartDrawer';
 import { BookingCartProvider } from './context/BookingCartContext';
+import { EmployeeAuthProvider } from './context/EmployeeAuthContext';
 
 const HomePage = lazy(() => import('./pages/HomePage'));
 const ListingsPage = lazy(() => import('./pages/ListingsPage'));
@@ -26,10 +28,18 @@ const AdminSyncPage = lazy(() => import('./pages/AdminSyncPage'));
 const BrowseRoomsPage = lazy(() => import('./pages/BrowseRoomsPage'));
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
+const EmployeeLoginPage = lazy(() => import('./pages/employee/EmployeeLoginPage'));
+const EmployeeDashboardPage = lazy(() => import('./pages/employee/EmployeeDashboardPage'));
+const EmployeeChecklistPage = lazy(() => import('./pages/employee/EmployeeChecklistPage'));
+const AdminEmployeesPage = lazy(() => import('./pages/AdminEmployeesPage'));
+const AdminAttendancePage = lazy(() => import('./pages/AdminAttendancePage'));
+const AdminChecklistsPage = lazy(() => import('./pages/AdminChecklistsPage'));
+const AdminEmployeeSettingsPage = lazy(() => import('./pages/AdminEmployeeSettingsPage'));
 
 function App() {
   return (
     <BookingCartProvider>
+      <EmployeeAuthProvider>
       <BookingCartDrawer />
     <Suspense fallback={<PageLoader label="Loading page..." />}>
       <Routes>
@@ -60,6 +70,23 @@ function App() {
             }
           />
           <Route path="/checkout" element={<CheckoutPage />} />
+          <Route path="/employee/login" element={<EmployeeLoginPage />} />
+          <Route
+            path="/employee/dashboard"
+            element={
+              <EmployeeProtectedRoute>
+                <EmployeeDashboardPage />
+              </EmployeeProtectedRoute>
+            }
+          />
+          <Route
+            path="/employee/checkout"
+            element={
+              <EmployeeProtectedRoute>
+                <EmployeeChecklistPage />
+              </EmployeeProtectedRoute>
+            }
+          />
         </Route>
 
         <Route
@@ -80,11 +107,16 @@ function App() {
           <Route path="users" element={<AdminUsersPage />} />
           <Route path="pricing" element={<AdminPricingPage />} />
           <Route path="coupons" element={<AdminCouponsPage />} />
+          <Route path="employees" element={<AdminEmployeesPage />} />
+          <Route path="attendance" element={<AdminAttendancePage />} />
+          <Route path="checklists" element={<AdminChecklistsPage />} />
+          <Route path="employee-settings" element={<AdminEmployeeSettingsPage />} />
         </Route>
 
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </Suspense>
+      </EmployeeAuthProvider>
     </BookingCartProvider>
   );
 }

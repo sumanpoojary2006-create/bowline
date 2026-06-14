@@ -9,7 +9,7 @@ function Footer() {
         <div className="space-y-1 md:text-right">
           <p>Devaramane, Mudigere, Chikkamagaluru</p>
           <p>www.bowlinestays.com</p>
-          <p>Complimentary breakfast | Lunch 299 | Dinner 299 | Snacks 99</p>
+          <p>Breakfast complimentary | Meals Rs 350 per person per meal</p>
         </div>
       </div>
     </footer>

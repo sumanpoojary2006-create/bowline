@@ -11,6 +11,10 @@ const items = [
   { label: 'Users', to: '/admin/users' },
   { label: 'Pricing', to: '/admin/pricing' },
   { label: 'Coupons', to: '/admin/coupons' },
+  { label: 'Employees', to: '/admin/employees' },
+  { label: 'Attendance', to: '/admin/attendance' },
+  { label: 'Checklists', to: '/admin/checklists' },
+  { label: 'Employee Settings', to: '/admin/employee-settings' },
 ];
 
 function AdminSidebar() {

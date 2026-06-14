@@ -22,10 +22,14 @@ export function BookingCartProvider({ children }) {
 
   const removeItem = (id) => setItems((prev) => prev.filter((item) => item.id !== id));
 
+  const updateItem = (id, updates) => {
+    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, ...updates } : item)));
+  };
+
   const clearCart = () => setItems([]);
 
   const value = useMemo(
-    () => ({ items, isOpen, setIsOpen, addItem, removeItem, clearCart }),
+    () => ({ items, isOpen, setIsOpen, addItem, removeItem, updateItem, clearCart }),
     [items, isOpen]
   );
 

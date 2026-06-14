@@ -27,6 +27,10 @@ export const createRoomBooking = async ({
 }) => {
   const guests = adultGuests + childGuests;
 
+  if (Number(vegCount || 0) + Number(nonVegCount || 0) !== guests) {
+    throw new Error('Meal preference is required for every guest');
+  }
+
   const availability = await validateListingAvailability({ listing, startDate, endDate, guests });
 
   if (!availability.available) {

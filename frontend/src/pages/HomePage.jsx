@@ -196,6 +196,7 @@ function HomePage() {
   const modalGrandTotal = modalRoomTotal + modalPetTotal;
   const modalCouponDiscount = couponOffer?.discount || 0;
   const modalFinalTotal = Math.max(modalGrandTotal - modalCouponDiscount, 0);
+  const modalMealSelectionComplete = bookingDraft.vegCount + bookingDraft.nonVegCount === modalTotalGuests;
 
   useEffect(() => {
     setCouponOffer(null);
@@ -426,6 +427,14 @@ function HomePage() {
             </div>
 
             <div className="mt-5 space-y-3">
+              <div className="rounded-[1.25rem] border border-lime-100/10 bg-black/20 px-4 py-3 text-xs text-[#cdd6c9]">
+                <ul className="list-disc space-y-1 pl-4">
+                  <li>Breakfast is complimentary.</li>
+                  <li>Meal price is not included in the room total.</li>
+                  <li>Lunch and dinner are Rs 350 per person per meal.</li>
+                </ul>
+              </div>
+
               <div className="flex items-center justify-between rounded-[1.25rem] border border-lime-100/10 bg-black/20 px-4 py-3">
                 <div>
                   <p className="text-sm font-semibold text-[#f5f0dd]">Adults</p>
@@ -567,8 +576,8 @@ function HomePage() {
 
               {bookingDraft.vegCount + bookingDraft.nonVegCount !== modalTotalGuests ? (
                 <p className="px-1 text-xs text-amber-300">
-                  {bookingDraft.vegCount + bookingDraft.nonVegCount} of {modalTotalGuests} guest
-                  {modalTotalGuests === 1 ? '' : 's'} assigned a meal preference.
+                  Meal preference is required for every guest. {bookingDraft.vegCount + bookingDraft.nonVegCount} of {modalTotalGuests} guest
+                  {modalTotalGuests === 1 ? '' : 's'} assigned.
                 </p>
               ) : null}
             </div>
@@ -588,7 +597,12 @@ function HomePage() {
               <button className="btn-secondary flex-1" onClick={() => setActiveBooking(null)} type="button">
                 Cancel
               </button>
-              <button className="btn-primary flex-1" onClick={() => setBookingStep('summary')} type="button">
+              <button
+                className="btn-primary flex-1 disabled:opacity-50"
+                onClick={() => setBookingStep('summary')}
+                disabled={!modalMealSelectionComplete}
+                type="button"
+              >
                 Book Now
               </button>
             </div>
@@ -639,6 +653,14 @@ function HomePage() {
                       <span>Non-veg meals</span>
                       <span className="font-semibold text-white">{bookingDraft.nonVegCount}</span>
                     </div>
+                  </div>
+
+                  <div className="mt-4 rounded-[1.25rem] border border-lime-100/10 bg-black/20 px-4 py-3 text-xs text-[#cdd6c9]">
+                    <ul className="list-disc space-y-1 pl-4">
+                      <li>Breakfast is complimentary.</li>
+                      <li>Meal price is not included in the room total.</li>
+                      <li>Lunch and dinner are Rs 350 per person per meal.</li>
+                    </ul>
                   </div>
 
                   <div className="mt-4 space-y-2 border-t border-white/10 pt-4 text-sm text-[#cdd6c9]">

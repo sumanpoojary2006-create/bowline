@@ -39,7 +39,7 @@ function ListingDetailPage({ bookingFirst = false }) {
   const initialAdults = Number(statePrefill.adults || searchParams.get('adults') || initialGuests || 1);
   const initialChildren = Number(statePrefill.children || searchParams.get('children') || 0);
   const initialPets = Number(statePrefill.pets || searchParams.get('pets') || 0);
-  const initialVegCount = Number(statePrefill.vegCount ?? searchParams.get('vegCount') ?? (initialAdults + initialChildren));
+  const initialVegCount = Number(statePrefill.vegCount ?? searchParams.get('vegCount') ?? 0);
   const initialNonVegCount = Number(statePrefill.nonVegCount ?? searchParams.get('nonVegCount') ?? 0);
   const initialContactName = statePrefill.contactName || searchParams.get('contactName') || '';
   const initialContactEmail = statePrefill.contactEmail || searchParams.get('contactEmail') || '';
@@ -68,6 +68,8 @@ function ListingDetailPage({ bookingFirst = false }) {
     Math.round((booking.endDate.getTime() - booking.startDate.getTime()) / (1000 * 60 * 60 * 24)),
     1
   );
+  const bookingTotalGuests = Number(booking.adults) + Number(booking.children);
+  const mealSelectionComplete = listing?.type !== 'room' || booking.vegCount + booking.nonVegCount === bookingTotalGuests;
 
   useEffect(() => {
     const fetchListing = async () => {
@@ -155,6 +157,10 @@ function ListingDetailPage({ bookingFirst = false }) {
 
   const checkAvailability = async () => {
     if (!listing) return;
+    if (listing.type === 'room' && !mealSelectionComplete) {
+      toast.error('Please assign a veg or non-veg meal preference for every guest');
+      return;
+    }
     setChecking(true);
     try {
       const { data } = await api.post(`/listings/${listing._id}/availability`, {
@@ -193,6 +199,11 @@ function ListingDetailPage({ bookingFirst = false }) {
 
     if (!availability?.available) {
       toast.error('Please check availability before booking');
+      return;
+    }
+
+    if (listing.type === 'room' && !mealSelectionComplete) {
+      toast.error('Please assign a veg or non-veg meal preference for every guest');
       return;
     }
 
@@ -305,7 +316,11 @@ function ListingDetailPage({ bookingFirst = false }) {
             </div>
 
             <div className="mt-5 rounded-[1.5rem] border border-lime-100/10 bg-[#0d1710]/80 p-4 text-sm text-[#c1cbbd]">
-              Complimentary breakfast is included. Lunch and dinner can be added at 299 each. Choose your stay dates below before checking availability.
+              <ul className="list-disc space-y-1 pl-4">
+                <li>Breakfast is complimentary.</li>
+                <li>Meal price is not included in the room total.</li>
+                <li>Lunch and dinner are Rs 350 per person per meal.</li>
+              </ul>
             </div>
 
             <form className="mt-6 space-y-4" onSubmit={submitBooking}>
@@ -398,6 +413,14 @@ function ListingDetailPage({ bookingFirst = false }) {
                     </div>
                   </div>
 
+                  <div className="rounded-[1.25rem] border border-white/10 bg-[#0d1710]/80 px-4 py-3 text-xs text-slate-400">
+                    <ul className="list-disc space-y-1 pl-4">
+                      <li>Breakfast is complimentary.</li>
+                      <li>Meal price is not included in the room total.</li>
+                      <li>Lunch and dinner are Rs 350 per person per meal.</li>
+                    </ul>
+                  </div>
+
                   <div className="flex items-center justify-between rounded-[1.25rem] border border-white/10 bg-[#0d1710]/80 px-4 py-3">
                     <div>
                       <p className="text-sm font-semibold text-white">Children</p>
@@ -472,7 +495,7 @@ function ListingDetailPage({ bookingFirst = false }) {
                         disabled={booking.vegCount <= 0}
                         onClick={() => {
                           setAvailability(null);
-                          setBooking((prev) => ({ ...prev, vegCount: increment(prev.vegCount, -1, 0, 40) }));
+                          setBooking((prev) => ({ ...prev, vegCount: increment(prev.vegCount, -1, 0, bookingTotalGuests) }));
                         }}
                       >
                         <MinusIcon className="h-4 w-4" />
@@ -481,9 +504,14 @@ function ListingDetailPage({ bookingFirst = false }) {
                       <button
                         className="rounded-full border border-white/15 p-2 text-white disabled:opacity-40"
                         type="button"
+                        disabled={booking.vegCount >= bookingTotalGuests}
                         onClick={() => {
                           setAvailability(null);
-                          setBooking((prev) => ({ ...prev, vegCount: increment(prev.vegCount, 1, 0, 40) }));
+                          setBooking((prev) => {
+                            const vegCount = increment(prev.vegCount, 1, 0, bookingTotalGuests);
+                            const nonVegCount = Math.min(prev.nonVegCount, bookingTotalGuests - vegCount);
+                            return { ...prev, vegCount, nonVegCount };
+                          });
                         }}
                       >
                         <PlusIcon className="h-4 w-4" />
@@ -503,7 +531,7 @@ function ListingDetailPage({ bookingFirst = false }) {
                         disabled={booking.nonVegCount <= 0}
                         onClick={() => {
                           setAvailability(null);
-                          setBooking((prev) => ({ ...prev, nonVegCount: increment(prev.nonVegCount, -1, 0, 40) }));
+                          setBooking((prev) => ({ ...prev, nonVegCount: increment(prev.nonVegCount, -1, 0, bookingTotalGuests) }));
                         }}
                       >
                         <MinusIcon className="h-4 w-4" />
@@ -512,9 +540,14 @@ function ListingDetailPage({ bookingFirst = false }) {
                       <button
                         className="rounded-full border border-white/15 p-2 text-white disabled:opacity-40"
                         type="button"
+                        disabled={booking.nonVegCount >= bookingTotalGuests}
                         onClick={() => {
                           setAvailability(null);
-                          setBooking((prev) => ({ ...prev, nonVegCount: increment(prev.nonVegCount, 1, 0, 40) }));
+                          setBooking((prev) => {
+                            const nonVegCount = increment(prev.nonVegCount, 1, 0, bookingTotalGuests);
+                            const vegCount = Math.min(prev.vegCount, bookingTotalGuests - nonVegCount);
+                            return { ...prev, nonVegCount, vegCount };
+                          });
                         }}
                       >
                         <PlusIcon className="h-4 w-4" />
@@ -524,8 +557,8 @@ function ListingDetailPage({ bookingFirst = false }) {
 
                   {booking.vegCount + booking.nonVegCount !== booking.adults + booking.children ? (
                     <p className="px-1 text-xs text-amber-300">
-                      {booking.vegCount + booking.nonVegCount} of {booking.adults + booking.children} guest
-                      {booking.adults + booking.children === 1 ? '' : 's'} assigned a meal preference.
+                      Meal preference is required for every guest. {booking.vegCount + booking.nonVegCount} of {booking.adults + booking.children} guest
+                      {booking.adults + booking.children === 1 ? '' : 's'} assigned.
                     </p>
                   ) : null}
                 </div>
@@ -578,10 +611,10 @@ function ListingDetailPage({ bookingFirst = false }) {
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <button className="btn-secondary" type="button" onClick={checkAvailability} disabled={checking}>
+                <button className="btn-secondary disabled:opacity-50" type="button" onClick={checkAvailability} disabled={checking || !mealSelectionComplete}>
                   {checking ? 'Checking...' : 'Check Availability'}
                 </button>
-                <button className="btn-primary" type="submit">
+                <button className="btn-primary disabled:opacity-50" type="submit" disabled={!mealSelectionComplete}>
                   Send Booking Request
                 </button>
               </div>

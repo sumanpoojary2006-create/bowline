@@ -1,4 +1,4 @@
-import { TagIcon, TrashIcon, UserGroupIcon } from '@heroicons/react/24/outline';
+import { MinusIcon, PlusIcon, TagIcon, TrashIcon, UserGroupIcon } from '@heroicons/react/24/outline';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -8,7 +8,7 @@ import api from '../lib/api';
 import { formatCurrency, formatDate } from '../lib/formatters';
 
 function CheckoutPage() {
-  const { items, removeItem, clearCart } = useBookingCart();
+  const { items, removeItem, updateItem, clearCart } = useBookingCart();
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -47,6 +47,32 @@ function CheckoutPage() {
   const totalGuests = items.reduce((sum, item) => sum + item.guests, 0);
   const couponDiscount = couponOffer?.discount || 0;
   const finalEstimate = Math.max(totalEstimate - couponDiscount, 0);
+  const mealSelectionComplete = items.every(
+    (item) => item.listing.type !== 'room' || Number(item.vegCount || 0) + Number(item.nonVegCount || 0) === Number(item.guests || 0)
+  );
+
+  const increment = (value, amount, min = 0, max = 20) => Math.max(min, Math.min(max, Number(value || 0) + amount));
+
+  const updateMealCount = (item, mealType, amount) => {
+    const maxGuests = Number(item.guests || 0);
+    const currentVeg = Number(item.vegCount || 0);
+    const currentNonVeg = Number(item.nonVegCount || 0);
+
+    if (mealType === 'veg') {
+      const vegCount = increment(currentVeg, amount, 0, maxGuests);
+      updateItem(item.id, {
+        vegCount,
+        nonVegCount: Math.min(currentNonVeg, maxGuests - vegCount),
+      });
+      return;
+    }
+
+    const nonVegCount = increment(currentNonVeg, amount, 0, maxGuests);
+    updateItem(item.id, {
+      vegCount: Math.min(currentVeg, maxGuests - nonVegCount),
+      nonVegCount,
+    });
+  };
 
   useEffect(() => {
     setCouponOffer(null);
@@ -95,6 +121,11 @@ function CheckoutPage() {
       return;
     }
 
+    if (!mealSelectionComplete) {
+      toast.error('Meal preference is required for every guest');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const { data } = await api.post('/bookings/multi', {
@@ -103,6 +134,10 @@ function CheckoutPage() {
           startDate: item.startDate,
           endDate: item.endDate,
           guests: item.guests,
+          adultGuests: item.guests,
+          childGuests: 0,
+          vegCount: Number(item.vegCount || 0),
+          nonVegCount: Number(item.nonVegCount || 0),
         })),
         ...contact,
         isGroupBooking,
@@ -162,6 +197,65 @@ function CheckoutPage() {
                       <p className="text-sm text-slate-400">
                         {nights} night{nights > 1 ? 's' : ''} · {item.guests} guest{item.guests > 1 ? 's' : ''}
                       </p>
+                      <div className="mt-3 rounded-[1.25rem] border border-lime-100/10 bg-black/20 p-3">
+                        <ul className="mb-3 list-disc space-y-1 pl-4 text-xs text-slate-300">
+                          <li>Breakfast is complimentary.</li>
+                          <li>Meal price is not included in the room total.</li>
+                          <li>Lunch and dinner are Rs 350 per person per meal.</li>
+                        </ul>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="flex items-center justify-between gap-3 rounded-full border border-white/10 px-3 py-2">
+                            <span className="text-xs font-semibold text-slate-300">Veg</span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                className="rounded-full border border-lime-100/15 p-1 text-white disabled:opacity-40"
+                                disabled={Number(item.vegCount || 0) <= 0}
+                                onClick={() => updateMealCount(item, 'veg', -1)}
+                              >
+                                <MinusIcon className="h-3.5 w-3.5" />
+                              </button>
+                              <span className="w-5 text-center text-sm font-semibold text-white">{Number(item.vegCount || 0)}</span>
+                              <button
+                                type="button"
+                                className="rounded-full border border-lime-100/15 p-1 text-white disabled:opacity-40"
+                                disabled={Number(item.vegCount || 0) >= Number(item.guests || 0)}
+                                onClick={() => updateMealCount(item, 'veg', 1)}
+                              >
+                                <PlusIcon className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between gap-3 rounded-full border border-white/10 px-3 py-2">
+                            <span className="text-xs font-semibold text-slate-300">Non-veg</span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                className="rounded-full border border-lime-100/15 p-1 text-white disabled:opacity-40"
+                                disabled={Number(item.nonVegCount || 0) <= 0}
+                                onClick={() => updateMealCount(item, 'nonVeg', -1)}
+                              >
+                                <MinusIcon className="h-3.5 w-3.5" />
+                              </button>
+                              <span className="w-5 text-center text-sm font-semibold text-white">{Number(item.nonVegCount || 0)}</span>
+                              <button
+                                type="button"
+                                className="rounded-full border border-lime-100/15 p-1 text-white disabled:opacity-40"
+                                disabled={Number(item.nonVegCount || 0) >= Number(item.guests || 0)}
+                                onClick={() => updateMealCount(item, 'nonVeg', 1)}
+                              >
+                                <PlusIcon className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                        {Number(item.vegCount || 0) + Number(item.nonVegCount || 0) !== Number(item.guests || 0) ? (
+                          <p className="mt-2 text-xs text-amber-300">
+                            Meal preference is required for every guest. {Number(item.vegCount || 0) + Number(item.nonVegCount || 0)} of{' '}
+                            {item.guests} assigned.
+                          </p>
+                        ) : null}
+                      </div>
                       <p className="mt-1 font-semibold text-lime-300">
                         {formatCurrency(item.listing.price * nights)}
                       </p>
@@ -320,7 +414,12 @@ function CheckoutPage() {
                 onChange={(e) => setContact((p) => ({ ...p, contactPhone: e.target.value }))}
               />
             </div>
-            <button className="btn-primary w-full" type="submit" disabled={submitting}>
+            {!mealSelectionComplete ? (
+              <p className="rounded-[1rem] border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-sm text-amber-200">
+                Select veg or non-veg meal preference for every guest before confirming.
+              </p>
+            ) : null}
+            <button className="btn-primary w-full disabled:opacity-50" type="submit" disabled={submitting || !mealSelectionComplete}>
               {submitting ? 'Placing Booking...' : `Confirm ${items.length} Booking${items.length > 1 ? 's' : ''}`}
             </button>
           </form>

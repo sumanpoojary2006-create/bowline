@@ -53,6 +53,11 @@ export const createBooking = async (req, res, next) => {
     const normalizedNonVeg = Number(nonVegCount || 0);
     const normalizedGuests = Number(guests ?? normalizedAdults + normalizedChildren);
 
+    if (listing.type === 'room' && normalizedVeg + normalizedNonVeg !== normalizedGuests) {
+      res.status(400);
+      throw new Error('Meal preference is required for every guest');
+    }
+
     const availability = await validateListingAvailability({
       listing,
       startDate: normalizedStartDate,
@@ -184,6 +189,11 @@ export const createMultiBooking = async (req, res, next) => {
       const normalizedVeg = Number(vegCount || 0);
       const normalizedNonVeg = Number(nonVegCount || 0);
       const normalizedGuests = Number(guests ?? normalizedAdults + normalizedChildren) || 1;
+
+      if (listing.type === 'room' && normalizedVeg + normalizedNonVeg !== normalizedGuests) {
+        validationErrors.push(`${listing.name}: Meal preference is required for every guest`);
+        continue;
+      }
 
       const availability = await validateListingAvailability({
         listing,

@@ -14,6 +14,7 @@ import syncRoutes from './routes/syncRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import whatsappRoutes from './routes/whatsappRoutes.js';
 import webhookRoutes from './routes/webhookRoutes.js';
+import employeeRoutes from './routes/employeeRoutes.js';
 import { errorHandler, notFound } from './middleware/error.js';
 
 dotenv.config();
@@ -88,6 +89,7 @@ app.use('/api/sync', syncRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/webhooks', webhookRoutes);
+app.use('/api/employee', employeeRoutes);
 app.use(notFound);
 app.use(errorHandler);
 
