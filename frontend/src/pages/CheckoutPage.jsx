@@ -2,6 +2,7 @@ import { MinusIcon, PlusIcon, TagIcon, TrashIcon, UserGroupIcon } from '@heroico
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import BookingSuccessOverlay from '../components/BookingSuccessOverlay';
 import { useAuth } from '../context/AuthContext';
 import { useBookingCart } from '../context/BookingCartContext';
 import api from '../lib/api';
@@ -24,6 +25,7 @@ function CheckoutPage() {
   const [couponOffer, setCouponOffer] = useState(null);
   const [couponChecking, setCouponChecking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -146,10 +148,7 @@ function CheckoutPage() {
       });
 
       clearCart();
-      toast.success(
-        `${data.bookings.length} booking${data.bookings.length > 1 ? 's' : ''} placed successfully!`
-      );
-      navigate('/dashboard');
+      setShowSuccess(true);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Unable to complete booking');
     } finally {
@@ -160,6 +159,7 @@ function CheckoutPage() {
   if (items.length === 0) {
     return (
       <section className="section-shell py-16 text-center">
+        {showSuccess && <BookingSuccessOverlay onClose={() => navigate('/dashboard')} />}
         <p className="text-slate-400">Your cart is empty.</p>
         <button onClick={() => navigate('/browse')} className="btn-primary mt-6">
           Browse Rooms
@@ -170,6 +170,7 @@ function CheckoutPage() {
 
   return (
     <section className="section-shell py-12">
+      {showSuccess && <BookingSuccessOverlay onClose={() => navigate('/dashboard')} />}
       <h1 className="mb-6 font-display text-2xl text-white sm:text-4xl">Checkout</h1>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_400px]">
