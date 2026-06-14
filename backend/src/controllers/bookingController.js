@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import Booking from '../models/Booking.js';
 import Listing from '../models/Listing.js';
 import { calculateBookingPrice } from '../utils/pricing.js';
+import { findValidCoupon, normalizeCouponCode } from '../utils/coupons.js';
 import { createNotification, notifyAdmins } from '../utils/notifications.js';
 import { getExistingBookingsForRange, validateListingAvailability } from '../utils/availability.js';
 import { writeBookingToSheet, writeFullBookingToSheet, clearBookingFromSheet, isSheetsConfigured } from '../utils/googleSheets.js';
@@ -33,6 +34,7 @@ export const createBooking = async (req, res, next) => {
       contactEmail,
       contactPhone,
       specialRequests,
+      couponCode,
     } = req.body;
 
     const listing = await Listing.findById(listingId);
@@ -74,6 +76,14 @@ export const createBooking = async (req, res, next) => {
       pets: normalizedPets,
     });
 
+    let couponDiscount = 0;
+    let coupon = null;
+    if (normalizeCouponCode(couponCode)) {
+      const couponResult = await findValidCoupon(couponCode, pricing.totalPrice);
+      coupon = couponResult.coupon;
+      couponDiscount = couponResult.discount;
+    }
+
     const booking = await Booking.create({
       bookingType: listing.type,
       listing: listing._id,
@@ -87,10 +97,17 @@ export const createBooking = async (req, res, next) => {
       vegCount: normalizedVeg,
       nonVegCount: normalizedNonVeg,
       unitPrice: pricing.unitPrice,
-      totalPrice: pricing.totalPrice,
+      totalPrice: Math.max(pricing.totalPrice - couponDiscount, 0),
       pricingBreakdown: {
         basePrice: pricing.basePrice,
-        adjustments: pricing.adjustments,
+        adjustments: couponDiscount > 0 ? [...pricing.adjustments, `Coupon ${coupon.code}: -₹${couponDiscount}`] : pricing.adjustments,
+        coupon: coupon
+          ? {
+              code: coupon.code,
+              title: coupon.title,
+              discount: couponDiscount,
+            }
+          : undefined,
       },
       paymentMethod: 'manual',
       status: 'pending',
@@ -137,6 +154,7 @@ export const createMultiBooking = async (req, res, next) => {
       specialRequests,
       isGroupBooking,
       groupName,
+      couponCode,
     } = req.body;
 
     if (!Array.isArray(items) || items.length === 0) {
@@ -209,9 +227,29 @@ export const createMultiBooking = async (req, res, next) => {
       throw new Error(validationErrors.join('; '));
     }
 
+    const subtotal = preparedItems.reduce((sum, item) => sum + item.pricing.totalPrice, 0);
+    let coupon = null;
+    let couponDiscount = 0;
+
+    if (normalizeCouponCode(couponCode)) {
+      const couponResult = await findValidCoupon(couponCode, subtotal);
+      coupon = couponResult.coupon;
+      couponDiscount = couponResult.discount;
+    }
+
+    let remainingDiscount = couponDiscount;
+
     const createdBookings = await Promise.all(
-      preparedItems.map(({ listing, normalizedStart, normalizedEnd, normalizedGuests, normalizedAdults, normalizedChildren, normalizedPets, normalizedVeg, normalizedNonVeg, pricing }) =>
-        Booking.create({
+      preparedItems.map(({ listing, normalizedStart, normalizedEnd, normalizedGuests, normalizedAdults, normalizedChildren, normalizedPets, normalizedVeg, normalizedNonVeg, pricing }, index) => {
+        const itemDiscount =
+          coupon && subtotal > 0
+            ? index === preparedItems.length - 1
+              ? remainingDiscount
+              : Math.min(Math.round(couponDiscount * (pricing.totalPrice / subtotal)), remainingDiscount)
+            : 0;
+        remainingDiscount -= itemDiscount;
+
+        return Booking.create({
           bookingType: listing.type,
           listing: listing._id,
           user: req.user._id,
@@ -224,8 +262,18 @@ export const createMultiBooking = async (req, res, next) => {
           vegCount: normalizedVeg,
           nonVegCount: normalizedNonVeg,
           unitPrice: pricing.unitPrice,
-          totalPrice: pricing.totalPrice,
-          pricingBreakdown: { basePrice: pricing.basePrice, adjustments: pricing.adjustments },
+          totalPrice: Math.max(pricing.totalPrice - itemDiscount, 0),
+          pricingBreakdown: {
+            basePrice: pricing.basePrice,
+            adjustments: itemDiscount > 0 ? [...pricing.adjustments, `Coupon ${coupon.code}: -₹${itemDiscount}`] : pricing.adjustments,
+            coupon: coupon
+              ? {
+                  code: coupon.code,
+                  title: coupon.title,
+                  discount: itemDiscount,
+                }
+              : undefined,
+          },
           paymentMethod: 'manual',
           status: 'pending',
           paymentStatus: 'pending',
@@ -236,8 +284,8 @@ export const createMultiBooking = async (req, res, next) => {
           groupId,
           groupName: groupName || '',
           isGroupBooking: Boolean(isGroupBooking),
-        })
-      )
+        });
+      })
     );
 
     await createNotification({
@@ -260,6 +308,29 @@ export const createMultiBooking = async (req, res, next) => {
     populatedBookings.forEach(syncToSheet);
 
     res.status(201).json({ bookings: populatedBookings, groupId });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const validateCoupon = async (req, res, next) => {
+  try {
+    const { couponCode, subtotal } = req.body;
+    const { coupon, discount } = await findValidCoupon(couponCode, Number(subtotal || 0));
+
+    res.json({
+      coupon: {
+        code: coupon.code,
+        title: coupon.title,
+        description: coupon.description,
+        discountType: coupon.discountType,
+        discountValue: coupon.discountValue,
+        minBookingAmount: coupon.minBookingAmount,
+        maxDiscountAmount: coupon.maxDiscountAmount,
+      },
+      discount,
+      finalTotal: Math.max(Number(subtotal || 0) - discount, 0),
+    });
   } catch (error) {
     next(error);
   }

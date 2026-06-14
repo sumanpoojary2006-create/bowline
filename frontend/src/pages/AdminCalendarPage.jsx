@@ -156,7 +156,7 @@ function AdminCalendarPage() {
         const { data } = await api.get('/bookings/admin/calendar', {
           params: { month: currentMonth },
         });
-        setBookings(data.bookings);
+        setBookings(data.bookings.filter((b) => b.status === 'confirmed'));
       } finally {
         setLoading(false);
       }
@@ -188,8 +188,7 @@ function AdminCalendarPage() {
   }
 
   // Summary counts
-  const confirmedCount = bookings.filter((b) => b.status === 'confirmed').length;
-  const pendingCount = bookings.filter((b) => b.status === 'pending').length;
+  const confirmedCount = bookings.length;
 
   // Today's column index (0-based within current month view)
   const todayIdx =
@@ -204,7 +203,7 @@ function AdminCalendarPage() {
       <SectionHeader
         eyebrow="Room Calendar"
         title="Occupancy overview"
-        description={`${confirmedCount} confirmed · ${pendingCount} pending this month`}
+        description={`${confirmedCount} confirmed booking${confirmedCount === 1 ? '' : 's'} this month`}
       />
 
       {/* Month nav + legend */}
@@ -232,12 +231,10 @@ function AdminCalendarPage() {
         </div>
 
         <div className="flex items-center gap-4 text-xs text-slate-400">
-          {Object.entries(STATUS_STYLES).map(([key, s]) => (
-            <span key={key} className="flex items-center gap-1.5">
-              <span className={`h-2.5 w-2.5 rounded-full ${s.dot}`} />
-              {s.label}
-            </span>
-          ))}
+          <span className="flex items-center gap-1.5">
+            <span className={`h-2.5 w-2.5 rounded-full ${STATUS_STYLES.confirmed.dot}`} />
+            {STATUS_STYLES.confirmed.label}
+          </span>
         </div>
       </div>
 

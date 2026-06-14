@@ -5,3 +5,5 @@ dist
 backend/uploads/*
 !backend/uploads/.gitkeep
 .vercel
+.claude/settings.local.json
+.claude/worktrees/

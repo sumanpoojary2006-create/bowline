@@ -42,6 +42,10 @@ const listingSchema = new mongoose.Schema(
       enum: ['night', 'person', 'package'],
       default: 'package',
     },
+    minOccupancy: {
+      type: Number,
+      default: 1,
+    },
     maxOccupancy: {
       type: Number,
       default: 1,

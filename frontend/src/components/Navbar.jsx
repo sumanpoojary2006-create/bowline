@@ -1,6 +1,6 @@
 import { Bars3Icon, ShoppingBagIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useState } from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
 import { useBookingCart } from '../context/BookingCartContext';
@@ -13,8 +13,15 @@ const links = [
 
 function Navbar() {
   const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { items, setIsOpen: openCart } = useBookingCart();
+
+  const handleLogout = () => {
+    logout();
+    setOpen(false);
+    navigate('/', { replace: true });
+  };
 
   return (
     <header className="sticky top-0 z-40 border-b border-lime-100/10 bg-[#0a130d]/72 backdrop-blur-xl">
@@ -62,7 +69,7 @@ function Navbar() {
               <Link className="btn-secondary" to={user.role === 'admin' ? '/admin/overview' : '/dashboard'}>
                 {user.role === 'admin' ? 'Admin Panel' : 'My Dashboard'}
               </Link>
-              <button className="btn-primary" onClick={logout}>
+              <button className="btn-primary" onClick={handleLogout}>
                 Logout
               </button>
             </>
@@ -129,7 +136,7 @@ function Navbar() {
                   >
                     {user.role === 'admin' ? 'Admin Panel' : 'My Bookings'}
                   </Link>
-                  <button className="btn-primary w-full" onClick={logout}>
+                  <button className="btn-primary w-full" onClick={handleLogout}>
                     Logout
                   </button>
                 </div>

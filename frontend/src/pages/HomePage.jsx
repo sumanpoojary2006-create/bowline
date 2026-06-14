@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { MinusIcon, PlusIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { MinusIcon, PlusIcon, TagIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
@@ -59,6 +59,9 @@ function HomePage() {
     contactEmail: '',
     contactPhone: '',
   });
+  const [couponCode, setCouponCode] = useState('');
+  const [couponOffer, setCouponOffer] = useState(null);
+  const [couponChecking, setCouponChecking] = useState(false);
 
   useEffect(() => {
     document.title = 'Bowline Nature Stay | Book Your Hillside Stay';
@@ -86,6 +89,8 @@ function HomePage() {
   const openBookingPrompt = (listing) => {
     setActiveBooking(listing);
     setBookingStep('details');
+    setCouponCode('');
+    setCouponOffer(null);
     const adults = Number(filters.guests || 2);
     setBookingDraft({
       startDate: filters.startDate,
@@ -129,6 +134,7 @@ function HomePage() {
         contactName: bookingDraft.contactName,
         contactEmail: bookingDraft.contactEmail,
         contactPhone: bookingDraft.contactPhone,
+        couponCode: couponOffer?.coupon?.code || '',
       });
 
       const booking = data.booking;
@@ -146,6 +152,9 @@ function HomePage() {
       } catch (paymentError) {
         if (paymentError.message === 'PAYMENT_CANCELLED') {
           toast.error('Payment cancelled. Your booking is saved as pending.');
+          setActiveBooking(null);
+          navigate('/', { replace: true, state: { resetBookingModal: true } });
+          return;
         } else {
           toast.error('Payment could not be completed. Your booking is saved as pending.');
         }
@@ -185,6 +194,42 @@ function HomePage() {
     modalNights;
   const modalPetTotal = petFee * Number(bookingDraft.pets);
   const modalGrandTotal = modalRoomTotal + modalPetTotal;
+  const modalCouponDiscount = couponOffer?.discount || 0;
+  const modalFinalTotal = Math.max(modalGrandTotal - modalCouponDiscount, 0);
+
+  useEffect(() => {
+    setCouponOffer(null);
+  }, [modalGrandTotal]);
+
+  const applyCoupon = async () => {
+    const code = couponCode.trim();
+
+    if (!code) {
+      toast.error('Enter a coupon code');
+      return;
+    }
+
+    setCouponChecking(true);
+    try {
+      const { data } = await api.post('/bookings/coupon/validate', {
+        couponCode: code,
+        subtotal: modalGrandTotal,
+      });
+      setCouponOffer(data);
+      setCouponCode(data.coupon.code);
+      toast.success(`${data.coupon.code} applied`);
+    } catch (error) {
+      setCouponOffer(null);
+      toast.error(error.response?.data?.message || 'Unable to apply coupon');
+    } finally {
+      setCouponChecking(false);
+    }
+  };
+
+  const removeCoupon = () => {
+    setCouponOffer(null);
+    setCouponCode('');
+  };
 
   return (
     <>
@@ -607,9 +652,55 @@ function HomePage() {
                         <span className="font-semibold text-white">{formatCurrency(modalPetTotal)}</span>
                       </div>
                     ) : null}
+                    <div className="border-t border-white/10 pt-3">
+                      <div className="flex items-center gap-2 text-white">
+                        <TagIcon className="h-4 w-4 text-lime-200" />
+                        <span className="text-sm font-semibold">Apply coupon</span>
+                      </div>
+                      <div className="mt-3 flex gap-2">
+                        <input
+                          className="input uppercase"
+                          placeholder="Coupon code"
+                          value={couponCode}
+                          onChange={(e) => {
+                            setCouponCode(e.target.value);
+                            setCouponOffer(null);
+                          }}
+                        />
+                        <button
+                          className="btn-secondary min-h-[48px] shrink-0 px-4"
+                          onClick={applyCoupon}
+                          disabled={couponChecking}
+                          type="button"
+                        >
+                          {couponChecking ? 'Checking...' : 'Apply'}
+                        </button>
+                      </div>
+                      {couponOffer ? (
+                        <div className="mt-3 rounded-[1rem] border border-lime-300/20 bg-lime-300/5 p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="font-semibold text-lime-200">{couponOffer.coupon.title}</p>
+                              <p className="mt-1 text-xs text-[#cdd6c9]">
+                                Coupon {couponOffer.coupon.code} saves {formatCurrency(couponOffer.discount)}.
+                              </p>
+                            </div>
+                            <button className="text-xs font-semibold text-rose-300" onClick={removeCoupon} type="button">
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                    {modalCouponDiscount > 0 ? (
+                      <div className="flex items-center justify-between font-semibold text-lime-200">
+                        <span>Coupon discount</span>
+                        <span>-{formatCurrency(modalCouponDiscount)}</span>
+                      </div>
+                    ) : null}
                     <div className="flex items-center justify-between text-base font-bold text-lime-200">
-                      <span>Total</span>
-                      <span>{formatCurrency(modalGrandTotal)}</span>
+                      <span>Revised total</span>
+                      <span>{formatCurrency(modalFinalTotal)}</span>
                     </div>
                   </div>
                 </div>

@@ -1,4 +1,4 @@
-import { FireIcon, MapPinIcon } from '@heroicons/react/24/outline';
+import { FireIcon } from '@heroicons/react/24/outline';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { formatCurrency } from '../lib/formatters';
@@ -45,10 +45,6 @@ function ListingCard({
         <div className="flex items-start justify-between gap-4">
           <div>
             <h3 className="text-2xl font-semibold text-[#f5f0dd]">{listing.name}</h3>
-            <div className="mt-2 inline-flex items-center gap-2 text-sm text-[#c4cec0]">
-              <MapPinIcon className="h-4 w-4" />
-              {listing.location || 'Chikkamagaluru'}
-            </div>
           </div>
           {showPrice ? (
             <div className="text-right">

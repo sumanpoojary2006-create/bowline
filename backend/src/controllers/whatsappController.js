@@ -1,4 +1,4 @@
-import { sendText } from '../utils/whatsapp.js';
+import { handleIncomingMessage } from '../services/whatsappFlow.js';
 
 export const verifyWebhook = (req, res) => {
   const mode = req.query['hub.mode'];
@@ -13,10 +13,10 @@ export const verifyWebhook = (req, res) => {
   res.sendStatus(403);
 };
 
-export const receiveWebhook = async (req, res, next) => {
-  try {
-    res.sendStatus(200);
+export const receiveWebhook = async (req, res) => {
+  res.sendStatus(200);
 
+  try {
     const entry = req.body?.entry?.[0];
     const change = entry?.changes?.[0];
     const value = change?.value;
@@ -27,14 +27,10 @@ export const receiveWebhook = async (req, res, next) => {
     }
 
     const from = message.from;
-    const text =
-      message.text?.body ||
-      message.interactive?.button_reply?.title ||
-      message.interactive?.list_reply?.title ||
-      '';
+    const profileName = value?.contacts?.[0]?.profile?.name;
 
-    await sendText(from, `Echo: ${text}`);
+    await handleIncomingMessage(from, message, profileName);
   } catch (error) {
-    next(error);
+    console.error('Error handling WhatsApp webhook:', error);
   }
 };

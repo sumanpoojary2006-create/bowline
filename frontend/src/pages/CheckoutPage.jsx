@@ -1,4 +1,4 @@
-import { TrashIcon, UserGroupIcon } from '@heroicons/react/24/outline';
+import { TagIcon, TrashIcon, UserGroupIcon } from '@heroicons/react/24/outline';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -20,6 +20,9 @@ function CheckoutPage() {
 
   const [isGroupBooking, setIsGroupBooking] = useState(false);
   const [groupName, setGroupName] = useState('');
+  const [couponCode, setCouponCode] = useState('');
+  const [couponOffer, setCouponOffer] = useState(null);
+  const [couponChecking, setCouponChecking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -42,6 +45,42 @@ function CheckoutPage() {
   }, 0);
 
   const totalGuests = items.reduce((sum, item) => sum + item.guests, 0);
+  const couponDiscount = couponOffer?.discount || 0;
+  const finalEstimate = Math.max(totalEstimate - couponDiscount, 0);
+
+  useEffect(() => {
+    setCouponOffer(null);
+  }, [totalEstimate]);
+
+  const applyCoupon = async () => {
+    const code = couponCode.trim();
+
+    if (!code) {
+      toast.error('Enter a coupon code');
+      return;
+    }
+
+    setCouponChecking(true);
+    try {
+      const { data } = await api.post('/bookings/coupon/validate', {
+        couponCode: code,
+        subtotal: totalEstimate,
+      });
+      setCouponOffer(data);
+      setCouponCode(data.coupon.code);
+      toast.success(`${data.coupon.code} applied`);
+    } catch (error) {
+      setCouponOffer(null);
+      toast.error(error.response?.data?.message || 'Unable to apply coupon');
+    } finally {
+      setCouponChecking(false);
+    }
+  };
+
+  const removeCoupon = () => {
+    setCouponOffer(null);
+    setCouponCode('');
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -68,6 +107,7 @@ function CheckoutPage() {
         ...contact,
         isGroupBooking,
         groupName: isGroupBooking ? groupName : '',
+        couponCode: couponOffer?.coupon?.code || '',
       });
 
       clearCart();
@@ -199,14 +239,56 @@ function CheckoutPage() {
               })}
             </div>
             <div className="mt-4 border-t border-white/10 pt-4">
+              {couponDiscount > 0 && (
+                <div className="mb-3 flex justify-between text-sm font-semibold text-lime-200">
+                  <span>Coupon {couponOffer.coupon.code}</span>
+                  <span>-{formatCurrency(couponDiscount)}</span>
+                </div>
+              )}
               <div className="flex justify-between text-base font-bold text-white">
                 <span>Estimated Total</span>
-                <span className="text-lime-300">{formatCurrency(totalEstimate)}</span>
+                <span className="text-lime-300">{formatCurrency(finalEstimate)}</span>
               </div>
               <p className="mt-1 text-xs text-slate-500">
                 Final price confirmed at check-in. Dynamic tariffs may apply.
               </p>
             </div>
+          </div>
+
+          <div className="glass rounded-[2rem] p-6">
+            <div className="mb-4 flex items-center gap-2 text-white">
+              <TagIcon className="h-5 w-5 text-lime-300" />
+              <h2 className="text-lg font-semibold">Coupon Offer</h2>
+            </div>
+            <div className="flex gap-2">
+              <input
+                className="input uppercase"
+                placeholder="Enter coupon code"
+                value={couponCode}
+                onChange={(event) => {
+                  setCouponCode(event.target.value);
+                  setCouponOffer(null);
+                }}
+              />
+              <button className="btn-secondary shrink-0" type="button" onClick={applyCoupon} disabled={couponChecking}>
+                {couponChecking ? 'Checking...' : 'Apply'}
+              </button>
+            </div>
+            {couponOffer && (
+              <div className="mt-4 rounded-[1.25rem] border border-lime-400/20 bg-lime-400/5 p-4 text-sm">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="font-semibold text-lime-200">{couponOffer.coupon.title}</p>
+                    <p className="mt-1 text-slate-300">
+                      You save {formatCurrency(couponOffer.discount)}. Final bill estimate is {formatCurrency(couponOffer.finalTotal)}.
+                    </p>
+                  </div>
+                  <button type="button" className="text-xs font-semibold text-rose-300" onClick={removeCoupon}>
+                    Remove
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <form onSubmit={handleSubmit} className="glass rounded-[2rem] p-6 space-y-4">

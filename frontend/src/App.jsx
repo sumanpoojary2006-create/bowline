@@ -19,7 +19,9 @@ const AdminListingsPage = lazy(() => import('./pages/AdminListingsPage'));
 const AdminBookingsPage = lazy(() => import('./pages/AdminBookingsPage'));
 const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage'));
 const AdminPricingPage = lazy(() => import('./pages/AdminPricingPage'));
+const AdminCouponsPage = lazy(() => import('./pages/AdminCouponsPage'));
 const AdminCalendarPage = lazy(() => import('./pages/AdminCalendarPage'));
+const AdminReportsPage = lazy(() => import('./pages/AdminReportsPage'));
 const AdminSyncPage = lazy(() => import('./pages/AdminSyncPage'));
 const BrowseRoomsPage = lazy(() => import('./pages/BrowseRoomsPage'));
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage'));
@@ -73,9 +75,11 @@ function App() {
           <Route path="listings" element={<AdminListingsPage />} />
           <Route path="bookings" element={<AdminBookingsPage />} />
           <Route path="calendar" element={<AdminCalendarPage />} />
+          <Route path="reports" element={<AdminReportsPage />} />
           <Route path="sync" element={<AdminSyncPage />} />
           <Route path="users" element={<AdminUsersPage />} />
           <Route path="pricing" element={<AdminPricingPage />} />
+          <Route path="coupons" element={<AdminCouponsPage />} />
         </Route>
 
         <Route path="*" element={<NotFoundPage />} />

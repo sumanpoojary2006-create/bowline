@@ -39,6 +39,43 @@ export const getNextAvailableWindow = async (listingId, nights, fromDate, maxDay
   return null;
 };
 
+export const getPreviousAvailableWindow = async (listingId, nights, fromDate, maxDaysBack = 90) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const floor = new Date(fromDate);
+  floor.setDate(floor.getDate() - maxDaysBack);
+
+  const searchFloor = floor < today ? today : floor;
+
+  const bookedRanges = await getBookedDateRanges(listingId, searchFloor, fromDate);
+
+  const isWindowFree = (start, end) =>
+    !bookedRanges.some(
+      (r) => r.status === 'confirmed' && r.startDate < end && r.endDate > start
+    );
+
+  const cursor = new Date(fromDate);
+  cursor.setDate(cursor.getDate() - nights);
+
+  while (cursor >= searchFloor) {
+    const windowEnd = new Date(cursor);
+    windowEnd.setDate(windowEnd.getDate() + nights);
+    if (isWindowFree(cursor, windowEnd)) {
+      return { startDate: new Date(cursor), endDate: windowEnd };
+    }
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return null;
+};
+
+export const isWindowAvailable = async (listingId, startDate, endDate) => {
+  const bookedRanges = await getBookedDateRanges(listingId, startDate, endDate);
+  return !bookedRanges.some(
+    (r) => r.status === 'confirmed' && r.startDate < endDate && r.endDate > startDate
+  );
+};
+
 export const getExistingBookingsForRange = async ({
   listingId,
   startDate,

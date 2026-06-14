@@ -13,6 +13,7 @@ import notificationRoutes from './routes/notificationRoutes.js';
 import syncRoutes from './routes/syncRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import whatsappRoutes from './routes/whatsappRoutes.js';
+import webhookRoutes from './routes/webhookRoutes.js';
 import { errorHandler, notFound } from './middleware/error.js';
 
 dotenv.config();
@@ -62,7 +63,13 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json());
+app.use(
+  express.json({
+    verify: (req, _res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(morgan('dev'));
@@ -80,6 +87,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
+app.use('/api/webhooks', webhookRoutes);
 app.use(notFound);
 app.use(errorHandler);
 

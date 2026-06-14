@@ -37,3 +37,37 @@ export async function createRazorpayOrder({ amount, currency = 'INR', receipt, n
 
   return data;
 }
+
+export async function createPaymentLink({ amount, currency = 'INR', description, customer, notes, callback_url }) {
+  const authHeader = getAuthHeader();
+
+  if (!authHeader) {
+    throw new Error('Razorpay is not configured');
+  }
+
+  const response = await fetch(`${RAZORPAY_API_BASE}/payment_links`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: authHeader,
+    },
+    body: JSON.stringify({
+      amount,
+      currency,
+      description,
+      customer,
+      notify: { sms: true, email: false },
+      reminder_enable: true,
+      notes,
+      ...(callback_url ? { callback_url, callback_method: 'get' } : {}),
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error?.description || 'Unable to create payment link');
+  }
+
+  return data;
+}

@@ -3,9 +3,21 @@
   "configurations": [
     {
       "name": "frontend",
-      "runtimeExecutable": "npm",
+      "runtimeExecutable": "/Users/suman/.nvm/versions/node/v24.16.0/bin/npm",
       "runtimeArgs": ["run", "dev", "--workspace", "frontend"],
-      "port": 5173
+      "port": 5173,
+      "env": {
+        "PATH": "/Users/suman/.nvm/versions/node/v24.16.0/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+      }
+    },
+    {
+      "name": "backend",
+      "runtimeExecutable": "/Users/suman/.nvm/versions/node/v24.16.0/bin/npm",
+      "runtimeArgs": ["run", "dev", "--workspace", "backend"],
+      "port": 5001,
+      "env": {
+        "PATH": "/Users/suman/.nvm/versions/node/v24.16.0/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+      }
     }
   ]
 }

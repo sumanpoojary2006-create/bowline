@@ -73,6 +73,20 @@ const bookingSchema = new mongoose.Schema(
         type: [String],
         default: [],
       },
+      coupon: {
+        code: {
+          type: String,
+          default: '',
+        },
+        title: {
+          type: String,
+          default: '',
+        },
+        discount: {
+          type: Number,
+          default: 0,
+        },
+      },
     },
     status: {
       type: String,
@@ -96,6 +110,11 @@ const bookingSchema = new mongoose.Schema(
     razorpayPaymentId: {
       type: String,
       default: null,
+    },
+    razorpayPaymentLinkId: {
+      type: String,
+      default: null,
+      index: true,
     },
     contactName: {
       type: String,

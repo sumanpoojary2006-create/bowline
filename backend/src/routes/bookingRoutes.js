@@ -8,6 +8,7 @@ import {
   getAllBookings,
   getMyBookings,
   updateBookingStatus,
+  validateCoupon,
 } from '../controllers/bookingController.js';
 import { authorize, optionalAuth, protect } from '../middleware/auth.js';
 
@@ -15,6 +16,7 @@ const router = Router();
 
 router.post('/', optionalAuth, createBooking);
 router.post('/multi', protect, createMultiBooking);
+router.post('/coupon/validate', optionalAuth, validateCoupon);
 router.get('/me', protect, getMyBookings);
 router.patch('/me/:id/cancel', protect, cancelMyBooking);
 router.get('/admin/all', protect, authorize('admin'), getAllBookings);

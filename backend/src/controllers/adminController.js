@@ -1,8 +1,12 @@
 import Booking from '../models/Booking.js';
+import Coupon from '../models/Coupon.js';
 import Listing from '../models/Listing.js';
 import PricingRule from '../models/PricingRule.js';
 import User from '../models/User.js';
 import Notification from '../models/Notification.js';
+import { buildDailyReport } from '../utils/guestReport.js';
+import { generateDailyReportPdf } from '../utils/pdf.js';
+import { sendTomorrowGuestReportEmail } from '../jobs/dailyGuestEmailJob.js';
 
 export const getDashboardOverview = async (req, res, next) => {
   try {
@@ -142,6 +146,108 @@ export const deletePricingRule = async (req, res, next) => {
     }
 
     res.json({ message: 'Pricing rule deleted' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getCoupons = async (req, res, next) => {
+  try {
+    const coupons = await Coupon.find().sort({ createdAt: -1 });
+    res.json({ coupons });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createCoupon = async (req, res, next) => {
+  try {
+    const coupon = await Coupon.create({
+      ...req.body,
+      code: String(req.body.code || '').trim().toUpperCase(),
+      maxDiscountAmount: req.body.maxDiscountAmount === '' ? null : req.body.maxDiscountAmount,
+      startsAt: req.body.startsAt || null,
+      endsAt: req.body.endsAt || null,
+    });
+    res.status(201).json({ coupon });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateCoupon = async (req, res, next) => {
+  try {
+    const payload = {
+      ...req.body,
+      code: req.body.code ? String(req.body.code).trim().toUpperCase() : undefined,
+      maxDiscountAmount: req.body.maxDiscountAmount === '' ? null : req.body.maxDiscountAmount,
+      startsAt: req.body.startsAt || null,
+      endsAt: req.body.endsAt || null,
+    };
+
+    const coupon = await Coupon.findByIdAndUpdate(req.params.id, payload, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!coupon) {
+      res.status(404);
+      throw new Error('Coupon not found');
+    }
+
+    res.json({ coupon });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteCoupon = async (req, res, next) => {
+  try {
+    const coupon = await Coupon.findByIdAndDelete(req.params.id);
+
+    if (!coupon) {
+      res.status(404);
+      throw new Error('Coupon not found');
+    }
+
+    res.json({ message: 'Coupon deleted' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getDailyGuestReport = async (req, res, next) => {
+  try {
+    const date = req.query.date || new Date();
+    const report = await buildDailyReport(date);
+
+    res.json({ report });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const downloadDailyGuestReportPdf = async (req, res, next) => {
+  try {
+    const date = req.query.date || new Date();
+    const report = await buildDailyReport(date);
+    const pdfBuffer = await generateDailyReportPdf(report);
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="guest-report-${report.date}.pdf"`,
+      'Content-Length': pdfBuffer.length,
+    });
+    res.send(pdfBuffer);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const sendDailyGuestReportEmailNow = async (req, res, next) => {
+  try {
+    await sendTomorrowGuestReportEmail();
+    res.json({ message: "Tomorrow's guest report email sent" });
   } catch (error) {
     next(error);
   }
