@@ -4,6 +4,7 @@ import Booking from '../models/Booking.js';
 import { sendText } from '../utils/whatsapp.js';
 import { createNotification, notifyAdmins } from '../utils/notifications.js';
 import { writeBookingToSheet, writeFullBookingToSheet, isSheetsConfigured } from '../utils/googleSheets.js';
+import { sendBookingConfirmationEmail } from '../utils/bookingConfirmationEmail.js';
 
 function syncToSheet(booking) {
   if (!isSheetsConfigured()) return;
@@ -136,6 +137,10 @@ export const handleRazorpayWebhook = async (req, res, next) => {
       message: `${first?.contactName} paid via WhatsApp for ${updated.map((b) => b.listing.name).join(', ')}.`,
       type: 'booking',
     }).catch(() => {});
+
+    sendBookingConfirmationEmail(updated).catch((error) => {
+      console.error('Failed to send booking confirmation email', error);
+    });
   } catch (error) {
     next(error);
   }

@@ -6,6 +6,7 @@ import { findValidCoupon, normalizeCouponCode } from '../utils/coupons.js';
 import { createNotification, notifyAdmins } from '../utils/notifications.js';
 import { getExistingBookingsForRange, validateListingAvailability } from '../utils/availability.js';
 import { writeBookingToSheet, writeFullBookingToSheet, clearBookingFromSheet, isSheetsConfigured } from '../utils/googleSheets.js';
+import { sendBookingConfirmationEmail } from '../utils/bookingConfirmationEmail.js';
 
 function syncToSheet(booking) {
   if (!isSheetsConfigured()) return;
@@ -443,6 +444,11 @@ export const createAdminManualRoomBooking = async (req, res, next) => {
       .populate('user', 'name email phone');
 
     syncToSheet(populatedBooking);
+
+    sendBookingConfirmationEmail(populatedBooking).catch((error) => {
+      console.error('Failed to send booking confirmation email', error);
+    });
+
     res.status(201).json({ booking: populatedBooking });
   } catch (error) {
     next(error);
@@ -562,6 +568,7 @@ export const updateBookingStatus = async (req, res, next) => {
       throw new Error('Booking not found');
     }
 
+    const previousStatus = booking.status;
     const nextStatus = req.body.status ?? booking.status;
 
     if (nextStatus === 'confirmed' && booking.listing?.type === 'room') {
@@ -595,6 +602,12 @@ export const updateBookingStatus = async (req, res, next) => {
       message: `Your booking for ${booking.listing.name} is now ${booking.status}.`,
       type: 'booking',
     });
+
+    if (nextStatus === 'confirmed' && previousStatus !== 'confirmed') {
+      sendBookingConfirmationEmail(booking).catch((error) => {
+        console.error('Failed to send booking confirmation email', error);
+      });
+    }
 
     res.json({ booking });
   } catch (error) {

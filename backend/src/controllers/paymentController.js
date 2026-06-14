@@ -3,6 +3,7 @@ import Booking from '../models/Booking.js';
 import { createRazorpayOrder, isRazorpayConfigured } from '../utils/razorpay.js';
 import { createNotification, notifyAdmins } from '../utils/notifications.js';
 import { writeBookingToSheet, writeFullBookingToSheet, isSheetsConfigured } from '../utils/googleSheets.js';
+import { sendBookingConfirmationEmail } from '../utils/bookingConfirmationEmail.js';
 
 function syncToSheet(booking) {
   if (!isSheetsConfigured()) return;
@@ -114,6 +115,10 @@ export const verifyPayment = async (req, res, next) => {
       message: `${updated[0].contactName} paid and their booking for ${updated[0].listing.name} was auto-confirmed.`,
       type: 'booking',
     }).catch(() => {});
+
+    sendBookingConfirmationEmail(updated).catch((error) => {
+      console.error('Failed to send booking confirmation email', error);
+    });
 
     res.json({ bookings: updated });
   } catch (error) {
