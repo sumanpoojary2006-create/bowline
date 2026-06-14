@@ -86,6 +86,57 @@ export async function clearBookingFromSheet(booking) {
   });
 }
 
+// ── Full booking sync — one row per booking in the "Bookings" tab ──────────
+// Column order in the "Bookings" sheet tab (row 1 = headers):
+//   A: Booking ID   B: Room        C: Guest Name   D: Email
+//   E: Phone        F: Check-in    G: Check-out    H: Adults
+//   I: Children     J: Pets        K: Veg Meals    L: Non-Veg Meals
+//   M: Total Price  N: Status      O: Payment Status
+export const BOOKING_SHEET_NAME = 'Bookings';
+
+export const BOOKING_SHEET_HEADERS = [
+  'Booking ID',
+  'Room',
+  'Guest Name',
+  'Email',
+  'Phone',
+  'Check-in',
+  'Check-out',
+  'Adults',
+  'Children',
+  'Pets',
+  'Veg Meals',
+  'Non-Veg Meals',
+  'Total Price',
+  'Status',
+  'Payment Status',
+];
+
+export async function writeFullBookingToSheet(booking) {
+  if (!isSheetsConfigured()) return;
+
+  await callAppsScript({
+    action: 'upsertBooking',
+    booking: {
+      bookingId: String(booking._id),
+      roomName: booking.listing?.name ?? '',
+      guestName: booking.contactName || booking.user?.name || '',
+      email: booking.contactEmail || booking.user?.email || '',
+      phone: booking.contactPhone || '',
+      checkIn: toDateStr(booking.startDate),
+      checkOut: toDateStr(booking.endDate),
+      adults: booking.adultGuests ?? booking.guests ?? 1,
+      children: booking.childGuests ?? 0,
+      pets: booking.pets ?? 0,
+      vegMeals: booking.vegCount ?? 0,
+      nonVegMeals: booking.nonVegCount ?? 0,
+      totalPrice: booking.totalPrice ?? 0,
+      status: booking.status,
+      paymentStatus: booking.paymentStatus,
+    },
+  });
+}
+
 // ── Push all bookings at once (bulk push) ──────────────────────────────────
 export async function pushAllBookingsToSheet(bookings) {
   if (!isSheetsConfigured()) return { pushed: 0 };
@@ -103,6 +154,34 @@ export async function pushAllBookingsToSheet(bookings) {
   if (items.length === 0) return { pushed: 0 };
 
   await callAppsScript({ action: 'bulkUpsert', items });
+  return { pushed: items.length };
+}
+
+// ── Push all bookings to the "Bookings" tab at once (bulk push) ───────────
+export async function pushAllFullBookingsToSheet(bookings) {
+  if (!isSheetsConfigured()) return { pushed: 0 };
+
+  const items = bookings.map((b) => ({
+    bookingId: String(b._id),
+    roomName: b.listing?.name ?? '',
+    guestName: b.contactName || b.user?.name || '',
+    email: b.contactEmail || b.user?.email || '',
+    phone: b.contactPhone || '',
+    checkIn: toDateStr(b.startDate),
+    checkOut: toDateStr(b.endDate),
+    adults: b.adultGuests ?? b.guests ?? 1,
+    children: b.childGuests ?? 0,
+    pets: b.pets ?? 0,
+    vegMeals: b.vegCount ?? 0,
+    nonVegMeals: b.nonVegCount ?? 0,
+    totalPrice: b.totalPrice ?? 0,
+    status: b.status,
+    paymentStatus: b.paymentStatus,
+  }));
+
+  if (items.length === 0) return { pushed: 0 };
+
+  await callAppsScript({ action: 'bulkUpsertBookings', items });
   return { pushed: items.length };
 }
 

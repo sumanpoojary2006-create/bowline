@@ -2,11 +2,12 @@ import crypto from 'crypto';
 import Booking from '../models/Booking.js';
 import { createRazorpayOrder, isRazorpayConfigured } from '../utils/razorpay.js';
 import { createNotification, notifyAdmins } from '../utils/notifications.js';
-import { writeBookingToSheet, isSheetsConfigured } from '../utils/googleSheets.js';
+import { writeBookingToSheet, writeFullBookingToSheet, isSheetsConfigured } from '../utils/googleSheets.js';
 
 function syncToSheet(booking) {
   if (!isSheetsConfigured()) return;
   writeBookingToSheet(booking).catch(() => {});
+  writeFullBookingToSheet(booking).catch(() => {});
 }
 
 export const createPaymentOrder = async (req, res, next) => {

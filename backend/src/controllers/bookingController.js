@@ -4,11 +4,12 @@ import Listing from '../models/Listing.js';
 import { calculateBookingPrice } from '../utils/pricing.js';
 import { createNotification, notifyAdmins } from '../utils/notifications.js';
 import { getExistingBookingsForRange, validateListingAvailability } from '../utils/availability.js';
-import { writeBookingToSheet, clearBookingFromSheet, isSheetsConfigured } from '../utils/googleSheets.js';
+import { writeBookingToSheet, writeFullBookingToSheet, clearBookingFromSheet, isSheetsConfigured } from '../utils/googleSheets.js';
 
 function syncToSheet(booking) {
   if (!isSheetsConfigured()) return;
   writeBookingToSheet(booking).catch(() => {});
+  writeFullBookingToSheet(booking).catch(() => {});
 }
 
 function unsyncFromSheet(booking) {
@@ -256,6 +257,8 @@ export const createMultiBooking = async (req, res, next) => {
       .populate('listing')
       .populate('user', 'name email phone');
 
+    populatedBookings.forEach(syncToSheet);
+
     res.status(201).json({ bookings: populatedBookings, groupId });
   } catch (error) {
     next(error);
@@ -395,6 +398,7 @@ export const cancelMyBooking = async (req, res, next) => {
     }
     await booking.save();
     unsyncFromSheet(booking);
+    writeFullBookingToSheet(booking).catch(() => {});
 
     await createNotification({
       userId: req.user._id,

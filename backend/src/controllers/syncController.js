@@ -7,6 +7,7 @@ import { calculateBookingPrice } from '../utils/pricing.js';
 import {
   isSheetsConfigured,
   pushAllBookingsToSheet,
+  pushAllFullBookingsToSheet,
   groupCellsIntoBookings,
   SHEET_ROOM_TO_LISTING,
 } from '../utils/googleSheets.js';
@@ -49,7 +50,11 @@ export const pushToSheet = async (req, res, next) => {
       .populate('user', 'name');
 
     const { pushed } = await pushAllBookingsToSheet(bookings);
-    res.json({ message: `Pushed ${pushed} bookings to Google Sheet`, total: bookings.length });
+    const { pushed: pushedFull } = await pushAllFullBookingsToSheet(bookings);
+    res.json({
+      message: `Pushed ${pushed} bookings to the calendar and ${pushedFull} rows to the Bookings sheet`,
+      total: bookings.length,
+    });
   } catch (err) {
     next(err);
   }
@@ -182,6 +187,153 @@ export const inboundWebhook = async (req, res, next) => {
     }
 
     res.json({ ok: true, ...results });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ── POST /api/sync/bookings-inbound ─────────────────────────────────────────
+// Called by Apps Script onEdit on the "Bookings" tab — receives one full row.
+// If bookingId is present, updates that booking. Otherwise creates a new one
+// and returns its generated id so Apps Script can write it back into column A.
+export const bookingRowInbound = async (req, res, next) => {
+  try {
+    const secret = req.headers['x-sync-secret'] || req.body.secret;
+    if (secret !== process.env.SHEETS_WEBHOOK_SECRET) {
+      res.status(401);
+      throw new Error('Invalid sync secret');
+    }
+
+    const {
+      bookingId,
+      roomName,
+      guestName,
+      email,
+      phone,
+      checkIn,
+      checkOut,
+      adults,
+      children,
+      pets,
+      vegMeals,
+      nonVegMeals,
+      totalPrice,
+      status,
+      paymentStatus,
+    } = req.body;
+
+    const dbRoomName = SHEET_ROOM_TO_LISTING[roomName] || roomName;
+
+    if (bookingId) {
+      const booking = await Booking.findById(bookingId).populate('listing');
+      if (!booking) {
+        res.status(404);
+        throw new Error(`Booking ${bookingId} not found`);
+      }
+
+      if (checkIn) booking.startDate = new Date(checkIn);
+      if (checkOut) booking.endDate = new Date(checkOut);
+      if (guestName) booking.contactName = guestName;
+      if (email) booking.contactEmail = email;
+      if (phone !== undefined) booking.contactPhone = phone;
+      if (adults !== undefined && adults !== '') booking.adultGuests = Number(adults);
+      if (children !== undefined && children !== '') booking.childGuests = Number(children);
+      if (pets !== undefined && pets !== '') booking.pets = Number(pets);
+      if (vegMeals !== undefined && vegMeals !== '') booking.vegCount = Number(vegMeals);
+      if (nonVegMeals !== undefined && nonVegMeals !== '') booking.nonVegCount = Number(nonVegMeals);
+      if (totalPrice !== undefined && totalPrice !== '') booking.totalPrice = Number(totalPrice);
+      if (status) booking.status = status;
+      if (paymentStatus) booking.paymentStatus = paymentStatus;
+
+      await booking.save();
+
+      const populated = await Booking.findById(booking._id).populate('listing').populate('user', 'name email');
+      if (populated.status === 'cancelled') {
+        await import('../utils/googleSheets.js').then((m) => m.clearBookingFromSheet(populated).catch(() => {}));
+      } else {
+        await import('../utils/googleSheets.js').then((m) => m.writeBookingToSheet(populated).catch(() => {}));
+      }
+
+      return res.json({ ok: true, bookingId: String(populated._id) });
+    }
+
+    // No bookingId — create a new booking from the sheet row
+    if (!dbRoomName || !checkIn || !checkOut || !guestName) {
+      res.status(400);
+      throw new Error('roomName, checkIn, checkOut, and guestName are required to create a booking');
+    }
+
+    const listing = await Listing.findOne({
+      name: new RegExp(`^${dbRoomName}$`, 'i'),
+      type: 'room',
+    });
+
+    if (!listing) {
+      res.status(404);
+      throw new Error(`Room listing "${dbRoomName}" not found in database`);
+    }
+
+    const startDate = new Date(checkIn);
+    const endDate = new Date(checkOut);
+    const normalizedAdults = adults !== undefined && adults !== '' ? Number(adults) : 1;
+    const normalizedChildren = children !== undefined && children !== '' ? Number(children) : 0;
+    const normalizedPets = pets !== undefined && pets !== '' ? Number(pets) : 0;
+    const normalizedVeg = vegMeals !== undefined && vegMeals !== '' ? Number(vegMeals) : 0;
+    const normalizedNonVeg = nonVegMeals !== undefined && nonVegMeals !== '' ? Number(nonVegMeals) : 0;
+
+    let unitPrice, finalTotalPrice, pricingBreakdown;
+    if (totalPrice !== undefined && totalPrice !== '' && Number(totalPrice) > 0) {
+      finalTotalPrice = Number(totalPrice);
+      unitPrice = finalTotalPrice;
+      pricingBreakdown = { basePrice: finalTotalPrice, adjustments: [] };
+    } else {
+      const pricing = await calculateBookingPrice({
+        listing,
+        bookingType: 'room',
+        startDate,
+        endDate,
+        guests: normalizedAdults + normalizedChildren,
+        adultGuests: normalizedAdults,
+        childGuests: normalizedChildren,
+        pets: normalizedPets,
+      });
+      unitPrice = pricing.unitPrice;
+      finalTotalPrice = pricing.totalPrice;
+      pricingBreakdown = { basePrice: pricing.basePrice, adjustments: pricing.adjustments };
+    }
+
+    const adminUser = await import('../models/User.js').then((m) =>
+      m.default.findOne({ role: 'admin' })
+    );
+
+    const newBooking = await Booking.create({
+      bookingType: 'room',
+      listing: listing._id,
+      user: adminUser?._id ?? null,
+      startDate,
+      endDate,
+      guests: normalizedAdults + normalizedChildren,
+      adultGuests: normalizedAdults,
+      childGuests: normalizedChildren,
+      pets: normalizedPets,
+      vegCount: normalizedVeg,
+      nonVegCount: normalizedNonVeg,
+      unitPrice,
+      totalPrice: finalTotalPrice,
+      pricingBreakdown,
+      status: status === 'cancelled' ? 'pending' : (status || 'confirmed'),
+      paymentStatus: paymentStatus || 'pending',
+      paymentMethod: 'manual',
+      contactName: guestName,
+      contactEmail: email || 'sheet-import@bowline.internal',
+      contactPhone: phone || '',
+      specialRequests: 'Created via Google Sheet',
+    });
+
+    const populated = await Booking.findById(newBooking._id).populate('listing').populate('user', 'name email');
+    await import('../utils/googleSheets.js').then((m) => m.writeBookingToSheet(populated).catch(() => {}));
+
+    res.json({ ok: true, bookingId: String(newBooking._id) });
   } catch (err) {
     next(err);
   }
