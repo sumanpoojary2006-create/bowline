@@ -12,6 +12,7 @@ import adminRoutes from './routes/adminRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import syncRoutes from './routes/syncRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
+import whatsappRoutes from './routes/whatsappRoutes.js';
 import { errorHandler, notFound } from './middleware/error.js';
 
 dotenv.config();
@@ -78,6 +79,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/whatsapp', whatsappRoutes);
 app.use(notFound);
 app.use(errorHandler);
 

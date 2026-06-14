@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { MinusIcon, PlusIcon, XMarkIcon } from '@heroicons/react/24/outline';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
 import { payForBookings } from '../lib/razorpay';
@@ -12,7 +12,7 @@ import { formatCurrency } from '../lib/formatters';
 import { addDays, ensureCheckoutDate, formatDateParam, parseDateParam } from '../lib/dateUtils';
 import { useBookingCart } from '../context/BookingCartContext';
 import { useAuth } from '../context/AuthContext';
-import { getGroupBookingLabel, getGroupRoomsForGuests, getNightlyRoomRate, petFee } from '../lib/roomRates';
+import { getGroupBookingLabel, getGroupRoomsForGuests, getNightlyRoomRate, getRoomDisplayOrder, petFee } from '../lib/roomRates';
 
 const forestBackdrop =
   'https://images.unsplash.com/photo-1473448912268-2022ce9509d8?auto=format&fit=crop&w=1800&q=80';
@@ -59,7 +59,7 @@ function HomePage() {
     const fetchHomeData = async () => {
       try {
         const { data } = await api.get('/listings', { params: { type: 'room', limit: 8 } });
-        setRooms(data.listings);
+        setRooms([...data.listings].sort((a, b) => getRoomDisplayOrder(a) - getRoomDisplayOrder(b)));
       } finally {
         setLoading(false);
       }
@@ -216,24 +216,25 @@ function HomePage() {
                       Weekday and weekend tariffs are shown per person. Breakfast is complimentary.
                     </p>
                   </div>
-                  <Link className="btn-primary" to="/browse">
-                    Check available rooms
-                  </Link>
                 </div>
 
                 {loading ? (
                   <PageLoader label="Loading rooms..." />
                 ) : rooms.length ? (
-                  <div className="grid gap-5 lg:grid-cols-3">
+                  <div className="flex snap-x snap-mandatory gap-5 overflow-x-auto pb-2">
                     {rooms.map((listing) => (
-                      <ListingCard
+                      <div
                         key={listing._id}
-                        listing={listing}
-                        onBookNow={openBookingPrompt}
-                        compact
-                        detailLabel="View More"
-                        showPrice
-                      />
+                        className="w-[85%] flex-shrink-0 snap-start sm:w-[45%] lg:w-[calc((100%-2.5rem)/3)]"
+                      >
+                        <ListingCard
+                          listing={listing}
+                          onBookNow={openBookingPrompt}
+                          compact
+                          detailLabel="View More"
+                          showPrice
+                        />
+                      </div>
                     ))}
                   </div>
                 ) : (
