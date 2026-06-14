@@ -7,8 +7,6 @@ import { useBookingCart } from '../context/BookingCartContext';
 import bowlineLogo from '../assets/bowline-logo.png';
 
 const links = [
-  { label: 'Browse Rooms', to: '/browse' },
-  { label: 'Homestays', to: '/stays' },
   { label: 'Treks', to: '/treks' },
   { label: 'Camps', to: '/camps' },
 ];

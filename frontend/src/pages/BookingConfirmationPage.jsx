@@ -51,7 +51,9 @@ function BookingConfirmationPage() {
         <p className="text-xs uppercase tracking-[0.35em] text-emerald-300">Booking received</p>
         <h1 className="mt-4 font-display text-5xl text-white">Your Bowline plan is in motion</h1>
         <p className="mt-4 text-[#c1cbbd]">
-          Your reservation request has been received. Bowline will review the dates and follow up manually. No online payment was collected here.
+          {booking.paymentStatus === 'paid'
+            ? 'Your payment was received and your booking is confirmed. We look forward to hosting you!'
+            : 'Your reservation request has been received. Bowline will review the dates and follow up manually.'}
         </p>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
@@ -72,7 +74,11 @@ function BookingConfirmationPage() {
           </div>
           <div className="rounded-[1.5rem] bg-slate-900/70 p-5">
             <p className="text-sm text-slate-400">Status</p>
-            <p className="mt-2 text-white">{booking.status}</p>
+            <p className="mt-2 text-white capitalize">{booking.status}</p>
+          </div>
+          <div className="rounded-[1.5rem] bg-slate-900/70 p-5">
+            <p className="text-sm text-slate-400">Payment status</p>
+            <p className="mt-2 text-white capitalize">{booking.paymentStatus}</p>
           </div>
           <div className="rounded-[1.5rem] bg-slate-900/70 p-5">
             <p className="text-sm text-slate-400">Guests</p>

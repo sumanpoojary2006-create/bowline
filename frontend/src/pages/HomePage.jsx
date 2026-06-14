@@ -1,13 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { MinusIcon, PlusIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import api from '../lib/api';
+import { payForBookings } from '../lib/razorpay';
 import ListingCard from '../components/ListingCard';
 import PageLoader from '../components/PageLoader';
 import EmptyState from '../components/EmptyState';
 import RoomCalendar from '../components/RoomCalendar';
 import { formatCurrency } from '../lib/formatters';
-import { addDays, ensureCheckoutDate, formatDateParam } from '../lib/dateUtils';
+import { addDays, ensureCheckoutDate, formatDateParam, parseDateParam } from '../lib/dateUtils';
+import { useBookingCart } from '../context/BookingCartContext';
+import { useAuth } from '../context/AuthContext';
 import { getGroupBookingLabel, getGroupRoomsForGuests, getNightlyRoomRate, petFee } from '../lib/roomRates';
 
 const forestBackdrop =
@@ -19,6 +23,8 @@ const increment = (value, amount, min = 0, max = 20) => Math.max(min, Math.min(m
 function HomePage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { addItem } = useBookingCart();
+  const { user } = useAuth();
   const [filters] = useState({
     startDate: tomorrow(),
     endDate: addDays(tomorrow(), 1),
@@ -28,13 +34,23 @@ function HomePage() {
   const [loading, setLoading] = useState(true);
   const [activeHighlight, setActiveHighlight] = useState('room');
   const [activeBooking, setActiveBooking] = useState(null);
+  const [bookingStep, setBookingStep] = useState('details');
   const [groupGuests, setGroupGuests] = useState(10);
+  const [groupDates, setGroupDates] = useState({
+    startDate: tomorrow(),
+    endDate: addDays(tomorrow(), 1),
+  });
   const [bookingDraft, setBookingDraft] = useState({
     startDate: tomorrow(),
     endDate: addDays(tomorrow(), 1),
     adults: 2,
     children: 0,
     pets: 0,
+    vegCount: 2,
+    nonVegCount: 0,
+    contactName: '',
+    contactEmail: '',
+    contactPhone: '',
   });
 
   useEffect(() => {
@@ -62,12 +78,19 @@ function HomePage() {
 
   const openBookingPrompt = (listing) => {
     setActiveBooking(listing);
+    setBookingStep('details');
+    const adults = Number(filters.guests || 2);
     setBookingDraft({
       startDate: filters.startDate,
       endDate: filters.endDate,
-      adults: Number(filters.guests || 2),
+      adults,
       children: 0,
       pets: 0,
+      vegCount: adults,
+      nonVegCount: 0,
+      contactName: user?.name || '',
+      contactEmail: user?.email || '',
+      contactPhone: user?.phone || '',
     });
   };
 
@@ -79,30 +102,66 @@ function HomePage() {
     }));
   };
 
-  const confirmBookingPrompt = () => {
+  const [placingBooking, setPlacingBooking] = useState(false);
+
+  const proceedToBook = async () => {
     if (!activeBooking) return;
-    const guests = Number(bookingDraft.adults) + Number(bookingDraft.children);
-    const query = new URLSearchParams({
-      startDate: formatDateParam(bookingDraft.startDate),
-      endDate: formatDateParam(bookingDraft.endDate),
-      guests: String(guests),
-      adults: String(bookingDraft.adults),
-      children: String(bookingDraft.children),
-      pets: String(bookingDraft.pets),
+
+    setPlacingBooking(true);
+    try {
+      const { data } = await api.post('/bookings', {
+        listingId: activeBooking._id,
+        startDate: formatDateParam(bookingDraft.startDate),
+        endDate: formatDateParam(bookingDraft.endDate),
+        guests: modalTotalGuests,
+        adultGuests: bookingDraft.adults,
+        childGuests: bookingDraft.children,
+        pets: bookingDraft.pets,
+        vegCount: bookingDraft.vegCount,
+        nonVegCount: bookingDraft.nonVegCount,
+        contactName: bookingDraft.contactName,
+        contactEmail: bookingDraft.contactEmail,
+        contactPhone: bookingDraft.contactPhone,
+      });
+
+      const booking = data.booking;
+
+      try {
+        const result = await payForBookings({
+          bookingIds: [booking._id],
+          contact: bookingDraft,
+        });
+
+        toast.success('Payment successful! Your booking is confirmed.');
+        navigate(`/booking/confirmation/${booking._id}`, {
+          state: { booking: result.bookings[0], resetBookingModal: true },
+        });
+      } catch (paymentError) {
+        if (paymentError.message === 'PAYMENT_CANCELLED') {
+          toast.error('Payment cancelled. Your booking is saved as pending.');
+        } else {
+          toast.error('Payment could not be completed. Your booking is saved as pending.');
+        }
+        navigate(`/booking/confirmation/${booking._id}`, {
+          state: { booking, resetBookingModal: true },
+        });
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Unable to create booking');
+    } finally {
+      setPlacingBooking(false);
+    }
+  };
+
+  const confirmGroupBooking = () => {
+    if (!groupRooms.length) return;
+
+    const guestsPerRoom = Math.max(1, Math.ceil(groupGuests / groupRooms.length));
+    groupRooms.forEach((listing) => {
+      addItem(listing, groupDates.startDate, groupDates.endDate, guestsPerRoom);
     });
 
-    navigate(`/book/${activeBooking.slug}?${query.toString()}`, {
-      state: {
-        bookingPrefill: {
-          startDate: formatDateParam(bookingDraft.startDate),
-          endDate: formatDateParam(bookingDraft.endDate),
-          guests: String(guests),
-          adults: String(bookingDraft.adults),
-          children: String(bookingDraft.children),
-          pets: String(bookingDraft.pets),
-        },
-      },
-    });
+    navigate('/checkout');
   };
 
   const selectedNightlyRate = activeBooking ? getNightlyRoomRate(activeBooking, bookingDraft.startDate) : 0;
@@ -111,6 +170,14 @@ function HomePage() {
     selectedNightlyRate * Number(bookingDraft.adults) +
     selectedNightlyRate * 0.5 * Number(bookingDraft.children) +
     petFee * Number(bookingDraft.pets);
+  const modalNights = activeBooking
+    ? Math.max(Math.round((bookingDraft.endDate - bookingDraft.startDate) / 86400000), 1)
+    : 0;
+  const modalRoomTotal =
+    (selectedNightlyRate * Number(bookingDraft.adults) + selectedNightlyRate * 0.5 * Number(bookingDraft.children)) *
+    modalNights;
+  const modalPetTotal = petFee * Number(bookingDraft.pets);
+  const modalGrandTotal = modalRoomTotal + modalPetTotal;
 
   return (
     <>
@@ -119,20 +186,6 @@ function HomePage() {
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,16,10,0.62)_0%,rgba(8,16,10,0.86)_38%,rgba(8,16,10,0.96)_100%)]" />
 
         <div className="relative section-shell space-y-8">
-          <div className="mx-auto max-w-6xl rounded-[2.5rem] border border-lime-100/10 bg-black/25 p-6 backdrop-blur-sm sm:p-8">
-            <div className="max-w-2xl">
-              <p className="inline-flex rounded-full border border-lime-100/20 bg-black/20 px-4 py-2 text-xs uppercase tracking-[0.22em] text-[#cfd8cb]">
-                Mudigere, Chikkamagaluru
-              </p>
-              <h1 className="mt-4 font-display text-3xl leading-tight text-[#f5f0dd] sm:text-5xl lg:text-6xl">
-                Find your stay, then book in one clear flow.
-              </h1>
-              <p className="mt-3 text-sm text-[#d5ddd2] sm:text-base">
-                Browse rooms with weekday and weekend pricing, then choose dates from the booking calendar.
-              </p>
-            </div>
-          </div>
-
           <div className="mx-auto max-w-6xl rounded-[2rem] border border-lime-100/10 bg-[#0a130d]/70 p-5">
             <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-none">
               {[
@@ -219,6 +272,39 @@ function HomePage() {
                   </div>
                 </div>
 
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="text-xs uppercase tracking-[0.22em] text-lime-200/80">Check-in</label>
+                    <input
+                      type="date"
+                      className="input mt-2"
+                      value={formatDateParam(groupDates.startDate)}
+                      onChange={(e) => {
+                        const date = parseDateParam(e.target.value, groupDates.startDate);
+                        setGroupDates((prev) => ({
+                          startDate: date,
+                          endDate: ensureCheckoutDate(date, prev.endDate, 1),
+                        }));
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs uppercase tracking-[0.22em] text-lime-200/80">Check-out</label>
+                    <input
+                      type="date"
+                      className="input mt-2"
+                      value={formatDateParam(groupDates.endDate)}
+                      onChange={(e) => {
+                        const date = parseDateParam(e.target.value, groupDates.endDate);
+                        setGroupDates((prev) => ({
+                          ...prev,
+                          endDate: ensureCheckoutDate(prev.startDate, date, 1),
+                        }));
+                      }}
+                    />
+                  </div>
+                </div>
+
                 <div className="rounded-[1.25rem] border border-lime-100/10 bg-black/20 p-4">
                   <p className="text-xs uppercase tracking-[0.22em] text-lime-200/80">Selected bundle</p>
                   <p className="mt-2 text-xl font-semibold text-[#f5f0dd]">{getGroupBookingLabel(groupGuests)}</p>
@@ -227,18 +313,14 @@ function HomePage() {
                   </p>
                 </div>
 
-                <div className="grid gap-5 lg:grid-cols-3">
-                  {groupRooms.map((listing) => (
-                    <ListingCard
-                      key={listing._id}
-                      listing={listing}
-                      onBookNow={openBookingPrompt}
-                      compact
-                      detailLabel="View More"
-                      showPrice
-                    />
-                  ))}
-                </div>
+                <button
+                  type="button"
+                  className="btn-primary w-full"
+                  disabled={!groupRooms.length}
+                  onClick={confirmGroupBooking}
+                >
+                  Book this bundle
+                </button>
               </div>
             ) : null}
           </div>
@@ -258,6 +340,8 @@ function HomePage() {
               </button>
             </div>
 
+            {bookingStep === 'details' ? (
+            <>
             <div className="mt-5 rounded-[1.5rem] border border-lime-100/10 bg-[#0d1710]/80 p-4">
               <RoomCalendar
                 listingId={activeBooking._id}
@@ -363,6 +447,63 @@ function HomePage() {
                   </button>
                 </div>
               </div>
+
+              <div className="flex items-center justify-between rounded-[1.25rem] border border-lime-100/10 bg-black/20 px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-[#f5f0dd]">Veg meals</p>
+                  <p className="text-xs text-[#aab5a5]">Number of guests on veg meals</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    className="rounded-full border border-lime-100/15 p-2 text-white disabled:opacity-40"
+                    type="button"
+                    disabled={bookingDraft.vegCount <= 0}
+                    onClick={() => setBookingDraft((prev) => ({ ...prev, vegCount: increment(prev.vegCount, -1, 0, 40) }))}
+                  >
+                    <MinusIcon className="h-4 w-4" />
+                  </button>
+                  <span className="w-6 text-center text-sm font-semibold text-[#f5f0dd]">{bookingDraft.vegCount}</span>
+                  <button
+                    className="rounded-full border border-lime-100/15 p-2 text-white disabled:opacity-40"
+                    type="button"
+                    onClick={() => setBookingDraft((prev) => ({ ...prev, vegCount: increment(prev.vegCount, 1, 0, 40) }))}
+                  >
+                    <PlusIcon className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between rounded-[1.25rem] border border-lime-100/10 bg-black/20 px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-[#f5f0dd]">Non-veg meals</p>
+                  <p className="text-xs text-[#aab5a5]">Number of guests on non-veg meals</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    className="rounded-full border border-lime-100/15 p-2 text-white disabled:opacity-40"
+                    type="button"
+                    disabled={bookingDraft.nonVegCount <= 0}
+                    onClick={() => setBookingDraft((prev) => ({ ...prev, nonVegCount: increment(prev.nonVegCount, -1, 0, 40) }))}
+                  >
+                    <MinusIcon className="h-4 w-4" />
+                  </button>
+                  <span className="w-6 text-center text-sm font-semibold text-[#f5f0dd]">{bookingDraft.nonVegCount}</span>
+                  <button
+                    className="rounded-full border border-lime-100/15 p-2 text-white disabled:opacity-40"
+                    type="button"
+                    onClick={() => setBookingDraft((prev) => ({ ...prev, nonVegCount: increment(prev.nonVegCount, 1, 0, 40) }))}
+                  >
+                    <PlusIcon className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              {bookingDraft.vegCount + bookingDraft.nonVegCount !== modalTotalGuests ? (
+                <p className="px-1 text-xs text-amber-300">
+                  {bookingDraft.vegCount + bookingDraft.nonVegCount} of {modalTotalGuests} guest
+                  {modalTotalGuests === 1 ? '' : 's'} assigned a meal preference.
+                </p>
+              ) : null}
             </div>
 
             <div className="mt-5 rounded-[1.25rem] border border-lime-100/10 bg-black/20 p-4 text-sm text-[#cdd6c9]">
@@ -380,10 +521,133 @@ function HomePage() {
               <button className="btn-secondary flex-1" onClick={() => setActiveBooking(null)} type="button">
                 Cancel
               </button>
-              <button className="btn-primary flex-1" onClick={confirmBookingPrompt} type="button">
-                Confirm Dates
+              <button className="btn-primary flex-1" onClick={() => setBookingStep('summary')} type="button">
+                Book Now
               </button>
             </div>
+            </>
+            ) : (
+              <div className="mt-5 space-y-3">
+                <div className="rounded-[1.5rem] border border-lime-100/10 bg-[#0d1710]/80 p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-lime-200/80">Booking summary</p>
+                  <h4 className="mt-2 text-xl font-semibold text-[#f5f0dd]">{activeBooking.name}</h4>
+
+                  <div className="mt-4 grid grid-cols-2 gap-3 text-sm text-slate-300">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-slate-500">Check-in</p>
+                      <p className="font-semibold text-white">
+                        {bookingDraft.startDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-slate-500">Check-out</p>
+                      <p className="font-semibold text-white">
+                        {bookingDraft.endDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-y-2 border-t border-white/10 pt-4 text-sm text-[#cdd6c9]">
+                    <div className="flex items-center justify-between">
+                      <span>Duration</span>
+                      <span className="font-semibold text-white">{modalNights} night{modalNights === 1 ? '' : 's'}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Adults</span>
+                      <span className="font-semibold text-white">{bookingDraft.adults}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Children</span>
+                      <span className="font-semibold text-white">{bookingDraft.children}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Pets</span>
+                      <span className="font-semibold text-white">{bookingDraft.pets}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Veg meals</span>
+                      <span className="font-semibold text-white">{bookingDraft.vegCount}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Non-veg meals</span>
+                      <span className="font-semibold text-white">{bookingDraft.nonVegCount}</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-y-2 border-t border-white/10 pt-4 text-sm text-[#cdd6c9]">
+                    <div className="flex items-center justify-between">
+                      <span>Room cost ({modalNights} night{modalNights === 1 ? '' : 's'})</span>
+                      <span className="font-semibold text-white">{formatCurrency(modalRoomTotal)}</span>
+                    </div>
+                    {bookingDraft.pets > 0 ? (
+                      <div className="flex items-center justify-between">
+                        <span>Pet fee</span>
+                        <span className="font-semibold text-white">{formatCurrency(modalPetTotal)}</span>
+                      </div>
+                    ) : null}
+                    <div className="flex items-center justify-between text-base font-bold text-lime-200">
+                      <span>Total</span>
+                      <span>{formatCurrency(modalGrandTotal)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-[1.5rem] border border-lime-100/10 bg-[#0d1710]/80 p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-lime-200/80">Your details</p>
+                  <div className="mt-3 space-y-3">
+                    <div>
+                      <label className="text-xs text-[#aab5a5]">Full name</label>
+                      <input
+                        type="text"
+                        className="input mt-1"
+                        placeholder="Your name"
+                        value={bookingDraft.contactName}
+                        onChange={(e) => setBookingDraft((prev) => ({ ...prev, contactName: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-[#aab5a5]">Email</label>
+                      <input
+                        type="email"
+                        className="input mt-1"
+                        placeholder="you@example.com"
+                        value={bookingDraft.contactEmail}
+                        onChange={(e) => setBookingDraft((prev) => ({ ...prev, contactEmail: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-[#aab5a5]">Phone number</label>
+                      <input
+                        type="tel"
+                        className="input mt-1"
+                        placeholder="Your phone number"
+                        value={bookingDraft.contactPhone}
+                        onChange={(e) => setBookingDraft((prev) => ({ ...prev, contactPhone: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button className="btn-secondary flex-1" onClick={() => setBookingStep('details')} type="button">
+                    Back
+                  </button>
+                  <button
+                    className="btn-primary flex-1 disabled:opacity-50"
+                    onClick={proceedToBook}
+                    disabled={
+                      placingBooking ||
+                      !bookingDraft.contactName.trim() ||
+                      !bookingDraft.contactEmail.trim() ||
+                      !bookingDraft.contactPhone.trim()
+                    }
+                    type="button"
+                  >
+                    {placingBooking ? 'Processing...' : 'Proceed to Book'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ) : null}

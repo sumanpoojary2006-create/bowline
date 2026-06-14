@@ -11,6 +11,7 @@ import bookingRoutes from './routes/bookingRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import syncRoutes from './routes/syncRoutes.js';
+import paymentRoutes from './routes/paymentRoutes.js';
 import { errorHandler, notFound } from './middleware/error.js';
 
 dotenv.config();
@@ -76,6 +77,7 @@ app.use('/api/bookings', bookingRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/sync', syncRoutes);
+app.use('/api/payments', paymentRoutes);
 app.use(notFound);
 app.use(errorHandler);
 

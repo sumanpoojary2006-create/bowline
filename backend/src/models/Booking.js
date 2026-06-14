@@ -16,7 +16,7 @@ const bookingSchema = new mongoose.Schema(
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      default: null,
     },
     startDate: {
       type: Date,
@@ -42,6 +42,16 @@ const bookingSchema = new mongoose.Schema(
       min: 0,
     },
     pets: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    vegCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    nonVegCount: {
       type: Number,
       default: 0,
       min: 0,
@@ -77,6 +87,15 @@ const bookingSchema = new mongoose.Schema(
     paymentMethod: {
       type: String,
       default: 'manual',
+    },
+    razorpayOrderId: {
+      type: String,
+      default: null,
+      index: true,
+    },
+    razorpayPaymentId: {
+      type: String,
+      default: null,
     },
     contactName: {
       type: String,

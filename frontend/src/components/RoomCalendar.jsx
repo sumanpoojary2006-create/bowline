@@ -28,7 +28,7 @@ function isBookedDay(date, bookedRanges) {
   );
 }
 
-function CalendarMonth({ year, month, bookedRanges, startDate, endDate, onDayClick }) {
+function CalendarMonth({ year, month, bookedRanges, startDate, endDate, showEnd, onDayClick }) {
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
   const today = new Date();
@@ -57,8 +57,8 @@ function CalendarMonth({ year, month, bookedRanges, startDate, endDate, onDayCli
           const booked = isBookedDay(date, bookedRanges);
           const isPast = date < today;
           const isStart = startDate && isSameDay(date, startDate);
-          const isEnd = endDate && isSameDay(date, endDate);
-          const inRange = isInRange(date, startDate, endDate);
+          const isEnd = showEnd && endDate && isSameDay(date, endDate);
+          const inRange = showEnd && isInRange(date, startDate, endDate);
           const disabled = booked || isPast;
 
           let base = 'flex items-center justify-center text-sm select-none ';
@@ -104,6 +104,7 @@ function RoomCalendar({ listingId, startDate, endDate, onStartDate, onEndDate })
   const [bookedRanges, setBookedRanges] = useState([]);
   const [nextAvailable, setNextAvailable] = useState(null);
   const [selecting, setSelecting] = useState('start');
+  const [hasEndSelected, setHasEndSelected] = useState(false);
 
   useEffect(() => {
     if (!listingId) return;
@@ -133,14 +134,17 @@ function RoomCalendar({ listingId, startDate, endDate, onStartDate, onEndDate })
       onStartDate(date);
       onEndDate(addDays(date, 1));
       setSelecting('end');
+      setHasEndSelected(false);
     } else {
       if (date <= startDate) {
         onStartDate(date);
         onEndDate(addDays(date, 1));
         setSelecting('end');
+        setHasEndSelected(false);
       } else {
         onEndDate(date);
         setSelecting('start');
+        setHasEndSelected(true);
       }
     }
   };
@@ -195,6 +199,7 @@ function RoomCalendar({ listingId, startDate, endDate, onStartDate, onEndDate })
         bookedRanges={bookedRanges}
         startDate={startDate}
         endDate={endDate}
+        showEnd={hasEndSelected}
         onDayClick={handleDayClick}
       />
 
@@ -229,6 +234,7 @@ function RoomCalendar({ listingId, startDate, endDate, onStartDate, onEndDate })
               onStartDate(new Date(nextAvailable.startDate));
               onEndDate(new Date(nextAvailable.endDate));
               setSelecting('start');
+              setHasEndSelected(true);
             }}
           >
             Use these dates

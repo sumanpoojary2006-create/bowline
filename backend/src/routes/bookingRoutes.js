@@ -9,11 +9,11 @@ import {
   getMyBookings,
   updateBookingStatus,
 } from '../controllers/bookingController.js';
-import { authorize, protect } from '../middleware/auth.js';
+import { authorize, optionalAuth, protect } from '../middleware/auth.js';
 
 const router = Router();
 
-router.post('/', protect, createBooking);
+router.post('/', optionalAuth, createBooking);
 router.post('/multi', protect, createMultiBooking);
 router.get('/me', protect, getMyBookings);
 router.patch('/me/:id/cancel', protect, cancelMyBooking);
