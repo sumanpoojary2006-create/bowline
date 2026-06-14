@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import PublicLayout from './layouts/PublicLayout';
 import AdminLayout from './layouts/AdminLayout';
+import EmployeeLayout from './layouts/EmployeeLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 import EmployeeProtectedRoute from './components/EmployeeProtectedRoute';
 import PageLoader from './components/PageLoader';
@@ -70,6 +71,9 @@ function App() {
             }
           />
           <Route path="/checkout" element={<CheckoutPage />} />
+        </Route>
+
+        <Route element={<EmployeeLayout />}>
           <Route path="/employee/login" element={<EmployeeLoginPage />} />
           <Route
             path="/employee/dashboard"
