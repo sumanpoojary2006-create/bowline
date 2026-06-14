@@ -261,13 +261,16 @@ export const checkAvailability = async (req, res, next) => {
       throw new Error('Listing not found');
     }
 
-    const { startDate, endDate, guests = 1 } = req.body;
+    const { startDate, endDate, guests = 1, adultGuests, childGuests = 0, pets = 0 } = req.body;
+    const normalizedAdults = Number(adultGuests ?? guests);
+    const normalizedChildren = Number(childGuests || 0);
+    const normalizedGuests = Number(guests ?? normalizedAdults + normalizedChildren);
 
     const { available, reason } = await validateListingAvailability({
       listing,
       startDate,
       endDate,
-      guests,
+      guests: normalizedGuests,
     });
 
     const pricing = await calculateBookingPrice({
@@ -275,7 +278,10 @@ export const checkAvailability = async (req, res, next) => {
       bookingType: listing.type,
       startDate: new Date(startDate),
       endDate: new Date(endDate),
-      guests: Number(guests),
+      guests: normalizedGuests,
+      adultGuests: normalizedAdults,
+      childGuests: normalizedChildren,
+      pets: Number(pets || 0),
     });
 
     res.json({

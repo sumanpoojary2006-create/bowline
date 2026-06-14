@@ -1,4 +1,4 @@
-import { CalendarDaysIcon, MapPinIcon, ShoppingBagIcon, UserGroupIcon } from '@heroicons/react/24/outline';
+import { CalendarDaysIcon, MapPinIcon, MinusIcon, PlusIcon, ShoppingBagIcon, UserGroupIcon } from '@heroicons/react/24/outline';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import DatePicker from 'react-datepicker';
 import toast from 'react-hot-toast';
@@ -11,6 +11,9 @@ import { addDays, ensureCheckoutDate, formatDateParam, parseDateParam } from '..
 import ListingCard from '../components/ListingCard';
 import PageLoader from '../components/PageLoader';
 import RoomCalendar from '../components/RoomCalendar';
+import { petFee } from '../lib/roomRates';
+
+const increment = (value, amount, min = 0, max = 20) => Math.max(min, Math.min(max, Number(value || 0) + amount));
 
 const tomorrow = () => addDays(new Date(), 1);
 
@@ -33,6 +36,9 @@ function ListingDetailPage({ bookingFirst = false }) {
   const initialStartDate = startFromState || startFromQuery || tomorrow();
   const initialEndDate = ensureCheckoutDate(initialStartDate, endFromState || endFromQuery || addDays(initialStartDate, 1), 1);
   const initialGuests = Number(statePrefill.guests || searchParams.get('guests') || 1);
+  const initialAdults = Number(statePrefill.adults || searchParams.get('adults') || initialGuests || 1);
+  const initialChildren = Number(statePrefill.children || searchParams.get('children') || 0);
+  const initialPets = Number(statePrefill.pets || searchParams.get('pets') || 0);
 
   const [listing, setListing] = useState(null);
   const [related, setRelated] = useState([]);
@@ -43,11 +49,12 @@ function ListingDetailPage({ bookingFirst = false }) {
   const [booking, setBooking] = useState({
     startDate: initialStartDate,
     endDate: initialEndDate,
-    guests: initialGuests,
+    adults: initialAdults,
+    children: initialChildren,
+    pets: initialPets,
     contactName: '',
     contactEmail: '',
     contactPhone: '',
-    specialRequests: '',
   });
   const [availability, setAvailability] = useState(null);
   const stayNights = Math.max(
@@ -138,7 +145,10 @@ function ListingDetailPage({ bookingFirst = false }) {
       const { data } = await api.post(`/listings/${listing._id}/availability`, {
         startDate: booking.startDate,
         endDate: booking.endDate,
-        guests: booking.guests,
+        guests: booking.adults + booking.children,
+        adultGuests: booking.adults,
+        childGuests: booking.children,
+        pets: booking.pets,
       });
       setAvailability(data);
       if (!data.available) {
@@ -157,7 +167,7 @@ function ListingDetailPage({ bookingFirst = false }) {
         state: {
           from: {
             pathname: `/book/${slug}`,
-            search: `?startDate=${formatDateParam(booking.startDate)}&endDate=${formatDateParam(booking.endDate)}&guests=${booking.guests}`,
+            search: `?startDate=${formatDateParam(booking.startDate)}&endDate=${formatDateParam(booking.endDate)}&guests=${booking.adults + booking.children}`,
           },
         },
       });
@@ -172,7 +182,15 @@ function ListingDetailPage({ bookingFirst = false }) {
     try {
       const { data } = await api.post('/bookings', {
         listingId: listing._id,
-        ...booking,
+        startDate: booking.startDate,
+        endDate: booking.endDate,
+        guests: booking.adults + booking.children,
+        adultGuests: booking.adults,
+        childGuests: booking.children,
+        pets: booking.pets,
+        contactName: booking.contactName,
+        contactEmail: booking.contactEmail,
+        contactPhone: booking.contactPhone,
       });
       toast.success('Booking created');
       navigate(`/booking/confirmation/${data.booking._id}`, { state: { booking: data.booking, resetBookingModal: true } });
@@ -182,10 +200,14 @@ function ListingDetailPage({ bookingFirst = false }) {
   };
 
   const openRecommendedRoomBooking = (room) => {
+    const guests = booking.adults + booking.children;
     const query = new URLSearchParams({
       startDate: formatDateParam(booking.startDate),
       endDate: formatDateParam(booking.endDate),
-      guests: String(booking.guests),
+      guests: String(guests),
+      adults: String(booking.adults),
+      children: String(booking.children),
+      pets: String(booking.pets),
     });
 
     navigate(`/book/${room.slug}?${query.toString()}`, {
@@ -193,7 +215,10 @@ function ListingDetailPage({ bookingFirst = false }) {
         bookingPrefill: {
           startDate: formatDateParam(booking.startDate),
           endDate: formatDateParam(booking.endDate),
-          guests: String(booking.guests),
+          guests: String(guests),
+          adults: String(booking.adults),
+          children: String(booking.children),
+          pets: String(booking.pets),
         },
       },
     });
@@ -311,20 +336,117 @@ function ListingDetailPage({ bookingFirst = false }) {
                   </div>
                 </div>
               )}
-              <div>
-                <label className="label">Guests</label>
-                <input
-                  className="input"
-                  type="number"
-                  min="1"
-                  max={listing.capacity}
-                  value={booking.guests}
-                  onChange={(event) => {
-                    setAvailability(null);
-                    setBooking((prev) => ({ ...prev, guests: Number(event.target.value) }));
-                  }}
-                />
-              </div>
+              {listing.type === 'room' ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between rounded-[1.25rem] border border-white/10 bg-[#0d1710]/80 px-4 py-3">
+                    <div>
+                      <p className="text-sm font-semibold text-white">Adults</p>
+                      <p className="text-xs text-slate-500">Age 13+</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        className="rounded-full border border-white/15 p-2 text-white disabled:opacity-40"
+                        type="button"
+                        disabled={booking.adults <= 1}
+                        onClick={() => {
+                          setAvailability(null);
+                          setBooking((prev) => ({ ...prev, adults: increment(prev.adults, -1, 1, 20) }));
+                        }}
+                      >
+                        <MinusIcon className="h-4 w-4" />
+                      </button>
+                      <span className="w-6 text-center text-sm font-semibold text-white">{booking.adults}</span>
+                      <button
+                        className="rounded-full border border-white/15 p-2 text-white disabled:opacity-40"
+                        type="button"
+                        onClick={() => {
+                          setAvailability(null);
+                          setBooking((prev) => ({ ...prev, adults: increment(prev.adults, 1, 1, 20) }));
+                        }}
+                      >
+                        <PlusIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-[1.25rem] border border-white/10 bg-[#0d1710]/80 px-4 py-3">
+                    <div>
+                      <p className="text-sm font-semibold text-white">Children</p>
+                      <p className="text-xs text-slate-500">Age 6-12 · 50% of adult tariff</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        className="rounded-full border border-white/15 p-2 text-white disabled:opacity-40"
+                        type="button"
+                        disabled={booking.children <= 0}
+                        onClick={() => {
+                          setAvailability(null);
+                          setBooking((prev) => ({ ...prev, children: increment(prev.children, -1, 0, 20) }));
+                        }}
+                      >
+                        <MinusIcon className="h-4 w-4" />
+                      </button>
+                      <span className="w-6 text-center text-sm font-semibold text-white">{booking.children}</span>
+                      <button
+                        className="rounded-full border border-white/15 p-2 text-white disabled:opacity-40"
+                        type="button"
+                        onClick={() => {
+                          setAvailability(null);
+                          setBooking((prev) => ({ ...prev, children: increment(prev.children, 1, 0, 20) }));
+                        }}
+                      >
+                        <PlusIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-[1.25rem] border border-white/10 bg-[#0d1710]/80 px-4 py-3">
+                    <div>
+                      <p className="text-sm font-semibold text-white">Pets</p>
+                      <p className="text-xs text-slate-500">{formatCurrency(petFee)} flat per pet, per stay</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        className="rounded-full border border-white/15 p-2 text-white disabled:opacity-40"
+                        type="button"
+                        disabled={booking.pets <= 0}
+                        onClick={() => {
+                          setAvailability(null);
+                          setBooking((prev) => ({ ...prev, pets: increment(prev.pets, -1, 0, 10) }));
+                        }}
+                      >
+                        <MinusIcon className="h-4 w-4" />
+                      </button>
+                      <span className="w-6 text-center text-sm font-semibold text-white">{booking.pets}</span>
+                      <button
+                        className="rounded-full border border-white/15 p-2 text-white disabled:opacity-40"
+                        type="button"
+                        onClick={() => {
+                          setAvailability(null);
+                          setBooking((prev) => ({ ...prev, pets: increment(prev.pets, 1, 0, 10) }));
+                        }}
+                      >
+                        <PlusIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="label">Guests</label>
+                  <input
+                    className="input"
+                    type="number"
+                    min="1"
+                    max={listing.capacity}
+                    value={booking.adults}
+                    onChange={(event) => {
+                      setAvailability(null);
+                      setBooking((prev) => ({ ...prev, adults: Number(event.target.value) }));
+                    }}
+                  />
+                </div>
+              )}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="label">Contact name</label>
@@ -352,14 +474,6 @@ function ListingDetailPage({ bookingFirst = false }) {
                   onChange={(event) => setBooking((prev) => ({ ...prev, contactPhone: event.target.value }))}
                 />
               </div>
-              <div>
-                <label className="label">Special requests</label>
-                <textarea
-                  className="input min-h-28"
-                  value={booking.specialRequests}
-                  onChange={(event) => setBooking((prev) => ({ ...prev, specialRequests: event.target.value }))}
-                />
-              </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <button className="btn-secondary" type="button" onClick={checkAvailability} disabled={checking}>
@@ -374,7 +488,7 @@ function ListingDetailPage({ bookingFirst = false }) {
                   type="button"
                   className="flex w-full items-center justify-center gap-2 rounded-[1.25rem] border border-white/20 bg-white/5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
                   onClick={() => {
-                    addItem(listing, booking.startDate, booking.endDate, booking.guests);
+                    addItem(listing, booking.startDate, booking.endDate, booking.adults + booking.children);
                     toast.success(`${listing.name} added to cart`);
                   }}
                 >
@@ -389,7 +503,11 @@ function ListingDetailPage({ bookingFirst = false }) {
                 <p className={availability.available ? 'text-emerald-300' : 'text-rose-300'}>{availability.reason}</p>
                 <p className="mt-2 text-slate-300">Stay dates: {formatDateRange(booking.startDate, booking.endDate)}</p>
                 <p className="text-slate-300">Duration: {stayNights} {stayNights === 1 ? 'night' : 'nights'}</p>
-                <p className="text-slate-300">Guests: {booking.guests}</p>
+                <p className="text-slate-300">
+                  Guests: {booking.adults} adult{booking.adults === 1 ? '' : 's'}
+                  {booking.children > 0 ? `, ${booking.children} child${booking.children === 1 ? '' : 'ren'}` : ''}
+                  {booking.pets > 0 ? `, ${booking.pets} pet${booking.pets === 1 ? '' : 's'}` : ''}
+                </p>
                 <p className="text-slate-300">Average nightly tariff: {formatCurrency(availability.pricing.unitPrice)} per person</p>
                 <p className="text-slate-300">Estimated booking value: {formatCurrency(availability.pricing.totalPrice)}</p>
                 {availability.pricing.adjustments?.length ? (

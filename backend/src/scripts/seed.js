@@ -41,7 +41,7 @@ const roomSeeds = [
     shortDescription: 'Ground-floor room with one double bed, two single beds, and an attached bathroom.',
     description:
       'Cozy 1 is a ground-floor room at Bowline Nature Stay with a minimum occupancy of 2 and a maximum occupancy of 4. The brochure lists one double bed, two single beds, complimentary breakfast, and access to all shared homestay amenities and common spaces. Child tariff is 50% of adult tariff for ages 6 to 12.',
-    price: 1799,
+    price: 1999,
     priceUnit: 'person',
     maxOccupancy: 4,
     capacity: 4,
@@ -66,7 +66,7 @@ const roomSeeds = [
     shortDescription: 'Ground-floor room with one double bed, two single beds, and an attached bathroom.',
     description:
       'Cozy 2 mirrors the brochure configuration of Cozy 1 with a minimum occupancy of 2 and a maximum occupancy of 4. It includes one double bed, two single beds, complimentary breakfast, and full access to the common dining, kitchen, and activity spaces inside the homestay.',
-    price: 1799,
+    price: 1999,
     priceUnit: 'person',
     maxOccupancy: 4,
     capacity: 4,
@@ -91,7 +91,7 @@ const roomSeeds = [
     shortDescription: 'First-floor compact room with three single beds and an attached bathroom.',
     description:
       'Cozy Mini is a first-floor room with a minimum occupancy of 1 and a maximum occupancy of 3. The brochure lists three single beds, complimentary breakfast, and access to Bowline’s shared kitchen, common hall, dining area, and guided homestay experiences.',
-    price: 1699,
+    price: 1799,
     priceUnit: 'person',
     maxOccupancy: 3,
     capacity: 3,
@@ -115,7 +115,7 @@ const roomSeeds = [
     shortDescription: 'First-floor open loft dorm with five single beds and one shared bathroom.',
     description:
       'The dormitory at Bowline Nature Stay is an open loft setup on the first floor with a minimum occupancy of 1 and a maximum occupancy of 5. The brochure notes five single beds, one shared bathroom, complimentary breakfast, and access to all common amenities and activity areas.',
-    price: 1299,
+    price: 1399,
     priceUnit: 'person',
     maxOccupancy: 5,
     capacity: 5,
@@ -140,7 +140,7 @@ const roomSeeds = [
     shortDescription: 'Second-floor pent house with one double bed, two single beds, and an attached bathroom.',
     description:
       'The Pent House sits on the second floor with a minimum occupancy of 2 and a maximum occupancy of 4. According to the brochure, it includes one double bed, two single beds, complimentary breakfast, attached bathroom access, and the same homestay-led guided experiences offered across the property.',
-    price: 2199,
+    price: 2399,
     priceUnit: 'person',
     maxOccupancy: 4,
     capacity: 4,
@@ -300,7 +300,7 @@ const seed = async () => {
       startDate: new Date('2026-01-01'),
       endDate: new Date('2026-12-31'),
       adjustmentType: 'flat',
-      adjustmentValue: 300,
+      adjustmentValue: 200,
       priority: 3,
       active: true,
     },
@@ -313,10 +313,10 @@ const seed = async () => {
     startDate: new Date('2026-04-14'),
     endDate: new Date('2026-04-16'),
     guests: 2,
-    unitPrice: 1799,
-    totalPrice: 7196,
+    unitPrice: 1999,
+    totalPrice: 7996,
     pricingBreakdown: {
-      basePrice: 1799,
+      basePrice: 1999,
       adjustments: [],
     },
     status: 'confirmed',

@@ -60,10 +60,17 @@ export const calculateBookingPrice = async ({
   startDate,
   endDate,
   guests,
+  adultGuests,
+  childGuests = 0,
+  pets = 0,
 }) => {
   const units = calculateDurationUnits(bookingType, startDate, endDate);
   const effectiveBase = listing.manualPriceOverride ?? listing.price;
   const rules = await getAppliedRules(listing, startDate, endDate);
+  const adults = Number(adultGuests ?? guests ?? 1);
+  const children = Number(childGuests || 0);
+  const petCount = Number(pets || 0);
+  const payableGuestMultiplier = adults + children * 0.5;
 
   if (bookingType === 'room') {
     const start = dayjs(startDate).startOf('day');
@@ -89,12 +96,17 @@ export const calculateBookingPrice = async ({
       }
 
       nightlyPrice = Math.max(Math.round(nightlyPrice), 0);
-      totalPrice += nightlyPrice * Number(guests || 1);
+      totalPrice += nightlyPrice * payableGuestMultiplier;
+    }
+
+    if (petCount > 0) {
+      totalPrice += petCount * 400;
+      adjustmentCounts.set('Pet fee', (adjustmentCounts.get('Pet fee') || 0) + petCount);
     }
 
     const averageNightlyTariff =
-      units > 0 && Number(guests || 1) > 0
-        ? Math.round(totalPrice / (units * Number(guests || 1)))
+      units > 0 && payableGuestMultiplier > 0
+        ? Math.round((totalPrice - petCount * 400) / (units * payableGuestMultiplier))
         : Math.round(effectiveBase);
 
     return {

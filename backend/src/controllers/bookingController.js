@@ -23,6 +23,9 @@ export const createBooking = async (req, res, next) => {
       startDate,
       endDate,
       guests,
+      adultGuests,
+      childGuests = 0,
+      pets = 0,
       contactName,
       contactEmail,
       contactPhone,
@@ -38,7 +41,10 @@ export const createBooking = async (req, res, next) => {
 
     const normalizedStartDate = new Date(startDate);
     const normalizedEndDate = new Date(endDate);
-    const normalizedGuests = Number(guests);
+    const normalizedAdults = Number(adultGuests ?? guests ?? 1);
+    const normalizedChildren = Number(childGuests || 0);
+    const normalizedPets = Number(pets || 0);
+    const normalizedGuests = Number(guests ?? normalizedAdults + normalizedChildren);
 
     const availability = await validateListingAvailability({
       listing,
@@ -58,6 +64,9 @@ export const createBooking = async (req, res, next) => {
       startDate: normalizedStartDate,
       endDate: normalizedEndDate,
       guests: normalizedGuests,
+      adultGuests: normalizedAdults,
+      childGuests: normalizedChildren,
+      pets: normalizedPets,
     });
 
     const booking = await Booking.create({
@@ -67,6 +76,9 @@ export const createBooking = async (req, res, next) => {
       startDate: normalizedStartDate,
       endDate: normalizedEndDate,
       guests: normalizedGuests,
+      adultGuests: normalizedAdults,
+      childGuests: normalizedChildren,
+      pets: normalizedPets,
       unitPrice: pricing.unitPrice,
       totalPrice: pricing.totalPrice,
       pricingBreakdown: {
@@ -129,7 +141,7 @@ export const createMultiBooking = async (req, res, next) => {
     const preparedItems = [];
 
     for (const item of items) {
-      const { listingId, startDate, endDate, guests } = item;
+      const { listingId, startDate, endDate, guests, adultGuests, childGuests = 0, pets = 0 } = item;
       const listing = await Listing.findById(listingId);
 
       if (!listing || !listing.active) {
@@ -139,7 +151,10 @@ export const createMultiBooking = async (req, res, next) => {
 
       const normalizedStart = new Date(startDate);
       const normalizedEnd = new Date(endDate);
-      const normalizedGuests = Number(guests) || 1;
+      const normalizedAdults = Number(adultGuests ?? guests ?? 1);
+      const normalizedChildren = Number(childGuests || 0);
+      const normalizedPets = Number(pets || 0);
+      const normalizedGuests = Number(guests ?? normalizedAdults + normalizedChildren) || 1;
 
       const availability = await validateListingAvailability({
         listing,
@@ -159,9 +174,21 @@ export const createMultiBooking = async (req, res, next) => {
         startDate: normalizedStart,
         endDate: normalizedEnd,
         guests: normalizedGuests,
+        adultGuests: normalizedAdults,
+        childGuests: normalizedChildren,
+        pets: normalizedPets,
       });
 
-      preparedItems.push({ listing, normalizedStart, normalizedEnd, normalizedGuests, pricing });
+      preparedItems.push({
+        listing,
+        normalizedStart,
+        normalizedEnd,
+        normalizedGuests,
+        normalizedAdults,
+        normalizedChildren,
+        normalizedPets,
+        pricing,
+      });
     }
 
     if (validationErrors.length > 0) {
@@ -170,7 +197,7 @@ export const createMultiBooking = async (req, res, next) => {
     }
 
     const createdBookings = await Promise.all(
-      preparedItems.map(({ listing, normalizedStart, normalizedEnd, normalizedGuests, pricing }) =>
+      preparedItems.map(({ listing, normalizedStart, normalizedEnd, normalizedGuests, normalizedAdults, normalizedChildren, normalizedPets, pricing }) =>
         Booking.create({
           bookingType: listing.type,
           listing: listing._id,
@@ -178,6 +205,9 @@ export const createMultiBooking = async (req, res, next) => {
           startDate: normalizedStart,
           endDate: normalizedEnd,
           guests: normalizedGuests,
+          adultGuests: normalizedAdults,
+          childGuests: normalizedChildren,
+          pets: normalizedPets,
           unitPrice: pricing.unitPrice,
           totalPrice: pricing.totalPrice,
           pricingBreakdown: { basePrice: pricing.basePrice, adjustments: pricing.adjustments },
@@ -225,6 +255,9 @@ export const createAdminManualRoomBooking = async (req, res, next) => {
       startDate,
       endDate,
       guests = 1,
+      adultGuests,
+      childGuests = 0,
+      pets = 0,
       contactName,
       contactEmail,
       contactPhone = '',
@@ -245,13 +278,19 @@ export const createAdminManualRoomBooking = async (req, res, next) => {
 
     const normalizedStartDate = new Date(startDate);
     const normalizedEndDate = new Date(endDate);
-    const normalizedGuests = Number(guests);
+    const normalizedAdults = Number(adultGuests ?? guests);
+    const normalizedChildren = Number(childGuests || 0);
+    const normalizedPets = Number(pets || 0);
+    const normalizedGuests = Number(guests ?? normalizedAdults + normalizedChildren);
 
     const availability = await validateListingAvailability({
       listing,
       startDate: normalizedStartDate,
       endDate: normalizedEndDate,
       guests: normalizedGuests,
+      adultGuests: normalizedAdults,
+      childGuests: normalizedChildren,
+      pets: normalizedPets,
     });
 
     if (!availability.available) {
@@ -265,6 +304,9 @@ export const createAdminManualRoomBooking = async (req, res, next) => {
       startDate: normalizedStartDate,
       endDate: normalizedEndDate,
       guests: normalizedGuests,
+      adultGuests: normalizedAdults,
+      childGuests: normalizedChildren,
+      pets: normalizedPets,
     });
 
     const booking = await Booking.create({
@@ -274,6 +316,9 @@ export const createAdminManualRoomBooking = async (req, res, next) => {
       startDate: normalizedStartDate,
       endDate: normalizedEndDate,
       guests: normalizedGuests,
+      adultGuests: normalizedAdults,
+      childGuests: normalizedChildren,
+      pets: normalizedPets,
       unitPrice: pricing.unitPrice,
       totalPrice: pricing.totalPrice,
       pricingBreakdown: {

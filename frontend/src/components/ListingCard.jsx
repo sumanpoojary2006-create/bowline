@@ -2,6 +2,7 @@ import { FireIcon, MapPinIcon } from '@heroicons/react/24/outline';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { formatCurrency } from '../lib/formatters';
+import { getRoomRate } from '../lib/roomRates';
 
 const typeLabels = {
   room: 'Stay',
@@ -18,6 +19,7 @@ function ListingCard({
 }) {
   const isRoom = listing.type === 'room';
   const canBook = isRoom && typeof onBookNow === 'function';
+  const roomRate = isRoom ? getRoomRate(listing) : null;
 
   return (
     <motion.article whileHover={{ y: -6 }} className="glass overflow-hidden rounded-[1.75rem] shadow-[0_18px_50px_rgba(0,0,0,0.28)]">
@@ -50,17 +52,31 @@ function ListingCard({
           </div>
           {showPrice ? (
             <div className="text-right">
-              <p className="text-[11px] uppercase tracking-[0.2em] text-lime-100/45">From</p>
-              <p className="text-lg font-bold text-lime-200">{formatCurrency(listing.price)}</p>
+              <p className="text-[11px] uppercase tracking-[0.2em] text-lime-100/45">
+                {isRoom ? 'Weekday' : 'From'}
+              </p>
+              <p className="text-lg font-bold text-lime-200">
+                {formatCurrency(isRoom ? roomRate.weekday : listing.price)}
+              </p>
             </div>
           ) : (
             <span className="rounded-full border border-lime-100/15 px-3 py-1 text-xs text-[#c4cec0]">
-              Price after date selection
+              {isRoom ? `${formatCurrency(roomRate.weekday)} weekday` : 'Price after date selection'}
             </span>
           )}
         </div>
 
         <p className="line-clamp-2 text-sm text-[#d7ded3]">{listing.shortDescription || listing.description}</p>
+        {isRoom ? (
+          <div className="grid grid-cols-2 gap-2 text-xs text-[#c4cec0]">
+            <span className="rounded-xl border border-lime-100/10 bg-black/15 px-3 py-2">
+              Weekend {formatCurrency(roomRate.weekend)}
+            </span>
+            <span className="rounded-xl border border-lime-100/10 bg-black/15 px-3 py-2">
+              {roomRate.min}-{roomRate.max} guests
+            </span>
+          </div>
+        ) : null}
 
         <div className="flex gap-2">
           {isRoom ? (

@@ -16,7 +16,6 @@ function CheckoutPage() {
     contactName: '',
     contactEmail: '',
     contactPhone: '',
-    specialRequests: '',
   });
 
   const [isGroupBooking, setIsGroupBooking] = useState(false);
@@ -237,14 +236,6 @@ function CheckoutPage() {
                 className="input"
                 value={contact.contactPhone}
                 onChange={(e) => setContact((p) => ({ ...p, contactPhone: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label className="label">Special requests</label>
-              <textarea
-                className="input min-h-24"
-                value={contact.specialRequests}
-                onChange={(e) => setContact((p) => ({ ...p, specialRequests: e.target.value }))}
               />
             </div>
             <button className="btn-primary w-full" type="submit" disabled={submitting}>
