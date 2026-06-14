@@ -62,14 +62,7 @@ function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/booking/confirmation/:id"
-            element={
-              <ProtectedRoute>
-                <BookingConfirmationPage />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/booking/confirmation/:id" element={<BookingConfirmationPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
         </Route>
 

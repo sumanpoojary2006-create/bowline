@@ -145,6 +145,7 @@ function HomePage() {
           contact: bookingDraft,
         });
 
+        sessionStorage.setItem('bowline_celebrate_booking', booking._id);
         navigate(`/booking/confirmation/${booking._id}`, {
           state: { booking: result.bookings[0], resetBookingModal: true, showCelebration: true },
         });

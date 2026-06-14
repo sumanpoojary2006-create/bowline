@@ -10,10 +10,17 @@ function BookingConfirmationPage() {
   const location = useLocation();
   const [booking, setBooking] = useState(location.state?.booking || null);
   const [loading, setLoading] = useState(!location.state?.booking);
-  const [showCelebration, setShowCelebration] = useState(Boolean(location.state?.showCelebration));
+  const [showCelebration, setShowCelebration] = useState(() => {
+    if (location.state?.showCelebration) return true;
+    return sessionStorage.getItem('bowline_celebrate_booking') === id;
+  });
 
   useEffect(() => {
     document.title = 'Bowline | Booking Confirmed';
+
+    if (sessionStorage.getItem('bowline_celebrate_booking') === id) {
+      sessionStorage.removeItem('bowline_celebrate_booking');
+    }
 
     if (booking) return;
 
@@ -37,6 +44,7 @@ function BookingConfirmationPage() {
   if (!booking) {
     return (
       <section className="section-shell py-16">
+        {showCelebration && <BookingSuccessOverlay onClose={() => setShowCelebration(false)} />}
         <div className="glass rounded-[2rem] p-8 text-center">
           <h1 className="text-3xl font-semibold text-white">Booking not found</h1>
           <Link className="btn-primary mt-6" to="/dashboard">
