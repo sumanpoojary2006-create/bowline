@@ -103,7 +103,7 @@ function AdminDashboardPage() {
             </span>
           </div>
 
-          <div className="mt-5 space-y-3">
+          <div className="mt-5 max-h-[480px] space-y-3 overflow-y-auto pr-1">
             {overview.upcomingBookings.length === 0 ? (
               <EmptyState
                 title="Nothing on the horizon"
@@ -142,7 +142,7 @@ function AdminDashboardPage() {
             </div>
           </div>
 
-          <div className="mt-5 space-y-3">
+          <div className="mt-5 max-h-[480px] space-y-3 overflow-y-auto pr-1">
             {notifications.length === 0 ? (
               <EmptyState title="All quiet" description="New booking and payment alerts will show up here." />
             ) : (
