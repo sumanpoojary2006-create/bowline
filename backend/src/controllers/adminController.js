@@ -36,7 +36,8 @@ export const getDashboardOverview = async (req, res, next) => {
     );
 
     const upcomingBookings = bookings
-      .filter((booking) => booking.status !== 'cancelled' && new Date(booking.startDate) >= new Date())
+      .filter((booking) => booking.status === 'confirmed' && new Date(booking.startDate) >= new Date())
+      .sort((a, b) => new Date(a.startDate) - new Date(b.startDate))
       .slice(0, 8);
 
     res.json({
