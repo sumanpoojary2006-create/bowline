@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { MinusIcon, PlusIcon, TagIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { MinusIcon, PlusIcon, ShoppingBagIcon, TagIcon, TrashIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
@@ -19,6 +19,28 @@ const forestBackdrop =
 
 const tomorrow = () => addDays(new Date(), 1);
 const increment = (value, amount, min = 0, max = 20) => Math.max(min, Math.min(max, Number(value || 0) + amount));
+
+const computeItemTotals = (listing, draft) => {
+  const nightlyRate = getNightlyRoomRate(listing, draft.startDate);
+  const nights = Math.max(Math.round((draft.endDate - draft.startDate) / 86400000), 1);
+  const roomTotal =
+    (nightlyRate * Number(draft.adults) + nightlyRate * 0.5 * Number(draft.children)) * nights;
+  const petTotal = petFee * Number(draft.pets);
+  const grandTotal = roomTotal + petTotal;
+  return { nightlyRate, nights, roomTotal, petTotal, grandTotal };
+};
+
+const toBookingItem = (listing, draft) => ({
+  listingId: listing._id,
+  startDate: formatDateParam(draft.startDate),
+  endDate: formatDateParam(draft.endDate),
+  guests: Number(draft.adults) + Number(draft.children),
+  adultGuests: draft.adults,
+  childGuests: draft.children,
+  pets: draft.pets,
+  vegCount: draft.vegCount,
+  nonVegCount: draft.nonVegCount,
+});
 
 const clampMealCounts = (draft) => {
   const total = Number(draft.adults) + Number(draft.children);
@@ -62,6 +84,7 @@ function HomePage() {
   const [couponCode, setCouponCode] = useState('');
   const [couponOffer, setCouponOffer] = useState(null);
   const [couponChecking, setCouponChecking] = useState(false);
+  const [roomCart, setRoomCart] = useState([]);
 
   useEffect(() => {
     document.title = 'Bowline Nature Stay | Book Your Hillside Stay';
@@ -116,50 +139,105 @@ function HomePage() {
 
   const [placingBooking, setPlacingBooking] = useState(false);
 
+  const addCurrentRoomToCart = () => {
+    if (!activeBooking) return;
+
+    const totals = computeItemTotals(activeBooking, bookingDraft);
+    setRoomCart((prev) => [
+      ...prev,
+      { id: `${activeBooking._id}-${Date.now()}`, listing: activeBooking, draft: { ...bookingDraft }, ...totals },
+    ]);
+    setActiveBooking(null);
+    setBookingStep('details');
+    setCouponCode('');
+    setCouponOffer(null);
+    toast.success(`${activeBooking.name} added to your booking. Pick another room to continue.`);
+  };
+
+  const removeCartItem = (id) => {
+    setRoomCart((prev) => prev.filter((item) => item.id !== id));
+  };
+
   const proceedToBook = async () => {
     if (!activeBooking) return;
 
     setPlacingBooking(true);
     try {
-      const { data } = await api.post('/bookings', {
-        listingId: activeBooking._id,
-        startDate: formatDateParam(bookingDraft.startDate),
-        endDate: formatDateParam(bookingDraft.endDate),
-        guests: modalTotalGuests,
-        adultGuests: bookingDraft.adults,
-        childGuests: bookingDraft.children,
-        pets: bookingDraft.pets,
-        vegCount: bookingDraft.vegCount,
-        nonVegCount: bookingDraft.nonVegCount,
+      if (roomCart.length === 0) {
+        const { data } = await api.post('/bookings', {
+          ...toBookingItem(activeBooking, bookingDraft),
+          contactName: bookingDraft.contactName,
+          contactEmail: bookingDraft.contactEmail,
+          contactPhone: bookingDraft.contactPhone,
+          couponCode: couponOffer?.coupon?.code || '',
+        });
+
+        const booking = data.booking;
+
+        try {
+          const result = await payForBookings({
+            bookingIds: [booking._id],
+            contact: bookingDraft,
+          });
+
+          sessionStorage.setItem('bowline_celebrate_booking', booking._id);
+          navigate(`/booking/confirmation/${booking._id}`, {
+            state: { booking: result.bookings[0], resetBookingModal: true, showCelebration: true },
+          });
+        } catch (paymentError) {
+          if (paymentError.message === 'PAYMENT_CANCELLED') {
+            toast.error('Payment cancelled. Your booking is saved as pending.');
+            setActiveBooking(null);
+            navigate('/', { replace: true, state: { resetBookingModal: true } });
+            return;
+          } else {
+            toast.error('Payment could not be completed. Your booking is saved as pending.');
+          }
+          navigate(`/booking/confirmation/${booking._id}`, {
+            state: { booking, resetBookingModal: true },
+          });
+        }
+        return;
+      }
+
+      const items = [
+        ...roomCart.map((item) => toBookingItem(item.listing, item.draft)),
+        toBookingItem(activeBooking, bookingDraft),
+      ];
+
+      const { data } = await api.post('/bookings/multi', {
+        items,
         contactName: bookingDraft.contactName,
         contactEmail: bookingDraft.contactEmail,
         contactPhone: bookingDraft.contactPhone,
         couponCode: couponOffer?.coupon?.code || '',
       });
 
-      const booking = data.booking;
+      const bookings = data.bookings;
 
       try {
         const result = await payForBookings({
-          bookingIds: [booking._id],
+          bookingIds: bookings.map((booking) => booking._id),
           contact: bookingDraft,
         });
 
-        sessionStorage.setItem('bowline_celebrate_booking', booking._id);
-        navigate(`/booking/confirmation/${booking._id}`, {
+        setRoomCart([]);
+        sessionStorage.setItem('bowline_celebrate_booking', result.bookings[0]._id);
+        navigate(`/booking/confirmation/${result.bookings[0]._id}`, {
           state: { booking: result.bookings[0], resetBookingModal: true, showCelebration: true },
         });
       } catch (paymentError) {
+        setRoomCart([]);
         if (paymentError.message === 'PAYMENT_CANCELLED') {
-          toast.error('Payment cancelled. Your booking is saved as pending.');
+          toast.error('Payment cancelled. Your bookings are saved as pending.');
           setActiveBooking(null);
           navigate('/', { replace: true, state: { resetBookingModal: true } });
           return;
         } else {
-          toast.error('Payment could not be completed. Your booking is saved as pending.');
+          toast.error('Payment could not be completed. Your bookings are saved as pending.');
         }
-        navigate(`/booking/confirmation/${booking._id}`, {
-          state: { booking, resetBookingModal: true },
+        navigate(`/booking/confirmation/${bookings[0]._id}`, {
+          state: { booking: bookings[0], resetBookingModal: true },
         });
       }
     } catch (error) {
@@ -180,27 +258,26 @@ function HomePage() {
     navigate('/checkout');
   };
 
-  const selectedNightlyRate = activeBooking ? getNightlyRoomRate(activeBooking, bookingDraft.startDate) : 0;
+  const activeTotals = activeBooking ? computeItemTotals(activeBooking, bookingDraft) : null;
+  const selectedNightlyRate = activeTotals?.nightlyRate || 0;
   const modalTotalGuests = Number(bookingDraft.adults) + Number(bookingDraft.children);
   const modalEstimate =
     selectedNightlyRate * Number(bookingDraft.adults) +
     selectedNightlyRate * 0.5 * Number(bookingDraft.children) +
     petFee * Number(bookingDraft.pets);
-  const modalNights = activeBooking
-    ? Math.max(Math.round((bookingDraft.endDate - bookingDraft.startDate) / 86400000), 1)
-    : 0;
-  const modalRoomTotal =
-    (selectedNightlyRate * Number(bookingDraft.adults) + selectedNightlyRate * 0.5 * Number(bookingDraft.children)) *
-    modalNights;
-  const modalPetTotal = petFee * Number(bookingDraft.pets);
-  const modalGrandTotal = modalRoomTotal + modalPetTotal;
+  const modalNights = activeTotals?.nights || 0;
+  const modalRoomTotal = activeTotals?.roomTotal || 0;
+  const modalPetTotal = activeTotals?.petTotal || 0;
+  const modalGrandTotal = activeTotals?.grandTotal || 0;
+  const cartSubtotal = roomCart.reduce((sum, item) => sum + item.grandTotal, 0);
+  const combinedSubtotal = cartSubtotal + modalGrandTotal;
   const modalCouponDiscount = couponOffer?.discount || 0;
-  const modalFinalTotal = Math.max(modalGrandTotal - modalCouponDiscount, 0);
+  const modalFinalTotal = Math.max(combinedSubtotal - modalCouponDiscount, 0);
   const modalMealSelectionComplete = bookingDraft.vegCount + bookingDraft.nonVegCount === modalTotalGuests;
 
   useEffect(() => {
     setCouponOffer(null);
-  }, [modalGrandTotal]);
+  }, [combinedSubtotal]);
 
   const applyCoupon = async () => {
     const code = couponCode.trim();
@@ -214,7 +291,7 @@ function HomePage() {
     try {
       const { data } = await api.post('/bookings/coupon/validate', {
         couponCode: code,
-        subtotal: modalGrandTotal,
+        subtotal: combinedSubtotal,
       });
       setCouponOffer(data);
       setCouponCode(data.coupon.code);
@@ -663,15 +740,48 @@ function HomePage() {
                     </ul>
                   </div>
 
+                  {roomCart.length > 0 ? (
+                    <div className="mt-4 space-y-2 border-t border-white/10 pt-4 text-sm text-[#cdd6c9]">
+                      <p className="text-xs uppercase tracking-[0.22em] text-lime-200/80">Other rooms in this booking</p>
+                      {roomCart.map((item) => (
+                        <div key={item.id} className="flex items-center justify-between gap-3 rounded-[1rem] border border-white/10 bg-black/20 px-3 py-2">
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold text-white">{item.listing.name}</p>
+                            <p className="text-xs text-[#aab5a5]">
+                              {item.nights} night{item.nights === 1 ? '' : 's'} · {Number(item.draft.adults) + Number(item.draft.children)} guest
+                              {Number(item.draft.adults) + Number(item.draft.children) === 1 ? '' : 's'}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="font-semibold text-white">{formatCurrency(item.grandTotal)}</span>
+                            <button
+                              className="rounded-full p-1 text-[#aab5a5] hover:text-rose-400"
+                              type="button"
+                              onClick={() => removeCartItem(item.id)}
+                            >
+                              <TrashIcon className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
                   <div className="mt-4 space-y-2 border-t border-white/10 pt-4 text-sm text-[#cdd6c9]">
                     <div className="flex items-center justify-between">
-                      <span>Room cost ({modalNights} night{modalNights === 1 ? '' : 's'})</span>
+                      <span>This room ({modalNights} night{modalNights === 1 ? '' : 's'})</span>
                       <span className="font-semibold text-white">{formatCurrency(modalRoomTotal)}</span>
                     </div>
                     {bookingDraft.pets > 0 ? (
                       <div className="flex items-center justify-between">
                         <span>Pet fee</span>
                         <span className="font-semibold text-white">{formatCurrency(modalPetTotal)}</span>
+                      </div>
+                    ) : null}
+                    {roomCart.length > 0 ? (
+                      <div className="flex items-center justify-between">
+                        <span>Subtotal (all rooms)</span>
+                        <span className="font-semibold text-white">{formatCurrency(combinedSubtotal)}</span>
                       </div>
                     ) : null}
                     <div className="border-t border-white/10 pt-3">
@@ -764,8 +874,16 @@ function HomePage() {
                 </div>
 
                 <div className="flex gap-3">
-                  <button className="btn-secondary flex-1" onClick={() => setBookingStep('details')} type="button">
-                    Back
+                  <button
+                    className="btn-secondary flex-1 border-lime-100/30 bg-lime-200/10 text-lime-100 hover:bg-lime-200/20 disabled:opacity-50"
+                    onClick={addCurrentRoomToCart}
+                    disabled={placingBooking || !modalMealSelectionComplete}
+                    type="button"
+                  >
+                    <span className="inline-flex items-center justify-center gap-2">
+                      <PlusIcon className="h-4 w-4" />
+                      Add Another Room
+                    </span>
                   </button>
                   <button
                     className="btn-primary flex-1 disabled:opacity-50"
@@ -778,11 +896,39 @@ function HomePage() {
                     }
                     type="button"
                   >
-                    {placingBooking ? 'Processing...' : 'Proceed to Book'}
+                    {placingBooking
+                      ? 'Processing...'
+                      : roomCart.length > 0
+                      ? `Pay for ${roomCart.length + 1} Rooms`
+                      : 'Proceed to Book'}
                   </button>
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      ) : null}
+
+      {!activeBooking && roomCart.length > 0 ? (
+        <div className="fixed inset-x-0 bottom-4 z-40 flex justify-center px-4">
+          <div className="glass flex w-full max-w-xl items-center justify-between gap-4 rounded-full border border-lime-100/15 px-5 py-3 shadow-xl">
+            <div className="flex items-center gap-3">
+              <ShoppingBagIcon className="h-5 w-5 text-lime-200" />
+              <div>
+                <p className="text-sm font-semibold text-white">
+                  {roomCart.length} room{roomCart.length === 1 ? '' : 's'} added
+                </p>
+                <p className="text-xs text-[#aab5a5]">{formatCurrency(cartSubtotal)} so far · pick another room to continue</p>
+              </div>
+            </div>
+            <button
+              className="rounded-full p-2 text-[#aab5a5] hover:text-rose-400"
+              type="button"
+              onClick={() => setRoomCart([])}
+              title="Clear cart"
+            >
+              <TrashIcon className="h-5 w-5" />
+            </button>
           </div>
         </div>
       ) : null}
