@@ -86,6 +86,7 @@ function HomePage() {
   const [couponChecking, setCouponChecking] = useState(false);
   const [roomCart, setRoomCart] = useState([]);
   const [policyExpanded, setPolicyExpanded] = useState(false);
+  const [houseRulesExpanded, setHouseRulesExpanded] = useState(false);
   const [policyAccepted, setPolicyAccepted] = useState(false);
 
   useEffect(() => {
@@ -117,6 +118,7 @@ function HomePage() {
     setCouponCode('');
     setCouponOffer(null);
     setPolicyExpanded(false);
+    setHouseRulesExpanded(false);
     setPolicyAccepted(false);
     const adults = Math.max(Number(filters.guests || 2), listing.minOccupancy || 1);
     setBookingDraft({
@@ -900,6 +902,84 @@ function HomePage() {
                     </div>
                   ) : null}
 
+                  <button
+                    type="button"
+                    className="mt-2 flex w-full items-center justify-between rounded-[1rem] border border-lime-100/10 bg-black/20 px-3 py-2 text-left text-sm font-semibold text-white"
+                    onClick={() => setHouseRulesExpanded((prev) => !prev)}
+                  >
+                    House Rules
+                    <ChevronDownIcon className={`h-4 w-4 shrink-0 transition-transform ${houseRulesExpanded ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {houseRulesExpanded ? (
+                    <div className="mt-2 space-y-3 rounded-[1rem] border border-lime-100/10 bg-black/20 p-3 text-xs text-[#cdd6c9]">
+                      <p>
+                        To ensure a harmonious and enjoyable experience for all guests, we kindly request your cooperation with the
+                        following policies and house rules. If a group&apos;s conduct is found to disturb the peace, violate house
+                        rules, or go against the spirit of the stay, the hosts reserve the right to take necessary action, including
+                        on-the-spot cancellation without refund.
+                      </p>
+                      <div>
+                        <p className="font-semibold text-white">Age Restriction</p>
+                        <ul className="mt-1 list-disc space-y-1 pl-4">
+                          <li>The minimum age for booking is 18 years.</li>
+                          <li>
+                            Children below 18 years must be accompanied by their parents at all times during the stay to ensure
+                            safety and comfort for everyone.
+                          </li>
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-white">Identification Requirement</p>
+                        <ul className="mt-1 list-disc space-y-1 pl-4">
+                          <li>A valid government-issued ID with address is mandatory at the time of check-in for safety and security purposes.</li>
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-white">Self-Help Approach</p>
+                        <ul className="mt-1 list-disc space-y-1 pl-4">
+                          <li>There will be no luggage assistance or room service.</li>
+                          <li>Food will be served only in the common dining area.</li>
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-white">Zero Tolerance Policy</p>
+                        <ul className="mt-1 list-disc space-y-1 pl-4">
+                          <li>Drugs, narcotics, and other intoxicants are strictly prohibited in and around the property.</li>
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-white">Smoking &amp; Alcohol Policy</p>
+                        <ul className="mt-1 list-disc space-y-1 pl-4">
+                          <li>We do not provide alcohol or cigarettes on the premises.</li>
+                          <li>
+                            If you choose to consume alcohol, please do so in your private room and keep noise levels down to avoid
+                            disturbing others. If your group has booked the entire stay, you may use the common areas, but we still
+                            encourage moderation to ensure everyone&apos;s comfort.
+                          </li>
+                          <li>Smoking is strictly not allowed inside rooms or inside the house.</li>
+                          <li>Guests who wish to smoke may do so only outdoors, while respecting others and the surroundings.</li>
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-white">House Etiquette &amp; Quiet Hours</p>
+                        <ul className="mt-1 list-disc space-y-1 pl-4">
+                          <li>All rooms are inside one house — please be mindful of other guests.</li>
+                          <li>Silent hours: 10:00 PM – 8:00 AM.</li>
+                          <li>Common-area lights will be switched off by 10:00 PM (lights may be used inside your respective rooms).</li>
+                          <li>Kindly avoid loud music or noise — let the sounds of nature heal you.</li>
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-white">Living with Nature</p>
+                        <ul className="mt-1 list-disc space-y-1 pl-4">
+                          <li>We co-exist with creatures of all shapes and sizes.</li>
+                          <li>If you notice insects or animals, please do not panic — most are harmless and are part of the natural ecosystem.</li>
+                        </ul>
+                      </div>
+                    </div>
+                  ) : null}
+
                   <label className="mt-3 flex items-start gap-2 text-sm text-[#cdd6c9]">
                     <input
                       type="checkbox"
@@ -907,7 +987,7 @@ function HomePage() {
                       checked={policyAccepted}
                       onChange={(e) => setPolicyAccepted(e.target.checked)}
                     />
-                    <span>I have read and agree to the cancellation &amp; rescheduling policy.</span>
+                    <span>I have read and agree to the cancellation &amp; rescheduling policy and house rules.</span>
                   </label>
                 </div>
 
