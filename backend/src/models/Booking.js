@@ -95,7 +95,7 @@ const bookingSchema = new mongoose.Schema(
     },
     paymentStatus: {
       type: String,
-      enum: ['pending', 'paid', 'failed', 'refunded'],
+      enum: ['pending', 'paid', 'failed', 'refunded', 'partially_refunded'],
       default: 'pending',
     },
     paymentMethod: {
@@ -144,6 +144,34 @@ const bookingSchema = new mongoose.Schema(
     isGroupBooking: {
       type: Boolean,
       default: false,
+    },
+    rescheduled: {
+      type: Boolean,
+      default: false,
+    },
+    refundAmount: {
+      type: Number,
+      default: 0,
+    },
+    refundPercentage: {
+      type: Number,
+      default: 0,
+    },
+    razorpayRefundId: {
+      type: String,
+      default: null,
+    },
+    rescheduleFeeAmount: {
+      type: Number,
+      default: 0,
+    },
+    rescheduleFeeOrderId: {
+      type: String,
+      default: null,
+    },
+    rescheduleFeePaymentId: {
+      type: String,
+      default: null,
     },
   },
   {

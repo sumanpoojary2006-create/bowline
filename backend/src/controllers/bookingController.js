@@ -1,4 +1,6 @@
+import crypto from 'crypto';
 import { randomUUID } from 'crypto';
+import mongoose from 'mongoose';
 import Booking from '../models/Booking.js';
 import Listing from '../models/Listing.js';
 import { calculateBookingPrice } from '../utils/pricing.js';
@@ -7,6 +9,9 @@ import { createNotification, notifyAdmins, formatBookingNotificationDetails } fr
 import { getExistingBookingsForRange, validateListingAvailability } from '../utils/availability.js';
 import { writeBookingToSheet, writeFullBookingToSheet, clearBookingFromSheet, isSheetsConfigured } from '../utils/googleSheets.js';
 import { sendBookingConfirmationEmail } from '../utils/bookingConfirmationEmail.js';
+import { isEmailConfigured, sendMail } from '../utils/email.js';
+import { createRazorpayOrder, createRazorpayRefund, isRazorpayConfigured } from '../utils/razorpay.js';
+import { daysUntil, getCancellationRefundPercent, getRescheduleFeePercent } from '../utils/bookingPolicy.js';
 
 function syncToSheet(booking) {
   if (!isSheetsConfigured()) return;
@@ -267,7 +272,7 @@ export const createMultiBooking = async (req, res, next) => {
         return Booking.create({
           bookingType: listing.type,
           listing: listing._id,
-          user: req.user._id,
+          user: req.user?._id ?? null,
           startDate: normalizedStart,
           endDate: normalizedEnd,
           guests: normalizedGuests,
@@ -303,17 +308,20 @@ export const createMultiBooking = async (req, res, next) => {
       })
     );
 
-    await createNotification({
-      userId: req.user._id,
-      title: 'Booking request received',
-      message: `Your booking for ${createdBookings.length} room${createdBookings.length > 1 ? 's' : ''} has been placed successfully.`,
-      type: 'booking',
-    });
+    if (req.user) {
+      await createNotification({
+        userId: req.user._id,
+        title: 'Booking request received',
+        message: `Your booking for ${createdBookings.length} room${createdBookings.length > 1 ? 's' : ''} has been placed successfully.`,
+        type: 'booking',
+      });
+    }
 
+    const bookerName = req.user?.name || contactName;
     await notifyAdmins({
       title: 'New booking received',
-      message: `${req.user.name} placed a booking for ${createdBookings.length} room${createdBookings.length > 1 ? 's' : ''}.`,
-      emailBody: `${req.user.name} placed a booking for ${createdBookings.length} room${createdBookings.length > 1 ? 's' : ''}.\n\n${formatBookingNotificationDetails(
+      message: `${bookerName} placed a booking for ${createdBookings.length} room${createdBookings.length > 1 ? 's' : ''}.`,
+      emailBody: `${bookerName} placed a booking for ${createdBookings.length} room${createdBookings.length > 1 ? 's' : ''}.\n\n${formatBookingNotificationDetails(
         createdBookings.map((booking, index) => ({ ...booking.toObject(), listing: preparedItems[index].listing }))
       )}`,
       type: 'booking',
@@ -617,6 +625,401 @@ export const updateBookingStatus = async (req, res, next) => {
     }
 
     res.json({ booking });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const normalizePhone = (phone) => String(phone || '').replace(/\D/g, '').slice(-10);
+
+const matchesContact = (booking, contact) => {
+  const normalizedContact = String(contact || '').trim().toLowerCase();
+  if (!normalizedContact) return false;
+
+  if (booking.contactEmail && booking.contactEmail.toLowerCase() === normalizedContact) {
+    return true;
+  }
+
+  const normalizedPhone = normalizePhone(contact);
+  if (normalizedPhone && normalizePhone(booking.contactPhone) === normalizedPhone) {
+    return true;
+  }
+
+  return false;
+};
+
+const serializeGuestBooking = (booking) => {
+  const cancellationRefundPercent = getCancellationRefundPercent(booking.startDate);
+  const rescheduleFeePercent = getRescheduleFeePercent(booking.startDate);
+
+  return {
+    _id: booking._id,
+    bookingType: booking.bookingType,
+    listing: booking.listing,
+    startDate: booking.startDate,
+    endDate: booking.endDate,
+    guests: booking.guests,
+    adultGuests: booking.adultGuests,
+    childGuests: booking.childGuests,
+    totalPrice: booking.totalPrice,
+    status: booking.status,
+    paymentStatus: booking.paymentStatus,
+    contactName: booking.contactName,
+    contactEmail: booking.contactEmail,
+    contactPhone: booking.contactPhone,
+    specialRequests: booking.specialRequests,
+    rescheduled: booking.rescheduled,
+    refundAmount: booking.refundAmount,
+    refundPercentage: booking.refundPercentage,
+    createdAt: booking.createdAt,
+    daysUntilCheckIn: daysUntil(booking.startDate),
+    cancellationRefundPercent,
+    rescheduleAllowed: !booking.rescheduled && booking.status !== 'cancelled' && rescheduleFeePercent !== null,
+    rescheduleFeePercent: rescheduleFeePercent ?? 0,
+    cancellationAllowed: !booking.rescheduled && booking.status !== 'cancelled',
+  };
+};
+
+export const lookupBookings = async (req, res, next) => {
+  try {
+    const query = String(req.body.query || '').trim();
+
+    if (!query) {
+      res.status(400);
+      throw new Error('Enter your email, phone number, or booking ID');
+    }
+
+    const conditions = [];
+
+    if (mongoose.Types.ObjectId.isValid(query)) {
+      conditions.push({ _id: query });
+    }
+
+    if (query.includes('@')) {
+      conditions.push({ contactEmail: query.toLowerCase() });
+    }
+
+    const normalizedPhone = normalizePhone(query);
+    if (normalizedPhone.length === 10) {
+      conditions.push({ contactPhone: new RegExp(`${normalizedPhone}$`) });
+    }
+
+    if (!conditions.length) {
+      res.status(400);
+      throw new Error('Enter a valid email, phone number, or booking ID');
+    }
+
+    const bookings = await Booking.find({ $or: conditions })
+      .populate('listing')
+      .sort({ createdAt: -1 });
+
+    res.json({ bookings: bookings.map(serializeGuestBooking) });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getBookingPublic = async (req, res, next) => {
+  try {
+    const booking = await Booking.findById(req.params.id).populate('listing');
+
+    if (!booking) {
+      res.status(404);
+      throw new Error('Booking not found');
+    }
+
+    res.json({ booking: serializeGuestBooking(booking) });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const cancelGuestBooking = async (req, res, next) => {
+  try {
+    const { contact } = req.body;
+    const booking = await Booking.findById(req.params.id).populate('listing');
+
+    if (!booking) {
+      res.status(404);
+      throw new Error('Booking not found');
+    }
+
+    if (!matchesContact(booking, contact)) {
+      res.status(403);
+      throw new Error('Contact details do not match this booking');
+    }
+
+    if (booking.status === 'cancelled') {
+      res.status(400);
+      throw new Error('This booking is already cancelled');
+    }
+
+    if (booking.rescheduled) {
+      res.status(400);
+      throw new Error('This booking has been rescheduled and can no longer be cancelled');
+    }
+
+    const refundPercent = getCancellationRefundPercent(booking.startDate);
+
+    if (booking.paymentStatus === 'paid' && refundPercent > 0) {
+      if (!booking.razorpayPaymentId || !isRazorpayConfigured()) {
+        res.status(503);
+        throw new Error('Refunds are not available right now. Please contact us to process your cancellation.');
+      }
+
+      const refundAmount = Math.round(booking.totalPrice * (refundPercent / 100) * 100);
+      const refund = await createRazorpayRefund({
+        paymentId: booking.razorpayPaymentId,
+        amount: refundAmount,
+        notes: { bookingId: String(booking._id), reason: 'cancellation' },
+      });
+
+      booking.razorpayRefundId = refund.id;
+      booking.refundAmount = refundAmount / 100;
+      booking.refundPercentage = refundPercent;
+      booking.paymentStatus = refundPercent === 100 ? 'refunded' : 'partially_refunded';
+    }
+
+    booking.status = 'cancelled';
+    await booking.save();
+
+    unsyncFromSheet(booking);
+    writeFullBookingToSheet(booking).catch(() => {});
+
+    await notifyAdmins({
+      title: 'Booking cancelled by guest',
+      message: `${booking.contactName} cancelled their booking for ${booking.listing.name}.`,
+      type: 'booking',
+    });
+
+    if (booking.contactEmail && isEmailConfigured('booking')) {
+      sendMail({
+        to: booking.contactEmail,
+        subject: `Booking Cancelled - ${booking.listing.name}`,
+        text: `Hi ${booking.contactName},\n\nYour booking for ${booking.listing.name} has been cancelled.${
+          booking.refundAmount > 0
+            ? ` A refund of Rs ${booking.refundAmount} (${booking.refundPercentage}%) has been initiated and will reflect in your account shortly.`
+            : ' Based on our cancellation policy, this booking is not eligible for a refund.'
+        }\n\nBowline Nature Stay`,
+        kind: 'booking',
+      }).catch(() => {});
+    }
+
+    res.json({ booking: serializeGuestBooking(booking) });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const buildRescheduleQuote = async (booking, startDate, endDate) => {
+  if (booking.status === 'cancelled') {
+    throw new Error('This booking is cancelled and cannot be rescheduled');
+  }
+
+  if (booking.rescheduled) {
+    throw new Error('This booking has already been rescheduled');
+  }
+
+  const feePercent = getRescheduleFeePercent(booking.startDate);
+
+  if (feePercent === null) {
+    throw new Error('Rescheduling is not permitted within 7 days of the check-in date');
+  }
+
+  const normalizedStart = new Date(startDate);
+  const normalizedEnd = new Date(endDate);
+
+  if (Number.isNaN(normalizedStart.getTime()) || Number.isNaN(normalizedEnd.getTime()) || normalizedEnd <= normalizedStart) {
+    throw new Error('Invalid dates supplied');
+  }
+
+  const overlapping = await getExistingBookingsForRange({
+    listingId: booking.listing._id,
+    startDate: normalizedStart,
+    endDate: normalizedEnd,
+    statuses: ['confirmed'],
+    excludeBookingId: booking._id,
+  });
+
+  if (overlapping.length) {
+    throw new Error('Room is fully booked for the selected dates');
+  }
+
+  const pricing = await calculateBookingPrice({
+    listing: booking.listing,
+    bookingType: booking.bookingType,
+    startDate: normalizedStart,
+    endDate: normalizedEnd,
+    guests: booking.guests,
+    adultGuests: booking.adultGuests,
+    childGuests: booking.childGuests,
+    pets: booking.pets,
+  });
+
+  const feeAmount = Math.round((pricing.totalPrice * feePercent) / 100);
+
+  return {
+    normalizedStart,
+    normalizedEnd,
+    pricing,
+    feePercent,
+    feeAmount,
+  };
+};
+
+export const getRescheduleQuote = async (req, res, next) => {
+  try {
+    const { contact, startDate, endDate } = req.body;
+    const booking = await Booking.findById(req.params.id).populate('listing');
+
+    if (!booking) {
+      res.status(404);
+      throw new Error('Booking not found');
+    }
+
+    if (!matchesContact(booking, contact)) {
+      res.status(403);
+      throw new Error('Contact details do not match this booking');
+    }
+
+    const quote = await buildRescheduleQuote(booking, startDate, endDate);
+
+    res.json({
+      newTotalPrice: quote.pricing.totalPrice,
+      feeAmount: quote.feeAmount,
+      feePercent: quote.feePercent,
+    });
+  } catch (error) {
+    if (!res.statusCode || res.statusCode === 200) res.status(400);
+    next(error);
+  }
+};
+
+export const createRescheduleFeeOrder = async (req, res, next) => {
+  try {
+    if (!isRazorpayConfigured()) {
+      res.status(503);
+      throw new Error('Online payments are not configured yet');
+    }
+
+    const { contact, startDate, endDate } = req.body;
+    const booking = await Booking.findById(req.params.id).populate('listing');
+
+    if (!booking) {
+      res.status(404);
+      throw new Error('Booking not found');
+    }
+
+    if (!matchesContact(booking, contact)) {
+      res.status(403);
+      throw new Error('Contact details do not match this booking');
+    }
+
+    const quote = await buildRescheduleQuote(booking, startDate, endDate);
+
+    if (quote.feeAmount <= 0) {
+      res.status(400);
+      throw new Error('No reschedule fee applies to this booking');
+    }
+
+    const order = await createRazorpayOrder({
+      amount: quote.feeAmount * 100,
+      currency: 'INR',
+      receipt: `reschedule_${String(booking._id)}_${Date.now()}`.slice(0, 40),
+      notes: { bookingId: String(booking._id), type: 'reschedule-fee' },
+    });
+
+    booking.rescheduleFeeOrderId = order.id;
+    await booking.save();
+
+    res.json({
+      orderId: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      keyId: process.env.RAZORPAY_KEY_ID,
+    });
+  } catch (error) {
+    if (!res.statusCode || res.statusCode === 200) res.status(400);
+    next(error);
+  }
+};
+
+export const confirmReschedule = async (req, res, next) => {
+  try {
+    const { contact, startDate, endDate, razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+    const booking = await Booking.findById(req.params.id).populate('listing');
+
+    if (!booking) {
+      res.status(404);
+      throw new Error('Booking not found');
+    }
+
+    if (!matchesContact(booking, contact)) {
+      res.status(403);
+      throw new Error('Contact details do not match this booking');
+    }
+
+    const quote = await buildRescheduleQuote(booking, startDate, endDate);
+
+    if (quote.feeAmount > 0) {
+      if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+        res.status(400);
+        throw new Error('Reschedule fee payment is required');
+      }
+
+      if (razorpay_order_id !== booking.rescheduleFeeOrderId) {
+        res.status(400);
+        throw new Error('Payment does not match this reschedule request');
+      }
+
+      const expectedSignature = crypto
+        .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+        .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+        .digest('hex');
+
+      if (expectedSignature !== razorpay_signature) {
+        res.status(400);
+        throw new Error('Payment verification failed');
+      }
+
+      booking.rescheduleFeePaymentId = razorpay_payment_id;
+      booking.rescheduleFeeAmount = quote.feeAmount;
+    }
+
+    booking.startDate = quote.normalizedStart;
+    booking.endDate = quote.normalizedEnd;
+    booking.unitPrice = quote.pricing.unitPrice;
+    booking.totalPrice = quote.pricing.totalPrice;
+    booking.pricingBreakdown = {
+      basePrice: quote.pricing.basePrice,
+      adjustments: quote.pricing.adjustments,
+      coupon: booking.pricingBreakdown?.coupon,
+    };
+    booking.rescheduled = true;
+    await booking.save();
+
+    syncToSheet(booking);
+
+    await notifyAdmins({
+      title: 'Booking rescheduled by guest',
+      message: `${booking.contactName} rescheduled their booking for ${booking.listing.name}.`,
+      type: 'booking',
+    });
+
+    if (booking.contactEmail && isEmailConfigured('booking')) {
+      sendMail({
+        to: booking.contactEmail,
+        subject: `Booking Rescheduled - ${booking.listing.name}`,
+        text: `Hi ${booking.contactName},\n\nYour booking for ${booking.listing.name} has been rescheduled to ${new Date(
+          booking.startDate
+        ).toDateString()} - ${new Date(booking.endDate).toDateString()}.${
+          quote.feeAmount > 0 ? ` A rescheduling fee of Rs ${quote.feeAmount} was charged.` : ''
+        } Please note this booking can no longer be cancelled.\n\nBowline Nature Stay`,
+        kind: 'booking',
+      }).catch(() => {});
+    }
+
+    res.json({ booking: serializeGuestBooking(booking) });
   } catch (error) {
     next(error);
   }

@@ -26,6 +26,7 @@ function CheckoutPage() {
   const [couponChecking, setCouponChecking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [confirmedBookingId, setConfirmedBookingId] = useState(null);
 
   useEffect(() => {
     if (user) {
@@ -113,11 +114,6 @@ function CheckoutPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!user) {
-      navigate('/login', { state: { from: { pathname: '/checkout' } } });
-      return;
-    }
-
     if (items.length === 0) {
       toast.error('Your cart is empty');
       return;
@@ -148,6 +144,7 @@ function CheckoutPage() {
       });
 
       clearCart();
+      setConfirmedBookingId(data.bookings?.[0]?._id || null);
       setShowSuccess(true);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Unable to complete booking');
@@ -159,7 +156,11 @@ function CheckoutPage() {
   if (items.length === 0) {
     return (
       <section className="section-shell py-16 text-center">
-        {showSuccess && <BookingSuccessOverlay onClose={() => navigate('/dashboard')} />}
+        {showSuccess && (
+        <BookingSuccessOverlay
+          onClose={() => navigate(confirmedBookingId ? `/booking/confirmation/${confirmedBookingId}` : '/manage-booking')}
+        />
+      )}
         <p className="text-slate-400">Your cart is empty.</p>
         <button onClick={() => navigate('/browse')} className="btn-primary mt-6">
           Browse Rooms
@@ -170,7 +171,11 @@ function CheckoutPage() {
 
   return (
     <section className="section-shell py-12">
-      {showSuccess && <BookingSuccessOverlay onClose={() => navigate('/dashboard')} />}
+      {showSuccess && (
+        <BookingSuccessOverlay
+          onClose={() => navigate(confirmedBookingId ? `/booking/confirmation/${confirmedBookingId}` : '/manage-booking')}
+        />
+      )}
       <h1 className="mb-6 font-display text-2xl text-white sm:text-4xl">Checkout</h1>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_400px]">

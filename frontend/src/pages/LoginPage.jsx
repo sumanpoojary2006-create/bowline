@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { GoogleLogin } from '@react-oauth/google';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 function LoginPage() {
@@ -105,15 +105,7 @@ function LoginPage() {
 
         <div className="mt-6 rounded-[1.5rem] bg-slate-900/70 p-4 text-sm text-slate-300">
           <p>Admin: `admin@bowline.com` / `Admin@123`</p>
-          <p>User: `explorer@bowline.com` / `User@123`</p>
         </div>
-
-        <p className="mt-6 text-sm text-slate-400">
-          Need an account?{' '}
-          <Link className="text-amber-300" to="/signup">
-            Sign up
-          </Link>
-        </p>
       </div>
     </section>
   );

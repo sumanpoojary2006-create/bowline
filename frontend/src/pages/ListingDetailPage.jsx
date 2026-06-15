@@ -185,18 +185,6 @@ function ListingDetailPage({ bookingFirst = false }) {
   const submitBooking = async (event) => {
     event.preventDefault();
 
-    if (!user) {
-      navigate('/login', {
-        state: {
-          from: {
-            pathname: `/book/${slug}`,
-            search: `?startDate=${formatDateParam(booking.startDate)}&endDate=${formatDateParam(booking.endDate)}&guests=${booking.adults + booking.children}`,
-          },
-        },
-      });
-      return;
-    }
-
     if (!availability?.available) {
       toast.error('Please check availability before booking');
       return;

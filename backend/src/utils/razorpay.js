@@ -71,3 +71,28 @@ export async function createPaymentLink({ amount, currency = 'INR', description,
 
   return data;
 }
+
+export async function createRazorpayRefund({ paymentId, amount, notes }) {
+  const authHeader = getAuthHeader();
+
+  if (!authHeader) {
+    throw new Error('Razorpay is not configured');
+  }
+
+  const response = await fetch(`${RAZORPAY_API_BASE}/payments/${paymentId}/refund`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: authHeader,
+    },
+    body: JSON.stringify({ amount, notes }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error?.description || 'Unable to create refund');
+  }
+
+  return data;
+}

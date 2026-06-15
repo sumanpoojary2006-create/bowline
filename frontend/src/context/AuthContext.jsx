@@ -50,13 +50,6 @@ export function AuthProvider({ children }) {
     return data;
   };
 
-  const signup = async (values) => {
-    const { data } = await api.post('/auth/signup', values);
-    persistAuth(data);
-    toast.success('Account created successfully');
-    return data;
-  };
-
   const updateProfile = async (values) => {
     const { data } = await api.put('/auth/profile', values);
     persistAuth(data);
@@ -76,7 +69,6 @@ export function AuthProvider({ children }) {
       isAuthenticated: Boolean(user),
       login,
       googleLogin,
-      signup,
       logout,
       updateProfile,
       setUser,

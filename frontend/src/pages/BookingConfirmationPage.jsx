@@ -26,9 +26,10 @@ function BookingConfirmationPage() {
 
     const fetchBooking = async () => {
       try {
-        const { data } = await api.get('/bookings/me');
-        const matched = data.bookings.find((item) => item._id === id);
-        setBooking(matched || null);
+        const { data } = await api.get(`/bookings/${id}/public`);
+        setBooking(data.booking || null);
+      } catch {
+        setBooking(null);
       } finally {
         setLoading(false);
       }
@@ -47,8 +48,8 @@ function BookingConfirmationPage() {
         {showCelebration && <BookingSuccessOverlay onClose={() => setShowCelebration(false)} />}
         <div className="glass rounded-[2rem] p-8 text-center">
           <h1 className="text-3xl font-semibold text-white">Booking not found</h1>
-          <Link className="btn-primary mt-6" to="/dashboard">
-            Go to dashboard
+          <Link className="btn-primary mt-6" to="/manage-booking">
+            Manage Booking
           </Link>
         </div>
       </section>
@@ -108,8 +109,8 @@ function BookingConfirmationPage() {
         </div>
 
         <div className="mt-8 flex flex-wrap gap-3">
-          <Link className="btn-primary" to="/dashboard">
-            View my bookings
+          <Link className="btn-primary" to="/manage-booking">
+            Manage Booking
           </Link>
           <Link className="btn-secondary" to="/">
             Back to home

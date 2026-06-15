@@ -60,10 +60,10 @@ function Navbar() {
               </span>
             )}
           </button>
-          {user ? (
+          {user?.role === 'admin' ? (
             <>
-              <Link className="btn-secondary" to={user.role === 'admin' ? '/admin/overview' : '/dashboard'}>
-                {user.role === 'admin' ? 'Admin Panel' : 'My Dashboard'}
+              <Link className="btn-secondary" to="/admin/overview">
+                Admin Panel
               </Link>
               <button className="btn-primary" onClick={handleLogout}>
                 Logout
@@ -71,8 +71,8 @@ function Navbar() {
             </>
           ) : (
             <>
-              <Link className="btn-secondary" to="/login">
-                Login
+              <Link className="btn-secondary" to="/manage-booking">
+                Manage Booking
               </Link>
               <Link className="btn-primary" to="/stays">
                 Book Now
@@ -123,14 +123,14 @@ function Navbar() {
               </NavLink>
             ))}
             <div className="mt-3 border-t border-white/10 pt-3">
-              {user ? (
+              {user?.role === 'admin' ? (
                 <div className="grid gap-2">
                   <Link
-                    to={user.role === 'admin' ? '/admin/overview' : '/dashboard'}
+                    to="/admin/overview"
                     onClick={() => setOpen(false)}
                     className="btn-secondary w-full"
                   >
-                    {user.role === 'admin' ? 'Admin Panel' : 'My Bookings'}
+                    Admin Panel
                   </Link>
                   <button className="btn-primary w-full" onClick={handleLogout}>
                     Logout
@@ -138,8 +138,8 @@ function Navbar() {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-2">
-                  <Link className="btn-secondary" onClick={() => setOpen(false)} to="/login">
-                    Login
+                  <Link className="btn-secondary" onClick={() => setOpen(false)} to="/manage-booking">
+                    Manage Booking
                   </Link>
                   <Link className="btn-primary" onClick={() => setOpen(false)} to="/stays">
                     Book Now

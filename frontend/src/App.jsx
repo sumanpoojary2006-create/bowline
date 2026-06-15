@@ -14,8 +14,7 @@ const HomePage = lazy(() => import('./pages/HomePage'));
 const ListingsPage = lazy(() => import('./pages/ListingsPage'));
 const ListingDetailPage = lazy(() => import('./pages/ListingDetailPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
-const SignupPage = lazy(() => import('./pages/SignupPage'));
-const UserDashboardPage = lazy(() => import('./pages/UserDashboardPage'));
+const ManageBookingPage = lazy(() => import('./pages/ManageBookingPage'));
 const BookingConfirmationPage = lazy(() => import('./pages/BookingConfirmationPage'));
 const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage'));
 const AdminListingsPage = lazy(() => import('./pages/AdminListingsPage'));
@@ -53,15 +52,7 @@ function App() {
           <Route path="/experiences/:slug" element={<ListingDetailPage />} />
           <Route path="/book/:slug" element={<ListingDetailPage bookingFirst />} />
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/signup" element={<SignupPage />} />
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute role="user">
-                <UserDashboardPage />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/manage-booking" element={<ManageBookingPage />} />
           <Route path="/booking/confirmation/:id" element={<BookingConfirmationPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
         </Route>

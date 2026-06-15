@@ -1,12 +1,10 @@
 import { ShoppingBagIcon, TrashIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
 import { useBookingCart } from '../context/BookingCartContext';
 import { formatCurrency, formatDate } from '../lib/formatters';
 
 function BookingCartDrawer() {
   const { items, isOpen, setIsOpen, removeItem } = useBookingCart();
-  const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   if (!isOpen) return null;
@@ -95,10 +93,6 @@ function BookingCartDrawer() {
               className="btn-primary w-full"
               onClick={() => {
                 setIsOpen(false);
-                if (!isAuthenticated) {
-                  navigate('/login', { state: { from: { pathname: '/checkout' } } });
-                  return;
-                }
                 navigate('/checkout');
               }}
             >

@@ -35,7 +35,7 @@ function BookingSuccessOverlay({ onClose }) {
         <p className="mt-3 text-sm text-slate-300">Invoice has been sent to your email.</p>
 
         <button type="button" onClick={onClose} className="btn-primary mt-8 w-full">
-          Go to Dashboard
+          View Booking
         </button>
       </div>
     </div>
