@@ -607,6 +607,7 @@ export const updateBookingStatus = async (req, res, next) => {
 
     if (nextStatus === 'cancelled') {
       unsyncFromSheet(booking);
+      writeFullBookingToSheet(booking).catch(() => {});
     } else {
       syncToSheet(booking);
     }
@@ -986,6 +987,9 @@ export const confirmReschedule = async (req, res, next) => {
       booking.rescheduleFeeAmount = quote.feeAmount;
     }
 
+    const previousStartDate = booking.startDate;
+    const previousEndDate = booking.endDate;
+
     booking.startDate = quote.normalizedStart;
     booking.endDate = quote.normalizedEnd;
     booking.unitPrice = quote.pricing.unitPrice;
@@ -1001,6 +1005,13 @@ export const confirmReschedule = async (req, res, next) => {
     booking.rescheduled = true;
     await booking.save();
 
+    if (isSheetsConfigured()) {
+      clearBookingFromSheet({
+        listing: booking.listing,
+        startDate: previousStartDate,
+        endDate: previousEndDate,
+      }).catch(() => {});
+    }
     syncToSheet(booking);
 
     await notifyAdmins({

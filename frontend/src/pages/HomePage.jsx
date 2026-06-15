@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ChevronDownIcon,
   ChevronLeftIcon,
@@ -70,15 +70,8 @@ function HomePage() {
     guests: '2',
   });
   const [rooms, setRooms] = useState([]);
-  const roomsScrollRef = useRef(null);
-
-  const scrollRooms = (direction) => {
-    const container = roomsScrollRef.current;
-    if (!container) return;
-    container.scrollBy({ left: direction * container.clientWidth * 0.9, behavior: 'smooth' });
-  };
   const [loading, setLoading] = useState(true);
-  const [activeHighlight, setActiveHighlight] = useState('room');
+  const [showGroupBooking, setShowGroupBooking] = useState(false);
   const [activeBooking, setActiveBooking] = useState(null);
   const [bookingStep, setBookingStep] = useState('details');
   const [groupGuests, setGroupGuests] = useState(10);
@@ -347,164 +340,147 @@ function HomePage() {
 
         <div className="relative section-shell space-y-8">
           <div className="mx-auto max-w-6xl rounded-[2rem] border border-lime-100/10 bg-[#0a130d]/70 p-5">
-            <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-none">
-              {[
-                { id: 'room', label: 'Room Booking' },
-                { id: 'group', label: 'Group Booking' },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveHighlight(tab.id)}
-                  className={`flex-shrink-0 rounded-full px-5 py-2.5 text-sm font-semibold transition ${
-                    activeHighlight === tab.id
-                      ? 'bg-lime-200 text-slate-950'
-                      : 'border border-lime-100/15 bg-white/5 text-[#d2dbcf]'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-2xl font-semibold text-[#f5f0dd]">Room booking</h2>
+                <p className="mt-1 text-sm text-[#cdd6c9]">
+                  Weekday and weekend tariffs are shown per person. Breakfast is complimentary.
+                </p>
+              </div>
 
-            {activeHighlight === 'room' ? (
-              <div className="mt-6 space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-2xl font-semibold text-[#f5f0dd]">Room booking</h2>
-                    <p className="mt-1 text-sm text-[#cdd6c9]">
-                      Weekday and weekend tariffs are shown per person. Breakfast is complimentary.
-                    </p>
-                  </div>
-                </div>
+              {loading ? (
+                <PageLoader label="Loading rooms..." />
+              ) : rooms.length ? (
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {rooms.map((listing) => (
+                    <ListingCard
+                      key={listing._id}
+                      listing={listing}
+                      onBookNow={openBookingPrompt}
+                      compact
+                      detailLabel="View More"
+                      showPrice
+                    />
+                  ))}
 
-                {loading ? (
-                  <PageLoader label="Loading rooms..." />
-                ) : rooms.length ? (
-                  <div className="relative">
-                    <button
-                      type="button"
-                      aria-label="Scroll rooms left"
-                      onClick={() => scrollRooms(-1)}
-                      className="absolute left-0 top-1/2 z-10 hidden -translate-x-3 -translate-y-1/2 rounded-full border border-lime-100/15 bg-black/50 p-2 text-white backdrop-blur transition hover:bg-black/70 sm:flex"
-                    >
-                      <ChevronLeftIcon className="h-5 w-5" />
-                    </button>
-                    <div
-                      ref={roomsScrollRef}
-                      className="flex flex-col gap-5 sm:flex-row sm:snap-x sm:snap-mandatory sm:gap-5 sm:overflow-x-auto sm:pb-2"
-                    >
-                      {rooms.map((listing) => (
-                        <div
-                          key={listing._id}
-                          className="w-full flex-shrink-0 sm:w-[45%] sm:snap-start lg:w-[calc((100%-2.5rem)/3)]"
-                        >
-                          <ListingCard
-                            listing={listing}
-                            onBookNow={openBookingPrompt}
-                            compact
-                            detailLabel="View More"
-                            showPrice
-                          />
-                        </div>
-                      ))}
+                  <article className="glass flex h-full flex-col overflow-hidden rounded-[1.75rem] shadow-[0_18px_50px_rgba(0,0,0,0.28)] transition hover:-translate-y-1.5">
+                    <div className="relative h-48 overflow-hidden">
+                      <img src={forestBackdrop} alt="Group booking" className="h-full w-full object-cover" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#07110b] via-[#07110b]/20 to-transparent" />
+                      <div className="absolute left-4 top-4 inline-flex rounded-full bg-lime-200 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-slate-950">
+                        Group
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      aria-label="Scroll rooms right"
-                      onClick={() => scrollRooms(1)}
-                      className="absolute right-0 top-1/2 z-10 hidden translate-x-3 -translate-y-1/2 rounded-full border border-lime-100/15 bg-black/50 p-2 text-white backdrop-blur transition hover:bg-black/70 sm:flex"
-                    >
-                      <ChevronRightIcon className="h-5 w-5" />
-                    </button>
-                  </div>
-                ) : (
-                  <EmptyState title="No rooms yet" description="Add room listings from the admin panel." />
-                )}
-              </div>
-            ) : null}
 
-            {activeHighlight === 'group' ? (
-              <div className="mt-6 space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-2xl font-semibold text-[#f5f0dd]">Group booking</h2>
-                    <p className="mt-1 text-sm text-[#cdd6c9]">
-                      10-15 guests blocks all rooms except Pent House. 15-20 guests books the full house.
+                    <div className="flex flex-1 flex-col space-y-4 p-5">
+                      <h3 className="text-2xl font-semibold text-[#f5f0dd]">Group Booking</h3>
+                      <p className="text-sm text-[#d7ded3]">
+                        Book multiple rooms together for 10-20 guests at once.
+                      </p>
+                      <div className="grid grid-cols-1 gap-2 text-xs text-[#c4cec0]">
+                        <span className="rounded-xl border border-lime-100/10 bg-black/15 px-3 py-2">
+                          10-14 guests: all rooms except Pent House
+                        </span>
+                        <span className="rounded-xl border border-lime-100/10 bg-black/15 px-3 py-2">
+                          15-20 guests: full house, including Pent House
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn-primary mt-auto w-full rounded-[1rem] px-4"
+                        onClick={() => setShowGroupBooking((value) => !value)}
+                      >
+                        {showGroupBooking ? 'Hide group booking' : 'Book Now'}
+                      </button>
+                    </div>
+                  </article>
+                </div>
+              ) : (
+                <EmptyState title="No rooms yet" description="Add room listings from the admin panel." />
+              )}
+
+              {showGroupBooking ? (
+                <div className="space-y-4 rounded-[1.5rem] border border-lime-100/10 bg-black/20 p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-xl font-semibold text-[#f5f0dd]">Group booking</h3>
+                      <p className="mt-1 text-sm text-[#cdd6c9]">
+                        10-14 guests blocks all rooms except Pent House. 15-20 guests books the full house.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 rounded-full border border-lime-100/10 bg-black/20 p-2">
+                      <button
+                        className="rounded-full border border-lime-100/15 p-2 text-white disabled:opacity-40"
+                        type="button"
+                        disabled={groupGuests <= 10}
+                        onClick={() => setGroupGuests((value) => increment(value, -1, 10, 20))}
+                      >
+                        <MinusIcon className="h-4 w-4" />
+                      </button>
+                      <span className="min-w-24 text-center text-sm font-semibold text-[#f5f0dd]">{groupGuests} guests</span>
+                      <button
+                        className="rounded-full border border-lime-100/15 p-2 text-white disabled:opacity-40"
+                        type="button"
+                        disabled={groupGuests >= 20}
+                        onClick={() => setGroupGuests((value) => increment(value, 1, 10, 20))}
+                      >
+                        <PlusIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="text-xs uppercase tracking-[0.22em] text-lime-200/80">Check-in</label>
+                      <input
+                        type="date"
+                        className="input mt-2"
+                        value={formatDateParam(groupDates.startDate)}
+                        onChange={(e) => {
+                          const date = parseDateParam(e.target.value, groupDates.startDate);
+                          setGroupDates((prev) => ({
+                            startDate: date,
+                            endDate: ensureCheckoutDate(date, prev.endDate, 1),
+                          }));
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs uppercase tracking-[0.22em] text-lime-200/80">Check-out</label>
+                      <input
+                        type="date"
+                        className="input mt-2"
+                        value={formatDateParam(groupDates.endDate)}
+                        onChange={(e) => {
+                          const date = parseDateParam(e.target.value, groupDates.endDate);
+                          setGroupDates((prev) => ({
+                            ...prev,
+                            endDate: ensureCheckoutDate(prev.startDate, date, 1),
+                          }));
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="rounded-[1.25rem] border border-lime-100/10 bg-black/20 p-4">
+                    <p className="text-xs uppercase tracking-[0.22em] text-lime-200/80">Selected bundle</p>
+                    <p className="mt-2 text-xl font-semibold text-[#f5f0dd]">{getGroupBookingLabel(groupGuests)}</p>
+                    <p className="mt-2 text-sm text-[#cdd6c9]">
+                      Rooms included: {groupRooms.map((room) => room.name).join(', ') || 'Choose 10 to 20 guests'}
                     </p>
                   </div>
-                  <div className="flex items-center gap-3 rounded-full border border-lime-100/10 bg-black/20 p-2">
-                    <button
-                      className="rounded-full border border-lime-100/15 p-2 text-white disabled:opacity-40"
-                      type="button"
-                      disabled={groupGuests <= 10}
-                      onClick={() => setGroupGuests((value) => increment(value, -1, 10, 20))}
-                    >
-                      <MinusIcon className="h-4 w-4" />
-                    </button>
-                    <span className="min-w-24 text-center text-sm font-semibold text-[#f5f0dd]">{groupGuests} guests</span>
-                    <button
-                      className="rounded-full border border-lime-100/15 p-2 text-white disabled:opacity-40"
-                      type="button"
-                      disabled={groupGuests >= 20}
-                      onClick={() => setGroupGuests((value) => increment(value, 1, 10, 20))}
-                    >
-                      <PlusIcon className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="text-xs uppercase tracking-[0.22em] text-lime-200/80">Check-in</label>
-                    <input
-                      type="date"
-                      className="input mt-2"
-                      value={formatDateParam(groupDates.startDate)}
-                      onChange={(e) => {
-                        const date = parseDateParam(e.target.value, groupDates.startDate);
-                        setGroupDates((prev) => ({
-                          startDate: date,
-                          endDate: ensureCheckoutDate(date, prev.endDate, 1),
-                        }));
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs uppercase tracking-[0.22em] text-lime-200/80">Check-out</label>
-                    <input
-                      type="date"
-                      className="input mt-2"
-                      value={formatDateParam(groupDates.endDate)}
-                      onChange={(e) => {
-                        const date = parseDateParam(e.target.value, groupDates.endDate);
-                        setGroupDates((prev) => ({
-                          ...prev,
-                          endDate: ensureCheckoutDate(prev.startDate, date, 1),
-                        }));
-                      }}
-                    />
-                  </div>
+                  <button
+                    type="button"
+                    className="btn-primary w-full"
+                    disabled={!groupRooms.length}
+                    onClick={confirmGroupBooking}
+                  >
+                    Book this bundle
+                  </button>
                 </div>
-
-                <div className="rounded-[1.25rem] border border-lime-100/10 bg-black/20 p-4">
-                  <p className="text-xs uppercase tracking-[0.22em] text-lime-200/80">Selected bundle</p>
-                  <p className="mt-2 text-xl font-semibold text-[#f5f0dd]">{getGroupBookingLabel(groupGuests)}</p>
-                  <p className="mt-2 text-sm text-[#cdd6c9]">
-                    Rooms included: {groupRooms.map((room) => room.name).join(', ') || 'Choose 10 to 20 guests'}
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  className="btn-primary w-full"
-                  disabled={!groupRooms.length}
-                  onClick={confirmGroupBooking}
-                >
-                  Book this bundle
-                </button>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
           </div>
         </div>
       </section>

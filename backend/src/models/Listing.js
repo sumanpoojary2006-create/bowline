@@ -96,6 +96,11 @@ const listingSchema = new mongoose.Schema(
       type: Number,
       default: null,
     },
+    airbnbIcalUrl: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     seo: {
       metaTitle: {
         type: String,

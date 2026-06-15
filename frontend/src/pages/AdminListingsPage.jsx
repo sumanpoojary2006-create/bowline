@@ -25,6 +25,7 @@ const emptyForm = {
   featured: false,
   active: true,
   manualPriceOverride: '',
+  airbnbIcalUrl: '',
   metaTitle: '',
   metaDescription: '',
 };
@@ -68,6 +69,7 @@ const parseListingToForm = (listing) => ({
   featured: listing.featured,
   active: listing.active,
   manualPriceOverride: listing.manualPriceOverride || '',
+  airbnbIcalUrl: listing.airbnbIcalUrl || '',
   metaTitle: listing.seo?.metaTitle || '',
   metaDescription: listing.seo?.metaDescription || '',
 });
@@ -90,6 +92,32 @@ function AdminListingsPage() {
     () => listings.filter((listing) => listing.type === activeType),
     [listings, activeType]
   );
+
+  const exportFeedUrl = useMemo(() => {
+    if (!selectedId) return '';
+    const base = api.defaults.baseURL.startsWith('http')
+      ? api.defaults.baseURL
+      : `${window.location.origin}${api.defaults.baseURL}`;
+    return `${base}/sync/calendar/${selectedId}.ics`;
+  }, [selectedId]);
+
+  const syncAirbnbNow = async (listingId) => {
+    try {
+      const { data } = await api.post('/sync/airbnb', { listingId });
+      const result = data.results?.[0];
+      if (!result) {
+        toast.error('No sync result returned');
+        return;
+      }
+      if (result.errors?.length) {
+        toast.error(result.errors[0]);
+        return;
+      }
+      toast.success(`Synced: ${result.created} new, ${result.updated} updated, ${result.cancelled} cancelled`);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Unable to sync Airbnb calendar');
+    }
+  };
 
   const fetchListings = async () => {
     setLoading(true);
@@ -331,6 +359,12 @@ function AdminListingsPage() {
                   value={form.amenities}
                   onChange={(event) => setField('amenities', event.target.value)}
                 />
+                <input
+                  className="input md:col-span-2"
+                  placeholder="Airbnb calendar export URL (iCal)"
+                  value={form.airbnbIcalUrl}
+                  onChange={(event) => setField('airbnbIcalUrl', event.target.value)}
+                />
               </>
             ) : null}
 
@@ -467,6 +501,31 @@ function AdminListingsPage() {
           <button className="btn-primary mt-6" type="submit">
             {selectedId ? `Update ${config.singular}` : `Create ${config.singular}`}
           </button>
+
+          {selectedId && activeType === 'room' ? (
+            <div className="mt-6 space-y-3 rounded-[1.5rem] border border-lime-100/10 bg-[#0d1710]/70 p-4">
+              <p className="text-sm font-semibold text-white">Airbnb sync</p>
+              <div>
+                <label className="label">Export feed (paste into Airbnb &rarr; Import calendar)</label>
+                <div className="mt-2 flex flex-col gap-3 sm:flex-row">
+                  <input className="input flex-1" readOnly value={exportFeedUrl} onClick={(event) => event.target.select()} />
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => {
+                      navigator.clipboard.writeText(exportFeedUrl);
+                      toast.success('Feed URL copied');
+                    }}
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+              <button type="button" className="btn-secondary" onClick={() => syncAirbnbNow(selectedId)}>
+                Sync Airbnb now
+              </button>
+            </div>
+          ) : null}
         </form>
       </div>
     </div>

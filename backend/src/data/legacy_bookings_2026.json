@@ -145,7 +145,7 @@
   },
   {
     "roomName": "Penthouse",
-    "guestName": "Ashritha hebbar 🐶",
+    "guestName": "Ashritha hebbar \ud83d\udc36",
     "startDate": "2026-01-23",
     "endDate": "2026-01-24",
     "status": "pending",
@@ -161,7 +161,7 @@
   },
   {
     "roomName": "Cozy 2",
-    "guestName": "Smruti Katore 🐶",
+    "guestName": "Smruti Katore \ud83d\udc36",
     "startDate": "2026-01-24",
     "endDate": "2026-01-26",
     "status": "pending",
@@ -225,7 +225,7 @@
   },
   {
     "roomName": "Penthouse",
-    "guestName": "Aishwarya chopra .🐶",
+    "guestName": "Aishwarya chopra .\ud83d\udc36",
     "startDate": "2026-02-04",
     "endDate": "2026-02-05",
     "status": "pending",
@@ -601,7 +601,7 @@
   },
   {
     "roomName": "Cozy 1",
-    "guestName": "Arun+1+🐶",
+    "guestName": "Arun+1+\ud83d\udc36",
     "startDate": "2026-04-25",
     "endDate": "2026-04-28",
     "status": "pending",
@@ -841,42 +841,418 @@
   },
   {
     "roomName": "Cozy 1",
-    "guestName": "Mokadappu",
-    "startDate": "2026-06-07",
-    "endDate": "2026-06-08",
+    "guestName": "Prajna/Shrikanth",
+    "startDate": "2026-06-02",
+    "endDate": "2026-06-04",
+    "status": "confirmed",
+    "nights": 2
+  },
+  {
+    "roomName": "Cozy 1",
+    "guestName": "Nithyashree",
+    "startDate": "2026-06-05",
+    "endDate": "2026-06-07",
+    "status": "confirmed",
+    "nights": 2
+  },
+  {
+    "roomName": "Cozy 1",
+    "guestName": "Hitarth",
+    "startDate": "2026-06-08",
+    "endDate": "2026-06-09",
+    "status": "confirmed",
+    "nights": 1
+  },
+  {
+    "roomName": "Cozy 1",
+    "guestName": "Rithika",
+    "startDate": "2026-06-09",
+    "endDate": "2026-06-10",
+    "status": "confirmed",
+    "nights": 1
+  },
+  {
+    "roomName": "Cozy 1",
+    "guestName": "Arun Vignesh",
+    "startDate": "2026-06-10",
+    "endDate": "2026-06-11",
+    "status": "confirmed",
+    "nights": 1
+  },
+  {
+    "roomName": "Cozy 1",
+    "guestName": "Pretty",
+    "startDate": "2026-06-11",
+    "endDate": "2026-06-13",
+    "status": "confirmed",
+    "nights": 2
+  },
+  {
+    "roomName": "Cozy 1",
+    "guestName": "Rajesh",
+    "startDate": "2026-06-13",
+    "endDate": "2026-06-14",
+    "status": "confirmed",
+    "nights": 1
+  },
+  {
+    "roomName": "Cozy 1",
+    "guestName": "Vikhyat Oberoi",
+    "startDate": "2026-06-14",
+    "endDate": "2026-06-15",
+    "status": "confirmed",
+    "nights": 1
+  },
+  {
+    "roomName": "Cozy 1",
+    "guestName": "Vikhyat Oberoi",
+    "startDate": "2026-06-16",
+    "endDate": "2026-06-17",
+    "status": "confirmed",
+    "nights": 1
+  },
+  {
+    "roomName": "Cozy 1",
+    "guestName": "Shanmugam",
+    "startDate": "2026-06-19",
+    "endDate": "2026-06-20",
+    "status": "confirmed",
+    "nights": 1
+  },
+  {
+    "roomName": "Cozy 1",
+    "guestName": "Arjun",
+    "startDate": "2026-06-20",
+    "endDate": "2026-06-22",
+    "status": "confirmed",
+    "nights": 2
+  },
+  {
+    "roomName": "Cozy 1",
+    "guestName": "Ranabir",
+    "startDate": "2026-06-27",
+    "endDate": "2026-06-28",
     "status": "confirmed",
     "nights": 1
   },
   {
     "roomName": "Cozy 2",
-    "guestName": "Mokadappu",
-    "startDate": "2026-06-07",
-    "endDate": "2026-06-08",
+    "guestName": "Anirudh",
+    "startDate": "2026-06-05",
+    "endDate": "2026-06-06",
     "status": "confirmed",
     "nights": 1
   },
   {
-    "roomName": "Penthouse",
-    "guestName": "Gurman",
-    "startDate": "2026-06-13",
-    "endDate": "2026-06-15",
-    "status": "pending",
-    "nights": 2
-  },
-  {
-    "roomName": "Penthouse",
-    "guestName": "Priya",
-    "startDate": "2026-07-17",
-    "endDate": "2026-07-18",
-    "status": "pending",
+    "roomName": "Cozy 2",
+    "guestName": "Ranjith",
+    "startDate": "2026-06-06",
+    "endDate": "2026-06-07",
+    "status": "confirmed",
     "nights": 1
   },
   {
-    "roomName": "Penthouse",
-    "guestName": "PRIYA",
-    "startDate": "2026-07-18",
-    "endDate": "2026-07-20",
-    "status": "pending",
+    "roomName": "Cozy 2",
+    "guestName": "Hitarth",
+    "startDate": "2026-06-08",
+    "endDate": "2026-06-09",
+    "status": "confirmed",
+    "nights": 1
+  },
+  {
+    "roomName": "Cozy 2",
+    "guestName": "Zameer",
+    "startDate": "2026-06-09",
+    "endDate": "2026-06-10",
+    "status": "confirmed",
+    "nights": 1
+  },
+  {
+    "roomName": "Cozy 2",
+    "guestName": "Pretty",
+    "startDate": "2026-06-11",
+    "endDate": "2026-06-13",
+    "status": "confirmed",
+    "nights": 2
+  },
+  {
+    "roomName": "Cozy 2",
+    "guestName": "Rajesh",
+    "startDate": "2026-06-13",
+    "endDate": "2026-06-14",
+    "status": "confirmed",
+    "nights": 1
+  },
+  {
+    "roomName": "Cozy 2",
+    "guestName": "Sanmilan",
+    "startDate": "2026-06-14",
+    "endDate": "2026-06-15",
+    "status": "confirmed",
+    "nights": 1
+  },
+  {
+    "roomName": "Cozy 2",
+    "guestName": "Shanmugam",
+    "startDate": "2026-06-19",
+    "endDate": "2026-06-20",
+    "status": "confirmed",
+    "nights": 1
+  },
+  {
+    "roomName": "Cozy 2",
+    "guestName": "Sunil",
+    "startDate": "2026-06-20",
+    "endDate": "2026-06-21",
+    "status": "confirmed",
+    "nights": 1
+  },
+  {
+    "roomName": "Cozy Mini",
+    "guestName": "Prajna/Shrikanth",
+    "startDate": "2026-06-02",
+    "endDate": "2026-06-04",
+    "status": "confirmed",
+    "nights": 2
+  },
+  {
+    "roomName": "Cozy Mini",
+    "guestName": "Anirudh",
+    "startDate": "2026-06-05",
+    "endDate": "2026-06-06",
+    "status": "confirmed",
+    "nights": 1
+  },
+  {
+    "roomName": "Cozy Mini",
+    "guestName": "Ranjith",
+    "startDate": "2026-06-06",
+    "endDate": "2026-06-07",
+    "status": "confirmed",
+    "nights": 1
+  },
+  {
+    "roomName": "Cozy Mini",
+    "guestName": "Rithika",
+    "startDate": "2026-06-08",
+    "endDate": "2026-06-09",
+    "status": "confirmed",
+    "nights": 1
+  },
+  {
+    "roomName": "Cozy Mini",
+    "guestName": "Vikhyat Oberoi",
+    "startDate": "2026-06-13",
+    "endDate": "2026-06-14",
+    "status": "confirmed",
+    "nights": 1
+  },
+  {
+    "roomName": "Cozy Mini",
+    "guestName": "Shanmugam",
+    "startDate": "2026-06-19",
+    "endDate": "2026-06-20",
+    "status": "confirmed",
+    "nights": 1
+  },
+  {
+    "roomName": "Cozy Mini",
+    "guestName": "Sunil",
+    "startDate": "2026-06-20",
+    "endDate": "2026-06-21",
+    "status": "confirmed",
+    "nights": 1
+  },
+  {
+    "roomName": "Cozy Mini",
+    "guestName": "Shreshtalaxmi",
+    "startDate": "2026-06-27",
+    "endDate": "2026-06-29",
+    "status": "confirmed",
+    "nights": 2
+  },
+  {
+    "roomName": "Pent House",
+    "guestName": "Prajna/Shrikanth",
+    "startDate": "2026-06-02",
+    "endDate": "2026-06-04",
+    "status": "confirmed",
+    "nights": 2
+  },
+  {
+    "roomName": "Pent House",
+    "guestName": "Sankalp",
+    "startDate": "2026-06-04",
+    "endDate": "2026-06-06",
+    "status": "confirmed",
+    "nights": 2
+  },
+  {
+    "roomName": "Pent House",
+    "guestName": "Vaishali",
+    "startDate": "2026-06-06",
+    "endDate": "2026-06-08",
+    "status": "confirmed",
+    "nights": 2
+  },
+  {
+    "roomName": "Pent House",
+    "guestName": "Zameer",
+    "startDate": "2026-06-08",
+    "endDate": "2026-06-09",
+    "status": "confirmed",
+    "nights": 1
+  },
+  {
+    "roomName": "Pent House",
+    "guestName": "Arun Vignesh",
+    "startDate": "2026-06-09",
+    "endDate": "2026-06-10",
+    "status": "confirmed",
+    "nights": 1
+  },
+  {
+    "roomName": "Pent House",
+    "guestName": "Nabanitha",
+    "startDate": "2026-06-10",
+    "endDate": "2026-06-13",
+    "status": "confirmed",
+    "nights": 3
+  },
+  {
+    "roomName": "Pent House",
+    "guestName": "Gurman",
+    "startDate": "2026-06-13",
+    "endDate": "2026-06-15",
+    "status": "confirmed",
+    "nights": 2
+  },
+  {
+    "roomName": "Pent House",
+    "guestName": "Vikhyat Oberoi",
+    "startDate": "2026-06-15",
+    "endDate": "2026-06-16",
+    "status": "confirmed",
+    "nights": 1
+  },
+  {
+    "roomName": "Pent House",
+    "guestName": "Niharika",
+    "startDate": "2026-06-16",
+    "endDate": "2026-06-20",
+    "status": "confirmed",
+    "nights": 4
+  },
+  {
+    "roomName": "Pent House",
+    "guestName": "Arjun",
+    "startDate": "2026-06-20",
+    "endDate": "2026-06-22",
+    "status": "confirmed",
+    "nights": 2
+  },
+  {
+    "roomName": "Pent House",
+    "guestName": "Ranabir",
+    "startDate": "2026-06-26",
+    "endDate": "2026-06-27",
+    "status": "confirmed",
+    "nights": 1
+  },
+  {
+    "roomName": "Pent House",
+    "guestName": "Shreshtalaxmi",
+    "startDate": "2026-06-27",
+    "endDate": "2026-06-29",
+    "status": "confirmed",
+    "nights": 2
+  },
+  {
+    "roomName": "Pent House",
+    "guestName": "Varsha",
+    "startDate": "2026-07-03",
+    "endDate": "2026-07-05",
+    "status": "confirmed",
+    "nights": 2
+  },
+  {
+    "roomName": "Pent House",
+    "guestName": "Nithin",
+    "startDate": "2026-07-11",
+    "endDate": "2026-07-12",
+    "status": "confirmed",
+    "nights": 1
+  },
+  {
+    "roomName": "Pent House",
+    "guestName": "Shrinath Workshop",
+    "startDate": "2026-07-17",
+    "endDate": "2026-07-19",
+    "status": "confirmed",
+    "nights": 2
+  },
+  {
+    "roomName": "Pent House",
+    "guestName": "Priya",
+    "startDate": "2026-07-25",
+    "endDate": "2026-07-27",
+    "status": "confirmed",
+    "nights": 2
+  },
+  {
+    "roomName": "Cozy 1",
+    "guestName": "Nithin",
+    "startDate": "2026-07-11",
+    "endDate": "2026-07-12",
+    "status": "confirmed",
+    "nights": 1
+  },
+  {
+    "roomName": "Cozy 1",
+    "guestName": "Shrinath Workshop",
+    "startDate": "2026-07-17",
+    "endDate": "2026-07-19",
+    "status": "confirmed",
+    "nights": 2
+  },
+  {
+    "roomName": "Cozy 2",
+    "guestName": "Nithin",
+    "startDate": "2026-07-11",
+    "endDate": "2026-07-12",
+    "status": "confirmed",
+    "nights": 1
+  },
+  {
+    "roomName": "Cozy 2",
+    "guestName": "Shrinath Workshop",
+    "startDate": "2026-07-17",
+    "endDate": "2026-07-19",
+    "status": "confirmed",
+    "nights": 2
+  },
+  {
+    "roomName": "Cozy Mini",
+    "guestName": "Nithin",
+    "startDate": "2026-07-11",
+    "endDate": "2026-07-12",
+    "status": "confirmed",
+    "nights": 1
+  },
+  {
+    "roomName": "Cozy Mini",
+    "guestName": "Shrinath Workshop",
+    "startDate": "2026-07-17",
+    "endDate": "2026-07-19",
+    "status": "confirmed",
+    "nights": 2
+  },
+  {
+    "roomName": "Dorm",
+    "guestName": "Shrinath Workshop",
+    "startDate": "2026-07-17",
+    "endDate": "2026-07-19",
+    "status": "confirmed",
     "nights": 2
   }
 ]

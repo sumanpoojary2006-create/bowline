@@ -9,10 +9,17 @@ import {
   pushAllBookingsToSheet,
   pushAllFullBookingsToSheet,
   groupCellsIntoBookings,
+  writeFullBookingToSheet,
   SHEET_ROOM_TO_LISTING,
 } from '../utils/googleSheets.js';
+import { buildIcsCalendar } from '../utils/ical.js';
+import { syncAllAirbnbCalendars, syncListingFromAirbnb } from '../utils/airbnbSync.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Escape regex metacharacters (e.g. the parentheses in "Dormitory (Open Loft)")
+// so room names are matched literally, not as regex syntax.
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // Maps old Excel room names → MongoDB Listing.name
 const LEGACY_ROOM_MAP = {
@@ -79,7 +86,7 @@ export const inboundWebhook = async (req, res, next) => {
 
     const dbRoomName = SHEET_ROOM_TO_LISTING[roomName] || roomName;
     const listing = await Listing.findOne({
-      name: new RegExp(`^${dbRoomName}$`, 'i'),
+      name: new RegExp(`^${escapeRegex(dbRoomName)}$`, 'i'),
       type: 'room',
     });
 
@@ -136,6 +143,8 @@ export const inboundWebhook = async (req, res, next) => {
           existing.status = newStatus;
           existing.contactName = sb.guestName;
           await existing.save();
+          const populated = await Booking.findById(existing._id).populate('listing').populate('user', 'name email');
+          await writeFullBookingToSheet(populated).catch(() => {});
           results.updated++;
         }
       } else {
@@ -147,7 +156,7 @@ export const inboundWebhook = async (req, res, next) => {
           guests:    1,
         });
 
-        await Booking.create({
+        const created = await Booking.create({
           bookingType:  'room',
           listing:      listing._id,
           user:         adminUser?._id,
@@ -165,6 +174,8 @@ export const inboundWebhook = async (req, res, next) => {
           contactPhone: '',
           specialRequests: 'Created via Google Sheet',
         });
+        const populated = await Booking.findById(created._id).populate('listing').populate('user', 'name email');
+        await writeFullBookingToSheet(populated).catch(() => {});
         results.created++;
       }
     }
@@ -182,6 +193,8 @@ export const inboundWebhook = async (req, res, next) => {
       if (!stillPresent) {
         b.status = 'cancelled';
         await b.save();
+        const populated = await Booking.findById(b._id).populate('listing').populate('user', 'name email');
+        await writeFullBookingToSheet(populated).catch(() => {});
         results.cancelled++;
       }
     }
@@ -264,7 +277,7 @@ export const bookingRowInbound = async (req, res, next) => {
     }
 
     const listing = await Listing.findOne({
-      name: new RegExp(`^${dbRoomName}$`, 'i'),
+      name: new RegExp(`^${escapeRegex(dbRoomName)}$`, 'i'),
       type: 'room',
     });
 
@@ -339,6 +352,64 @@ export const bookingRowInbound = async (req, res, next) => {
   }
 };
 
+// ── GET /api/sync/calendar/:id.ics ──────────────────────────────────────────
+// Public iCal feed of a room's busy dates — paste this URL into Airbnb's
+// "Import calendar" setting so Airbnb blocks dates booked on our site.
+export const getCalendarFeed = async (req, res, next) => {
+  try {
+    const id = req.params.id.replace(/\.ics$/i, '');
+    const listing = await Listing.findById(id);
+
+    if (!listing) {
+      res.status(404);
+      throw new Error('Listing not found');
+    }
+
+    const bookings = await Booking.find({
+      listing: listing._id,
+      status: { $in: ['pending', 'confirmed'] },
+    }).select('startDate endDate status _id');
+
+    const events = bookings.map((b) => ({
+      uid: `bowline-${b._id}@bowline.internal`,
+      start: b.startDate,
+      end: b.endDate,
+      summary: b.status === 'confirmed' ? 'Reserved' : 'Reserved (pending)',
+    }));
+
+    const ics = buildIcsCalendar({ name: `${listing.name} - Bowline`, events });
+
+    res.set('Content-Type', 'text/calendar; charset=utf-8');
+    res.send(ics);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ── POST /api/sync/airbnb ───────────────────────────────────────────────────
+// Admin-triggered manual sync. Body may include { listingId } to sync just
+// one room, otherwise syncs every room with an airbnbIcalUrl configured.
+export const syncAirbnb = async (req, res, next) => {
+  try {
+    const { listingId } = req.body;
+
+    if (listingId) {
+      const listing = await Listing.findById(listingId);
+      if (!listing) {
+        res.status(404);
+        throw new Error('Listing not found');
+      }
+      const result = await syncListingFromAirbnb(listing);
+      return res.json({ results: [result] });
+    }
+
+    const results = await syncAllAirbnbCalendars();
+    res.json({ results });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // ── POST /api/sync/import-legacy ────────────────────────────────────────────
 export const importLegacy = async (req, res, next) => {
   try {
@@ -360,7 +431,7 @@ export const importLegacy = async (req, res, next) => {
       try {
         const dbName = LEGACY_ROOM_MAP[lb.roomName] || lb.roomName;
         const listing = await Listing.findOne({
-          name: new RegExp(`^${dbName}$`, 'i'),
+          name: new RegExp(`^${escapeRegex(dbName)}$`, 'i'),
           type: 'room',
         });
 
@@ -403,8 +474,8 @@ export const importLegacy = async (req, res, next) => {
           paymentStatus: 'pending',
           paymentMethod: 'manual',
           contactName:  lb.guestName,
-          contactEmail: 'legacy-import@bowline.internal',
-          contactPhone: '',
+          contactEmail: 'walkin@bowline.local',
+          contactPhone: '0000000000',
           specialRequests: 'Imported from BNS 2026 spreadsheet',
         });
 

@@ -52,6 +52,7 @@ const buildListingPayload = async (body, files = []) => {
     featured: body.featured === 'true' || body.featured === true,
     active: body.active !== 'false',
     manualPriceOverride: body.manualPriceOverride ? Number(body.manualPriceOverride) : null,
+    airbnbIcalUrl: body.airbnbIcalUrl || '',
     seo: {
       metaTitle: body.metaTitle || '',
       metaDescription: body.metaDescription || '',
