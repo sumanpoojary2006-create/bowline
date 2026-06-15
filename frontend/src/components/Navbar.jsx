@@ -4,7 +4,7 @@ import { Link, NavLink, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
 import { useBookingCart } from '../context/BookingCartContext';
-import bowlineLogo from '../assets/bowline-logo.png';
+import bowlineLogo from '../assets/bowline-logo.jpg';
 
 const links = [
   { label: 'Treks', to: '/treks' },
@@ -27,11 +27,7 @@ function Navbar() {
     <header className="sticky top-0 z-40 border-b border-lime-100/10 bg-[#0a130d]/72 backdrop-blur-xl">
       <div className="section-shell flex h-20 items-center justify-between gap-4">
         <Link to="/" className="flex items-center gap-3">
-          <img src={bowlineLogo} alt="Bowline" className="h-11 w-auto rounded-xl bg-white/90 p-1.5" />
-          <div className="hidden sm:block">
-            <p className="font-display text-2xl text-[#f5f0dd]">Bowline</p>
-            <p className="text-[11px] uppercase tracking-[0.28em] text-lime-100/55">Adventure stays</p>
-          </div>
+          <img src={bowlineLogo} alt="Bowline Nature Stay" className="h-14 w-auto rounded-xl" />
         </Link>
 
         <nav className="hidden items-center gap-2 md:flex">
