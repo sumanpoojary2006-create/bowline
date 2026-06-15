@@ -114,7 +114,7 @@ function HomePage() {
     setBookingStep('details');
     setCouponCode('');
     setCouponOffer(null);
-    const adults = Number(filters.guests || 2);
+    const adults = Math.max(Number(filters.guests || 2), listing.minOccupancy || 1);
     setBookingDraft({
       startDate: filters.startDate,
       endDate: filters.endDate,
@@ -521,8 +521,15 @@ function HomePage() {
                   <button
                     className="rounded-full border border-lime-100/15 p-2 text-white disabled:opacity-40"
                     type="button"
-                    disabled={bookingDraft.adults <= 1}
-                    onClick={() => setBookingDraft((prev) => clampMealCounts({ ...prev, adults: increment(prev.adults, -1, 1, 20) }))}
+                    disabled={bookingDraft.adults <= (activeBooking?.minOccupancy || 1)}
+                    onClick={() => {
+                      const minOccupancy = activeBooking?.minOccupancy || 1;
+                      if (bookingDraft.adults <= minOccupancy) {
+                        toast.error(`Minimum occupants should be ${minOccupancy}`);
+                        return;
+                      }
+                      setBookingDraft((prev) => clampMealCounts({ ...prev, adults: increment(prev.adults, -1, minOccupancy, 20) }));
+                    }}
                   >
                     <MinusIcon className="h-4 w-4" />
                   </button>
