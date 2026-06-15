@@ -1,7 +1,7 @@
 import Listing from '../models/Listing.js';
 import { slugify } from '../utils/slugify.js';
 import { calculateBookingPrice } from '../utils/pricing.js';
-import { validateListingAvailability, getBookedDateRanges, getNextAvailableWindow } from '../utils/availability.js';
+import { validateListingAvailability, getBookedDateRanges, getNextAvailableWindow, getNextAvailableWindowMulti } from '../utils/availability.js';
 import { persistUploadedFiles } from '../utils/upload.js';
 
 const parseArray = (value) => {
@@ -247,6 +247,53 @@ export const getNextAvailableForListing = async (req, res, next) => {
     const from = req.query.from ? new Date(req.query.from) : new Date();
 
     const result = await getNextAvailableWindow(listing._id, nights, from);
+    res.json(result || {});
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Group bookings span several listings at once - a date is "booked" for the
+// bundle if any one of its rooms has a booking on that date.
+export const getBookedDatesForListings = async (req, res, next) => {
+  try {
+    const ids = String(req.query.ids || '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+
+    if (!ids.length) {
+      return res.json({ bookedRanges: [] });
+    }
+
+    const months = Math.min(Number(req.query.months) || 3, 12);
+    const from = new Date();
+    from.setHours(0, 0, 0, 0);
+    const to = new Date(from);
+    to.setMonth(to.getMonth() + months);
+
+    const rangesPerListing = await Promise.all(ids.map((id) => getBookedDateRanges(id, from, to)));
+    res.json({ bookedRanges: rangesPerListing.flat() });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getNextAvailableForListings = async (req, res, next) => {
+  try {
+    const ids = String(req.query.ids || '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+
+    if (!ids.length) {
+      return res.json({});
+    }
+
+    const nights = Math.max(Number(req.query.nights) || 1, 1);
+    const from = req.query.from ? new Date(req.query.from) : new Date();
+
+    const result = await getNextAvailableWindowMulti(ids, nights, from);
     res.json(result || {});
   } catch (error) {
     next(error);

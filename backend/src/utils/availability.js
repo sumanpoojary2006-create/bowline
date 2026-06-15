@@ -39,6 +39,33 @@ export const getNextAvailableWindow = async (listingId, nights, fromDate, maxDay
   return null;
 };
 
+export const getNextAvailableWindowMulti = async (listingIds, nights, fromDate, maxDaysAhead = 90) => {
+  const ceiling = new Date(fromDate);
+  ceiling.setDate(ceiling.getDate() + maxDaysAhead);
+
+  const rangesPerListing = await Promise.all(
+    listingIds.map((listingId) => getBookedDateRanges(listingId, fromDate, ceiling))
+  );
+  const bookedRanges = rangesPerListing.flat();
+
+  const isWindowFree = (start, end) =>
+    !bookedRanges.some(
+      (r) => r.status === 'confirmed' && new Date(r.startDate) < end && new Date(r.endDate) > start
+    );
+
+  const cursor = new Date(fromDate);
+  while (cursor < ceiling) {
+    const windowEnd = new Date(cursor);
+    windowEnd.setDate(windowEnd.getDate() + nights);
+    if (windowEnd > ceiling) break;
+    if (isWindowFree(cursor, windowEnd)) {
+      return { startDate: new Date(cursor), endDate: windowEnd };
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return null;
+};
+
 export const getPreviousAvailableWindow = async (listingId, nights, fromDate, maxDaysBack = 90) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);

@@ -19,7 +19,7 @@ import PageLoader from '../components/PageLoader';
 import EmptyState from '../components/EmptyState';
 import RoomCalendar from '../components/RoomCalendar';
 import { formatCurrency } from '../lib/formatters';
-import { addDays, ensureCheckoutDate, formatDateParam, parseDateParam } from '../lib/dateUtils';
+import { addDays, ensureCheckoutDate, formatDateParam } from '../lib/dateUtils';
 import { useAuth } from '../context/AuthContext';
 import { getGroupBundleRooms, getNightlyRoomRate, getRoomDisplayOrder, groupBookingTiers, petFee } from '../lib/roomRates';
 
@@ -537,47 +537,20 @@ function HomePage() {
             {bookingStep === 'details' ? (
             <>
             <div className="mt-5 rounded-[1.5rem] border border-lime-100/10 bg-[#0d1710]/80 p-4">
-              {activeBooking.isGroupBundle ? (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="text-xs uppercase tracking-[0.22em] text-lime-200/80">Check-in</label>
-                    <input
-                      type="date"
-                      className="input mt-2"
-                      value={formatDateParam(bookingDraft.startDate)}
-                      onChange={(e) => updateDraftStartDate(parseDateParam(e.target.value, bookingDraft.startDate))}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs uppercase tracking-[0.22em] text-lime-200/80">Check-out</label>
-                    <input
-                      type="date"
-                      className="input mt-2"
-                      value={formatDateParam(bookingDraft.endDate)}
-                      onChange={(e) =>
-                        setBookingDraft((prev) => ({
-                          ...prev,
-                          endDate: ensureCheckoutDate(prev.startDate, parseDateParam(e.target.value, prev.endDate), 1),
-                        }))
-                      }
-                    />
-                  </div>
-                </div>
-              ) : (
-                <RoomCalendar
-                  listingId={activeBooking._id}
-                  listingType="room"
-                  startDate={bookingDraft.startDate}
-                  endDate={bookingDraft.endDate}
-                  onStartDate={updateDraftStartDate}
-                  onEndDate={(date) =>
-                    setBookingDraft((prev) => ({
-                      ...prev,
-                      endDate: ensureCheckoutDate(prev.startDate, date, 1),
-                    }))
-                  }
-                />
-              )}
+              <RoomCalendar
+                listingId={activeBooking.isGroupBundle ? undefined : activeBooking._id}
+                listingIds={activeBooking.isGroupBundle ? getGroupBundleRooms(rooms, activeBooking.bundle).map((room) => room._id) : undefined}
+                listingType="room"
+                startDate={bookingDraft.startDate}
+                endDate={bookingDraft.endDate}
+                onStartDate={updateDraftStartDate}
+                onEndDate={(date) =>
+                  setBookingDraft((prev) => ({
+                    ...prev,
+                    endDate: ensureCheckoutDate(prev.startDate, date, 1),
+                  }))
+                }
+              />
               <div className="mt-4 grid grid-cols-2 gap-3 border-t border-white/10 pt-4 text-sm text-slate-300">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-slate-500">Check-in</p>

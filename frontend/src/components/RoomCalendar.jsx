@@ -95,9 +95,12 @@ function CalendarMonth({ year, month, bookedRanges, startDate, endDate, showEnd,
   );
 }
 
-function RoomCalendar({ listingId, startDate, endDate, onStartDate, onEndDate }) {
+function RoomCalendar({ listingId, listingIds, startDate, endDate, onStartDate, onEndDate }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+
+  const ids = listingIds?.length ? listingIds : listingId ? [listingId] : [];
+  const idsKey = ids.join(',');
 
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [viewYear, setViewYear] = useState(today.getFullYear());
@@ -107,18 +110,24 @@ function RoomCalendar({ listingId, startDate, endDate, onStartDate, onEndDate })
   const [hasEndSelected, setHasEndSelected] = useState(false);
 
   useEffect(() => {
-    if (!listingId) return;
-    api
-      .get(`/listings/${listingId}/booked-dates`, { params: { months: 4 } })
-      .then(({ data }) => setBookedRanges(data.bookedRanges || []))
-      .catch(() => {});
-  }, [listingId]);
+    if (!ids.length) return;
+    const request =
+      ids.length > 1
+        ? api.get('/listings/availability/booked-dates', { params: { ids: idsKey, months: 4 } })
+        : api.get(`/listings/${ids[0]}/booked-dates`, { params: { months: 4 } });
+
+    request.then(({ data }) => setBookedRanges(data.bookedRanges || [])).catch(() => {});
+  }, [idsKey]);
 
   useEffect(() => {
-    if (!startDate || !endDate || !listingId) { setNextAvailable(null); return; }
+    if (!startDate || !endDate || !ids.length) { setNextAvailable(null); return; }
     const nights = Math.max(Math.round((endDate - startDate) / 86400000), 1);
-    api
-      .get(`/listings/${listingId}/next-available`, { params: { from: startDate.toISOString(), nights } })
+    const request =
+      ids.length > 1
+        ? api.get('/listings/availability/next-available', { params: { ids: idsKey, from: startDate.toISOString(), nights } })
+        : api.get(`/listings/${ids[0]}/next-available`, { params: { from: startDate.toISOString(), nights } });
+
+    request
       .then(({ data }) => {
         if (data.startDate && !isSameDay(new Date(data.startDate), startDate)) {
           setNextAvailable(data);
@@ -127,7 +136,7 @@ function RoomCalendar({ listingId, startDate, endDate, onStartDate, onEndDate })
         }
       })
       .catch(() => setNextAvailable(null));
-  }, [startDate, endDate, listingId]);
+  }, [startDate, endDate, idsKey]);
 
   const handleDayClick = (date) => {
     if (selecting === 'start') {

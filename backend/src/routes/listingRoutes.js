@@ -6,9 +6,11 @@ import {
   deleteListing,
   getAdminListings,
   getBookedDatesForListing,
+  getBookedDatesForListings,
   getListingBySlug,
   getListings,
   getNextAvailableForListing,
+  getNextAvailableForListings,
   getRoomsWithAvailability,
   updateListing,
 } from '../controllers/listingController.js';
@@ -20,6 +22,8 @@ const upload = multer({ storage: multer.memoryStorage() });
 router.get('/', getListings);
 router.get('/admin/all', protect, authorize('admin'), getAdminListings);
 router.get('/availability/rooms', getRoomsWithAvailability);
+router.get('/availability/booked-dates', getBookedDatesForListings);
+router.get('/availability/next-available', getNextAvailableForListings);
 router.get('/:id/booked-dates', getBookedDatesForListing);
 router.get('/:id/next-available', getNextAvailableForListing);
 router.get('/:slug', getListingBySlug);
