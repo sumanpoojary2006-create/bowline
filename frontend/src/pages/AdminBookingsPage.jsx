@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
 import { formatCurrency, formatDateRange } from '../lib/formatters';
@@ -8,7 +9,7 @@ import SectionHeader from '../components/SectionHeader';
 import EmptyState from '../components/EmptyState';
 
 const statusSections = [
-  { key: 'pending', title: 'Pending bookings', emptyTitle: 'No pending bookings' },
+  { key: 'pending', title: 'Unpaid / pending bookings', emptyTitle: 'No unpaid pending bookings' },
   { key: 'confirmed', title: 'Confirmed bookings', emptyTitle: 'No confirmed bookings' },
   { key: 'cancelled', title: 'Cancelled bookings', emptyTitle: 'No cancelled bookings' },
 ];
@@ -135,11 +136,16 @@ function AdminBookingsPage() {
 
   return (
     <div className="space-y-6">
-      <SectionHeader
-        eyebrow="Booking Management"
-        title="Track and moderate every reservation"
-        description={`Current filtered booking value: ${formatCurrency(estimatedValue)}`}
-      />
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <SectionHeader
+          eyebrow="Booking Management"
+          title="Track and moderate every reservation"
+          description={`Current filtered booking value: ${formatCurrency(estimatedValue)}`}
+        />
+        <Link to="/admin/calendar" className="btn-secondary whitespace-nowrap">
+          Open Room Calendar
+        </Link>
+      </div>
 
       <form className="grid gap-4 rounded-[2rem] border border-lime-100/10 bg-[#0d1710]/70 p-5" onSubmit={createManualBooking}>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -249,7 +255,7 @@ function AdminBookingsPage() {
         </select>
         <select className="input" value={filters.status} onChange={(event) => setFilters((prev) => ({ ...prev, status: event.target.value }))}>
           <option value="">All statuses</option>
-          <option value="pending">Pending</option>
+          <option value="pending">Unpaid / pending (incl. abandoned)</option>
           <option value="confirmed">Confirmed</option>
           <option value="cancelled">Cancelled</option>
         </select>
@@ -314,7 +320,14 @@ function AdminBookingsPage() {
                   ))}
                 </div>
               ) : (
-                <EmptyState title={section.emptyTitle} description={`Bookings marked as ${section.key} will appear here automatically.`} />
+                <EmptyState
+                  title={section.emptyTitle}
+                  description={
+                    section.key === 'pending'
+                      ? 'Bookings without a completed payment (abandoned checkouts) are hidden by default. Select "Unpaid / pending" above to review them.'
+                      : `Bookings marked as ${section.key} will appear here automatically.`
+                  }
+                />
               )}
             </section>
           );

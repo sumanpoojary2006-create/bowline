@@ -542,6 +542,13 @@ export const getAllBookings = async (req, res, next) => {
     if (status) query.status = status;
     if (paymentStatus) query.paymentStatus = paymentStatus;
     if (user) query.user = user;
+
+    // Unpaid bookings are usually abandoned checkouts (payment never completed
+    // or was cancelled) - hide them from the default admin view unless the
+    // admin explicitly asks for pending/unpaid bookings.
+    if (!status && !paymentStatus) {
+      query.$or = [{ status: { $ne: 'pending' } }, { paymentStatus: 'paid' }];
+    }
     if (startDate || endDate) {
       query.startDate = {};
       if (startDate) query.startDate.$gte = new Date(startDate);
