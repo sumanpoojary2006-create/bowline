@@ -21,7 +21,7 @@ import RoomCalendar from '../components/RoomCalendar';
 import { formatCurrency } from '../lib/formatters';
 import { addDays, ensureCheckoutDate, formatDateParam } from '../lib/dateUtils';
 import { useAuth } from '../context/AuthContext';
-import { getGroupBundleRooms, getNightlyRoomRate, getRoomDisplayOrder, groupBookingTiers, petFee } from '../lib/roomRates';
+import { getGroupBundleRooms, getRoomRate, getRoomDisplayOrder, groupBookingTiers, isWeekendStayDate, petFee } from '../lib/roomRates';
 
 const forestBackdrop =
   'https://images.unsplash.com/photo-1473448912268-2022ce9509d8?auto=format&fit=crop&w=1800&q=80';
@@ -29,15 +29,26 @@ const forestBackdrop =
 const tomorrow = () => addDays(new Date(), 1);
 const increment = (value, amount, min = 0, max = 20) => Math.max(min, Math.min(max, Number(value || 0) + amount));
 
+// Sum a per-night rate (weekday vs weekend) across the stay, mirroring the
+// backend's night-by-night pricing so multi-night stays spanning a weekend
+// total the same on the frontend as the actual charge.
 const computeItemTotals = (listing, draft) => {
-  const nightlyRate = getNightlyRoomRate(listing, draft.startDate);
   const nights = Math.max(Math.round((draft.endDate - draft.startDate) / 86400000), 1);
-  const roomTotal = listing?.isGroupBundle
-    ? nightlyRate * (Number(draft.adults) + Number(draft.children)) * nights
-    : (nightlyRate * Number(draft.adults) + nightlyRate * 0.5 * Number(draft.children)) * nights;
+  const rates = getRoomRate(listing);
+  const guestMultiplier = listing?.isGroupBundle
+    ? Number(draft.adults) + Number(draft.children)
+    : Number(draft.adults) + Number(draft.children) * 0.5;
+
+  let roomTotal = 0;
+  for (let i = 0; i < nights; i += 1) {
+    const night = addDays(draft.startDate, i);
+    const nightlyRate = isWeekendStayDate(night) ? rates.weekend : rates.weekday;
+    roomTotal += nightlyRate * guestMultiplier;
+  }
+
   const petTotal = petFee * Number(draft.pets);
   const grandTotal = roomTotal + petTotal;
-  return { nightlyRate, nights, roomTotal, petTotal, grandTotal };
+  return { nights, roomTotal, petTotal, grandTotal };
 };
 
 // Spread `total` guests across bundle rooms, respecting each room's
