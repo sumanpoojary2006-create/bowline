@@ -990,11 +990,14 @@ export const confirmReschedule = async (req, res, next) => {
     booking.endDate = quote.normalizedEnd;
     booking.unitPrice = quote.pricing.unitPrice;
     booking.totalPrice = quote.pricing.totalPrice;
-    booking.pricingBreakdown = {
+    const newPricingBreakdown = {
       basePrice: quote.pricing.basePrice,
       adjustments: quote.pricing.adjustments,
-      coupon: booking.pricingBreakdown?.coupon,
     };
+    if (booking.pricingBreakdown?.coupon?.code) {
+      newPricingBreakdown.coupon = booking.pricingBreakdown.coupon;
+    }
+    booking.pricingBreakdown = newPricingBreakdown;
     booking.rescheduled = true;
     await booking.save();
 
