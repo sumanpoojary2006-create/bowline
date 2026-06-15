@@ -10,6 +10,28 @@ const typeLabels = {
   camp: 'Camp',
 };
 
+function getDescriptionPoints(text) {
+  if (!text) return [];
+  const cleaned = text.trim().replace(/\.$/, '');
+  const [main, rest] = cleaned.split(/ with /i);
+  if (!rest) return [{ emoji: '✨', text: cleaned }];
+
+  const points = [{ emoji: '🏠', text: main }];
+  rest
+    .split(/,| and /i)
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .forEach((segment) => {
+      let emoji = '✨';
+      if (/bed/i.test(segment)) emoji = '🛏️';
+      else if (/bathroom/i.test(segment)) emoji = '🚿';
+      else if (/breakfast/i.test(segment)) emoji = '🍳';
+      points.push({ emoji, text: segment });
+    });
+
+  return points;
+}
+
 function ListingCard({
   listing,
   onBookNow,
@@ -63,7 +85,18 @@ function ListingCard({
           )}
         </div>
 
-        <p className="line-clamp-2 text-sm text-[#d7ded3]">{listing.shortDescription || listing.description}</p>
+        {isRoom ? (
+          <ul className="space-y-1 text-sm text-[#d7ded3]">
+            {getDescriptionPoints(listing.shortDescription || listing.description).map((point, index) => (
+              <li key={index} className="flex items-start gap-2">
+                <span>{point.emoji}</span>
+                <span>{point.text}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="line-clamp-2 text-sm text-[#d7ded3]">{listing.shortDescription || listing.description}</p>
+        )}
         {isRoom ? (
           <div className="grid grid-cols-2 gap-2 text-xs text-[#c4cec0]">
             <span className="rounded-xl border border-lime-100/10 bg-black/15 px-3 py-2">
