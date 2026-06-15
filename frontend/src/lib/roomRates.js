@@ -1,9 +1,12 @@
-export const roomRates = {
-  'cozy-1': { weekday: 1999, weekend: 2199, min: 2, max: 4, floor: 'Ground' },
-  'cozy-2': { weekday: 1999, weekend: 2199, min: 2, max: 4, floor: 'Ground' },
-  'cozy-mini': { weekday: 1799, weekend: 1999, min: 1, max: 3, floor: '1st' },
-  'dormitory-open-loft': { weekday: 1399, weekend: 1499, min: 1, max: 5, floor: '1st' },
-  'pent-house': { weekday: 2399, weekend: 2599, min: 2, max: 4, floor: '2nd' },
+// Occupancy/display metadata only. Nightly prices come from each listing's
+// own `price`/`manualPriceOverride` (the same value the backend charges) so
+// the displayed total always matches the amount sent to Razorpay.
+export const roomMeta = {
+  'cozy-1': { min: 2, max: 4, floor: 'Ground' },
+  'cozy-2': { min: 2, max: 4, floor: 'Ground' },
+  'cozy-mini': { min: 1, max: 3, floor: '1st' },
+  'dormitory-open-loft': { min: 1, max: 5, floor: '1st' },
+  'pent-house': { min: 2, max: 4, floor: '2nd' },
 };
 
 export const petFee = 400;
@@ -45,15 +48,10 @@ export const getRoomRate = (listing) => {
     return { weekday: tier.weekday, weekend: tier.weekend, min: tier.minGuests, max: tier.maxGuests, floor: '' };
   }
 
-  return (
-    roomRates[listing?.slug] || {
-      weekday: listing?.price || 0,
-      weekend: listing?.price || 0,
-      min: 1,
-      max: listing?.capacity || 1,
-      floor: '',
-    }
-  );
+  const meta = roomMeta[listing?.slug] || { min: 1, max: listing?.capacity || 1, floor: '' };
+  const nightlyPrice = listing?.manualPriceOverride ?? listing?.price ?? 0;
+
+  return { weekday: nightlyPrice, weekend: nightlyPrice, ...meta };
 };
 
 export const isWeekendStayDate = (date) => {
