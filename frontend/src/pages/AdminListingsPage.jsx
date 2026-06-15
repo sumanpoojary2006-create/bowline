@@ -198,14 +198,16 @@ function AdminListingsPage() {
       files.forEach((file) => payload.append('images', file));
 
       if (selectedId) {
-        await api.put(`/listings/${selectedId}`, payload);
+        const { data } = await api.put(`/listings/${selectedId}`, payload);
         toast.success(`${typeConfig[form.type].singular} updated`);
+        setForm(parseListingToForm(data.listing));
+        setFiles([]);
       } else {
         await api.post('/listings', payload);
         toast.success(`${typeConfig[form.type].singular} created`);
+        resetForm(activeType);
       }
 
-      resetForm(activeType);
       fetchListings();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Unable to save listing');
