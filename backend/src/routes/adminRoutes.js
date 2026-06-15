@@ -5,9 +5,11 @@ import {
   deleteCoupon,
   deletePricingRule,
   downloadDailyGuestReportPdf,
+  downloadMonthlyBookingsCsv,
   getCoupons,
   getDailyGuestReport,
   getDashboardOverview,
+  getMonthlyAnalytics,
   getPricingRules,
   getUserBookingHistory,
   getUsers,
@@ -32,6 +34,8 @@ const router = Router();
 router.use(protect, authorize('admin'));
 
 router.get('/overview', getDashboardOverview);
+router.get('/analytics/monthly', getMonthlyAnalytics);
+router.get('/analytics/monthly/csv', downloadMonthlyBookingsCsv);
 router.get('/users', getUsers);
 router.get('/users/:id/bookings', getUserBookingHistory);
 router.get('/pricing-rules', getPricingRules);

@@ -253,3 +253,134 @@ export const sendDailyGuestReportEmailNow = async (req, res, next) => {
     next(error);
   }
 };
+
+// Resolves a "YYYY-MM" query param to a [start, end) date range for that
+// calendar month, defaulting to the current month if absent/invalid.
+function resolveMonthRange(month) {
+  let year, mon;
+  if (month && /^\d{4}-\d{2}$/.test(month)) {
+    [year, mon] = month.split('-').map(Number);
+  } else {
+    const now = new Date();
+    year = now.getFullYear();
+    mon = now.getMonth() + 1;
+  }
+
+  const rangeStart = new Date(year, mon - 1, 1);
+  const rangeEnd = new Date(year, mon, 1);
+  const label = `${year}-${String(mon).padStart(2, '0')}`;
+
+  return { rangeStart, rangeEnd, label };
+}
+
+// Bookings without a completed payment are abandoned checkouts, not real
+// revenue/activity - exclude them from monthly analytics and the export.
+const MONTHLY_BOOKINGS_FILTER = {
+  $or: [{ status: { $ne: 'pending' } }, { paymentStatus: 'paid' }],
+};
+
+export const getMonthlyAnalytics = async (req, res, next) => {
+  try {
+    const { rangeStart, rangeEnd, label } = resolveMonthRange(req.query.month);
+
+    const bookings = await Booking.find({
+      ...MONTHLY_BOOKINGS_FILTER,
+      startDate: { $gte: rangeStart, $lt: rangeEnd },
+    }).populate('listing', 'name type');
+
+    const confirmed = bookings.filter((b) => b.status === 'confirmed');
+    const cancelled = bookings.filter((b) => b.status === 'cancelled');
+
+    const revenue = confirmed.reduce((sum, b) => sum + b.totalPrice, 0);
+
+    const bySource = {};
+    for (const booking of confirmed) {
+      const key = booking.source || 'website';
+      if (!bySource[key]) bySource[key] = { count: 0, revenue: 0 };
+      bySource[key].count += 1;
+      bySource[key].revenue += booking.totalPrice;
+    }
+
+    const byType = {};
+    for (const booking of confirmed) {
+      const key = booking.bookingType;
+      if (!byType[key]) byType[key] = { count: 0, revenue: 0 };
+      byType[key].count += 1;
+      byType[key].revenue += booking.totalPrice;
+    }
+
+    res.json({
+      month: label,
+      revenue,
+      confirmedBookings: confirmed.length,
+      cancelledBookings: cancelled.length,
+      bySource,
+      byType,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+function csvEscape(value) {
+  const str = String(value ?? '');
+  if (/[",\n]/.test(str)) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+export const downloadMonthlyBookingsCsv = async (req, res, next) => {
+  try {
+    const { rangeStart, rangeEnd, label } = resolveMonthRange(req.query.month);
+
+    const bookings = await Booking.find({
+      ...MONTHLY_BOOKINGS_FILTER,
+      startDate: { $gte: rangeStart, $lt: rangeEnd },
+    })
+      .populate('listing', 'name type')
+      .sort({ startDate: 1 });
+
+    const columns = [
+      'Listing',
+      'Type',
+      'Check-in',
+      'Check-out',
+      'Guests',
+      'Guest name',
+      'Email',
+      'Phone',
+      'Source',
+      'Status',
+      'Payment status',
+      'Total price',
+      'Special requests',
+    ];
+
+    const rows = bookings.map((booking) => [
+      booking.listing?.name || '',
+      booking.bookingType,
+      booking.startDate.toISOString().slice(0, 10),
+      booking.endDate.toISOString().slice(0, 10),
+      booking.guests,
+      booking.contactName,
+      booking.contactEmail,
+      booking.contactPhone,
+      booking.source || 'website',
+      booking.status,
+      booking.paymentStatus,
+      booking.totalPrice,
+      booking.specialRequests,
+    ]);
+
+    const csv = [columns, ...rows].map((row) => row.map(csvEscape).join(',')).join('\n');
+
+    res.set({
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="bookings-${label}.csv"`,
+    });
+    res.send(csv);
+  } catch (error) {
+    next(error);
+  }
+};

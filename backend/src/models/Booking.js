@@ -175,7 +175,7 @@ const bookingSchema = new mongoose.Schema(
     },
     source: {
       type: String,
-      enum: ['website', 'admin', 'sheet', 'airbnb'],
+      enum: ['website', 'admin', 'sheet', 'airbnb', 'whatsapp'],
       default: 'website',
     },
     externalId: {

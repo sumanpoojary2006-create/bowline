@@ -396,7 +396,11 @@ export const createAdminManualRoomBooking = async (req, res, next) => {
       contactEmail,
       contactPhone = '',
       specialRequests = '',
+      source = 'whatsapp',
     } = req.body;
+
+    const allowedSources = ['website', 'admin', 'sheet', 'airbnb', 'whatsapp'];
+    const normalizedSource = allowedSources.includes(source) ? source : 'whatsapp';
 
     if (!listingId || !startDate || !endDate || !contactName || !contactEmail) {
       res.status(400);
@@ -470,6 +474,7 @@ export const createAdminManualRoomBooking = async (req, res, next) => {
       contactEmail: String(contactEmail).trim().toLowerCase(),
       contactPhone: String(contactPhone || '').trim(),
       specialRequests: String(specialRequests || '').trim(),
+      source: normalizedSource,
     });
 
     const populatedBooking = await Booking.findById(booking._id)
@@ -535,12 +540,13 @@ export const cancelMyBooking = async (req, res, next) => {
 
 export const getAllBookings = async (req, res, next) => {
   try {
-    const { type, status, paymentStatus, user, startDate, endDate } = req.query;
+    const { type, status, paymentStatus, source, user, startDate, endDate } = req.query;
     const query = {};
 
     if (type) query.bookingType = type;
     if (status) query.status = status;
     if (paymentStatus) query.paymentStatus = paymentStatus;
+    if (source) query.source = source;
     if (user) query.user = user;
 
     // Unpaid bookings are usually abandoned checkouts (payment never completed

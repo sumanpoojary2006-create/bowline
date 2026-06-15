@@ -6,6 +6,7 @@ import {
   CalendarDaysIcon,
   UsersIcon,
 } from '@heroicons/react/24/outline';
+import toast from 'react-hot-toast';
 import api from '../lib/api';
 import { formatCurrency, formatDate } from '../lib/formatters';
 import PageLoader from '../components/PageLoader';
@@ -17,6 +18,19 @@ const TYPE_LABELS = {
   trek: 'Treks',
   camp: 'Camps',
 };
+
+const SOURCE_LABELS = {
+  website: 'Website',
+  airbnb: 'Airbnb',
+  whatsapp: 'WhatsApp',
+  admin: 'Admin',
+  sheet: 'Sheets',
+};
+
+function currentYearMonth() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
 
 function timeAgo(value) {
   const diffMs = Date.now() - new Date(value).getTime();
@@ -47,6 +61,10 @@ function StatCard({ icon: Icon, label, value, hint }) {
 function AdminDashboardPage() {
   const [payload, setPayload] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [month, setMonth] = useState(currentYearMonth());
+  const [analytics, setAnalytics] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     document.title = 'Bowline Admin | Overview';
@@ -61,6 +79,43 @@ function AdminDashboardPage() {
 
     fetchOverview();
   }, []);
+
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      setAnalyticsLoading(true);
+      try {
+        const { data } = await api.get('/admin/analytics/monthly', { params: { month } });
+        setAnalytics(data);
+      } finally {
+        setAnalyticsLoading(false);
+      }
+    };
+
+    fetchAnalytics();
+  }, [month]);
+
+  const downloadMonthlyCsv = async () => {
+    setDownloading(true);
+    try {
+      const { data } = await api.get('/admin/analytics/monthly/csv', {
+        params: { month },
+        responseType: 'blob',
+      });
+
+      const url = window.URL.createObjectURL(new Blob([data], { type: 'text/csv' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `bookings-${month}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Unable to download report');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   if (loading) {
     return <PageLoader label="Loading admin overview..." />;
@@ -93,6 +148,54 @@ function AdminDashboardPage() {
           ))}
         </div>
       ) : null}
+
+      <div className="glass rounded-[2rem] p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-semibold text-white">Monthly analytics</h2>
+            <p className="mt-1 text-sm text-[#b7c2b2]">Revenue and booking activity for the selected month.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              type="month"
+              className="input"
+              value={month}
+              onChange={(event) => setMonth(event.target.value)}
+            />
+            <button className="btn-secondary" onClick={downloadMonthlyCsv} disabled={downloading}>
+              {downloading ? 'Preparing...' : 'Download CSV'}
+            </button>
+          </div>
+        </div>
+
+        {analyticsLoading || !analytics ? (
+          <p className="mt-6 text-sm text-[#b7c2b2]">Loading analytics...</p>
+        ) : (
+          <>
+            <div className="mt-6 grid gap-4 md:grid-cols-3">
+              <StatCard icon={BanknotesIcon} label="Monthly revenue" value={formatCurrency(analytics.revenue)} hint="Confirmed bookings only" />
+              <StatCard icon={CalendarDaysIcon} label="Confirmed bookings" value={analytics.confirmedBookings} />
+              <StatCard icon={CalendarDaysIcon} label="Cancelled bookings" value={analytics.cancelledBookings} />
+            </div>
+
+            {Object.keys(analytics.bySource || {}).length > 0 ? (
+              <div className="mt-6">
+                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">By source</p>
+                <div className="mt-3 flex flex-wrap gap-3">
+                  {Object.entries(analytics.bySource).map(([source, stats]) => (
+                    <div key={source} className="glass rounded-[1.25rem] px-4 py-3 text-sm text-[#cdd6c9]">
+                      <p className="font-semibold text-white">{SOURCE_LABELS[source] || source}</p>
+                      <p className="mt-1 text-xs text-slate-400">
+                        {stats.count} booking{stats.count === 1 ? '' : 's'} · {formatCurrency(stats.revenue)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </>
+        )}
+      </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <div className="glass rounded-[2rem] p-6">

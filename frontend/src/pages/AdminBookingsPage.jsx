@@ -8,6 +8,14 @@ import PageLoader from '../components/PageLoader';
 import SectionHeader from '../components/SectionHeader';
 import EmptyState from '../components/EmptyState';
 
+const SOURCE_LABELS = {
+  website: 'Website',
+  airbnb: 'Airbnb',
+  whatsapp: 'WhatsApp',
+  admin: 'Admin',
+  sheet: 'Sheets',
+};
+
 const statusSections = [
   { key: 'pending', title: 'Unpaid / pending bookings', emptyTitle: 'No unpaid pending bookings' },
   { key: 'confirmed', title: 'Confirmed bookings', emptyTitle: 'No confirmed bookings' },
@@ -24,6 +32,7 @@ function AdminBookingsPage() {
   const [filters, setFilters] = useState({
     type: '',
     status: '',
+    source: '',
   });
   const [manualForm, setManualForm] = useState({
     listingId: '',
@@ -34,6 +43,7 @@ function AdminBookingsPage() {
     contactEmail: '',
     contactPhone: '',
     specialRequests: '',
+    source: 'whatsapp',
   });
 
   const fetchBookings = async () => {
@@ -66,7 +76,7 @@ function AdminBookingsPage() {
 
   useEffect(() => {
     fetchBookings();
-  }, [filters.type, filters.status]);
+  }, [filters.type, filters.status, filters.source]);
 
   const updateBooking = async (id, patch) => {
     try {
@@ -102,6 +112,7 @@ function AdminBookingsPage() {
         contactPhone: '',
         specialRequests: '',
       }));
+      // keep prev.source so the next manual entry reuses the same channel
       fetchBookings();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Unable to create manual booking');
@@ -236,6 +247,17 @@ function AdminBookingsPage() {
             onChange={(event) => setManualForm((prev) => ({ ...prev, contactPhone: event.target.value }))}
             placeholder="Guest phone"
           />
+          <select
+            className="input"
+            value={manualForm.source}
+            onChange={(event) => setManualForm((prev) => ({ ...prev, source: event.target.value }))}
+          >
+            <option value="whatsapp">WhatsApp</option>
+            <option value="website">Website</option>
+            <option value="airbnb">Airbnb</option>
+            <option value="admin">Admin</option>
+            <option value="sheet">Sheets</option>
+          </select>
         </div>
 
         <textarea
@@ -246,7 +268,7 @@ function AdminBookingsPage() {
         />
       </form>
 
-      <div className="grid gap-4 rounded-[2rem] border border-lime-100/10 bg-[#0d1710]/70 p-4 md:grid-cols-2">
+      <div className="grid gap-4 rounded-[2rem] border border-lime-100/10 bg-[#0d1710]/70 p-4 md:grid-cols-3">
         <select className="input" value={filters.type} onChange={(event) => setFilters((prev) => ({ ...prev, type: event.target.value }))}>
           <option value="">All types</option>
           <option value="room">Rooms</option>
@@ -258,6 +280,14 @@ function AdminBookingsPage() {
           <option value="pending">Unpaid / pending (incl. abandoned)</option>
           <option value="confirmed">Confirmed</option>
           <option value="cancelled">Cancelled</option>
+        </select>
+        <select className="input" value={filters.source} onChange={(event) => setFilters((prev) => ({ ...prev, source: event.target.value }))}>
+          <option value="">All sources</option>
+          <option value="website">Website</option>
+          <option value="airbnb">Airbnb</option>
+          <option value="whatsapp">WhatsApp</option>
+          <option value="admin">Admin</option>
+          <option value="sheet">Sheets</option>
         </select>
       </div>
 
@@ -280,7 +310,12 @@ function AdminBookingsPage() {
                     <div key={booking._id} className="glass rounded-[2rem] p-5">
                       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
                         <div>
-                          <p className="text-xs uppercase tracking-[0.22em] text-slate-500">{booking.bookingType}</p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-xs uppercase tracking-[0.22em] text-slate-500">{booking.bookingType}</p>
+                            <span className="rounded-full bg-lime-200/10 px-3 py-1 text-xs font-semibold text-lime-200">
+                              {SOURCE_LABELS[booking.source] || booking.source || 'Website'}
+                            </span>
+                          </div>
                           <h3 className="mt-2 text-xl font-semibold text-white">{booking.listing?.name}</h3>
                           <p className="mt-2 text-sm text-slate-300">{booking.user?.name} • {booking.user?.email}</p>
                           <p className="mt-2 text-sm text-slate-300">Stay dates: {formatDateRange(booking.startDate, booking.endDate)}</p>
