@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { MinusIcon, PlusIcon, ShoppingBagIcon, TagIcon, TrashIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { ChevronDownIcon, MinusIcon, PlusIcon, ShoppingBagIcon, TagIcon, TrashIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
@@ -85,6 +85,8 @@ function HomePage() {
   const [couponOffer, setCouponOffer] = useState(null);
   const [couponChecking, setCouponChecking] = useState(false);
   const [roomCart, setRoomCart] = useState([]);
+  const [policyExpanded, setPolicyExpanded] = useState(false);
+  const [policyAccepted, setPolicyAccepted] = useState(false);
 
   useEffect(() => {
     document.title = 'Bowline Nature Stay | Book Your Hillside Stay';
@@ -114,6 +116,8 @@ function HomePage() {
     setBookingStep('details');
     setCouponCode('');
     setCouponOffer(null);
+    setPolicyExpanded(false);
+    setPolicyAccepted(false);
     const adults = Math.max(Number(filters.guests || 2), listing.minOccupancy || 1);
     setBookingDraft({
       startDate: filters.startDate,
@@ -853,6 +857,61 @@ function HomePage() {
                 </div>
 
                 <div className="rounded-[1.5rem] border border-lime-100/10 bg-[#0d1710]/80 p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-lime-200/80">Know Before You Go</p>
+                  <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-[#cdd6c9]">
+                    <div className="rounded-[1rem] border border-lime-100/10 bg-black/20 px-3 py-2">
+                      <p className="text-xs uppercase tracking-wide text-[#aab5a5]">Check-in</p>
+                      <p className="font-semibold text-white">1:00 PM</p>
+                    </div>
+                    <div className="rounded-[1rem] border border-lime-100/10 bg-black/20 px-3 py-2">
+                      <p className="text-xs uppercase tracking-wide text-[#aab5a5]">Check-out</p>
+                      <p className="font-semibold text-white">10:00 AM</p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="mt-3 flex w-full items-center justify-between rounded-[1rem] border border-lime-100/10 bg-black/20 px-3 py-2 text-left text-sm font-semibold text-white"
+                    onClick={() => setPolicyExpanded((prev) => !prev)}
+                  >
+                    Cancellation &amp; Rescheduling Policy
+                    <ChevronDownIcon className={`h-4 w-4 shrink-0 transition-transform ${policyExpanded ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {policyExpanded ? (
+                    <div className="mt-2 space-y-3 rounded-[1rem] border border-lime-100/10 bg-black/20 p-3 text-xs text-[#cdd6c9]">
+                      <div>
+                        <p className="font-semibold text-white">Cancellation &amp; Refund</p>
+                        <ul className="mt-1 list-disc space-y-1 pl-4">
+                          <li>Full refund for cancellations made up to 14 days before check-in.</li>
+                          <li>50% refund for cancellations made between 7 to 14 days before check-in date.</li>
+                          <li>No refund for cancellations made less than 7 days before check-in date.</li>
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-white">Rescheduling Policy</p>
+                        <ul className="mt-1 list-disc space-y-1 pl-4">
+                          <li>No charges for rescheduling if done more than 14 days before check-in date.</li>
+                          <li>A 10% fee will apply on the total stay cost for rescheduling made between 7 to 14 days before check-in date.</li>
+                          <li>Rescheduling is not permitted within 7 days of the check-in date.</li>
+                          <li>Post-rescheduling cancellation: once a booking is rescheduled, the option to cancel the booking will no longer be available.</li>
+                        </ul>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <label className="mt-3 flex items-start gap-2 text-sm text-[#cdd6c9]">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-lime-300"
+                      checked={policyAccepted}
+                      onChange={(e) => setPolicyAccepted(e.target.checked)}
+                    />
+                    <span>I have read and agree to the cancellation &amp; rescheduling policy.</span>
+                  </label>
+                </div>
+
+                <div className="rounded-[1.5rem] border border-lime-100/10 bg-[#0d1710]/80 p-4">
                   <p className="text-xs uppercase tracking-[0.22em] text-lime-200/80">Your details</p>
                   <div className="mt-3 space-y-3">
                     <div>
@@ -902,6 +961,7 @@ function HomePage() {
                     onClick={proceedToBook}
                     disabled={
                       placingBooking ||
+                      !policyAccepted ||
                       !bookingDraft.contactName.trim() ||
                       !bookingDraft.contactEmail.trim() ||
                       !bookingDraft.contactPhone.trim()
