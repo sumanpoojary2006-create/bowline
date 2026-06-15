@@ -671,8 +671,16 @@ function HomePage() {
             </div>
 
             <div className="mt-6 flex gap-3">
-              <button className="btn-secondary flex-1" onClick={() => setActiveBooking(null)} type="button">
-                Cancel
+              <button
+                className="btn-secondary flex-1 border-lime-100/30 bg-lime-200/10 text-lime-100 hover:bg-lime-200/20 disabled:opacity-50"
+                onClick={addCurrentRoomToCart}
+                disabled={!modalMealSelectionComplete}
+                type="button"
+              >
+                <span className="inline-flex items-center justify-center gap-2">
+                  <PlusIcon className="h-4 w-4" />
+                  Add Another Room
+                </span>
               </button>
               <button
                 className="btn-primary flex-1 disabled:opacity-50"
@@ -875,15 +883,12 @@ function HomePage() {
 
                 <div className="flex gap-3">
                   <button
-                    className="btn-secondary flex-1 border-lime-100/30 bg-lime-200/10 text-lime-100 hover:bg-lime-200/20 disabled:opacity-50"
-                    onClick={addCurrentRoomToCart}
-                    disabled={placingBooking || !modalMealSelectionComplete}
+                    className="btn-secondary flex-1 disabled:opacity-50"
+                    onClick={() => setActiveBooking(null)}
+                    disabled={placingBooking}
                     type="button"
                   >
-                    <span className="inline-flex items-center justify-center gap-2">
-                      <PlusIcon className="h-4 w-4" />
-                      Add Another Room
-                    </span>
+                    Cancel
                   </button>
                   <button
                     className="btn-primary flex-1 disabled:opacity-50"
