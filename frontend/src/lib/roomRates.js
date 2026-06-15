@@ -61,7 +61,7 @@ export const getRoomRate = (listing) => {
 
 export const isWeekendStayDate = (date) => {
   const day = new Date(date).getDay();
-  return day === 5 || day === 6;
+  return day === 0 || day === 6;
 };
 
 export const getNightlyRoomRate = (listing, date) => {

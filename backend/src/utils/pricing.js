@@ -30,7 +30,7 @@ export const getAppliedRules = async (listing, startDate, endDate) => {
 
 const isWeekendNight = (date) => {
   const day = dayjs(date).day();
-  return day === 5 || day === 6;
+  return day === 0 || day === 6;
 };
 
 const isRuleApplicableForDate = (rule, date) => {
