@@ -1,5 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ChevronDownIcon, MinusIcon, PlusIcon, ShoppingBagIcon, TagIcon, TrashIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  MinusIcon,
+  PlusIcon,
+  ShoppingBagIcon,
+  TagIcon,
+  TrashIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/outline';
 import { useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
@@ -60,6 +70,13 @@ function HomePage() {
     guests: '2',
   });
   const [rooms, setRooms] = useState([]);
+  const roomsScrollRef = useRef(null);
+
+  const scrollRooms = (direction) => {
+    const container = roomsScrollRef.current;
+    if (!container) return;
+    container.scrollBy({ left: direction * container.clientWidth * 0.9, behavior: 'smooth' });
+  };
   const [loading, setLoading] = useState(true);
   const [activeHighlight, setActiveHighlight] = useState('room');
   const [activeBooking, setActiveBooking] = useState(null);
@@ -88,6 +105,7 @@ function HomePage() {
   const [policyExpanded, setPolicyExpanded] = useState(false);
   const [houseRulesExpanded, setHouseRulesExpanded] = useState(false);
   const [policyAccepted, setPolicyAccepted] = useState(false);
+  const [modalImageIndex, setModalImageIndex] = useState(0);
 
   useEffect(() => {
     document.title = 'Bowline Nature Stay | Book Your Hillside Stay';
@@ -120,6 +138,7 @@ function HomePage() {
     setPolicyExpanded(false);
     setHouseRulesExpanded(false);
     setPolicyAccepted(false);
+    setModalImageIndex(0);
     const adults = Math.max(Number(filters.guests || 2), listing.minOccupancy || 1);
     setBookingDraft({
       startDate: filters.startDate,
@@ -166,6 +185,11 @@ function HomePage() {
 
   const proceedToBook = async () => {
     if (!activeBooking) return;
+
+    if (!policyAccepted) {
+      toast.error('Please read and check the cancellation & rescheduling policy and house rules.');
+      return;
+    }
 
     setPlacingBooking(true);
     try {
@@ -357,21 +381,42 @@ function HomePage() {
                 {loading ? (
                   <PageLoader label="Loading rooms..." />
                 ) : rooms.length ? (
-                  <div className="flex flex-col gap-5 sm:flex-row sm:snap-x sm:snap-mandatory sm:gap-5 sm:overflow-x-auto sm:pb-2">
-                    {rooms.map((listing) => (
-                      <div
-                        key={listing._id}
-                        className="w-full flex-shrink-0 sm:w-[45%] sm:snap-start lg:w-[calc((100%-2.5rem)/3)]"
-                      >
-                        <ListingCard
-                          listing={listing}
-                          onBookNow={openBookingPrompt}
-                          compact
-                          detailLabel="View More"
-                          showPrice
-                        />
-                      </div>
-                    ))}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      aria-label="Scroll rooms left"
+                      onClick={() => scrollRooms(-1)}
+                      className="absolute left-0 top-1/2 z-10 hidden -translate-x-3 -translate-y-1/2 rounded-full border border-lime-100/15 bg-black/50 p-2 text-white backdrop-blur transition hover:bg-black/70 sm:flex"
+                    >
+                      <ChevronLeftIcon className="h-5 w-5" />
+                    </button>
+                    <div
+                      ref={roomsScrollRef}
+                      className="flex flex-col gap-5 sm:flex-row sm:snap-x sm:snap-mandatory sm:gap-5 sm:overflow-x-auto sm:pb-2"
+                    >
+                      {rooms.map((listing) => (
+                        <div
+                          key={listing._id}
+                          className="w-full flex-shrink-0 sm:w-[45%] sm:snap-start lg:w-[calc((100%-2.5rem)/3)]"
+                        >
+                          <ListingCard
+                            listing={listing}
+                            onBookNow={openBookingPrompt}
+                            compact
+                            detailLabel="View More"
+                            showPrice
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      aria-label="Scroll rooms right"
+                      onClick={() => scrollRooms(1)}
+                      className="absolute right-0 top-1/2 z-10 hidden translate-x-3 -translate-y-1/2 rounded-full border border-lime-100/15 bg-black/50 p-2 text-white backdrop-blur transition hover:bg-black/70 sm:flex"
+                    >
+                      <ChevronRightIcon className="h-5 w-5" />
+                    </button>
                   </div>
                 ) : (
                   <EmptyState title="No rooms yet" description="Add room listings from the admin panel." />
@@ -476,6 +521,51 @@ function HomePage() {
                 <XMarkIcon className="h-5 w-5" />
               </button>
             </div>
+
+            {activeBooking.images?.length ? (
+              <div className="relative mt-4 overflow-hidden rounded-[1.5rem]">
+                <img
+                  src={activeBooking.images[modalImageIndex]}
+                  alt={`${activeBooking.name} photo ${modalImageIndex + 1}`}
+                  className="h-48 w-full object-cover sm:h-64"
+                />
+                {activeBooking.images.length > 1 ? (
+                  <>
+                    <button
+                      type="button"
+                      aria-label="Previous photo"
+                      onClick={() =>
+                        setModalImageIndex((prev) => (prev - 1 + activeBooking.images.length) % activeBooking.images.length)
+                      }
+                      className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full border border-lime-100/15 bg-black/50 p-2 text-white backdrop-blur transition hover:bg-black/70"
+                    >
+                      <ChevronLeftIcon className="h-5 w-5" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Next photo"
+                      onClick={() => setModalImageIndex((prev) => (prev + 1) % activeBooking.images.length)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full border border-lime-100/15 bg-black/50 p-2 text-white backdrop-blur transition hover:bg-black/70"
+                    >
+                      <ChevronRightIcon className="h-5 w-5" />
+                    </button>
+                    <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-1.5">
+                      {activeBooking.images.map((_, index) => (
+                        <button
+                          key={index}
+                          type="button"
+                          aria-label={`Go to photo ${index + 1}`}
+                          onClick={() => setModalImageIndex(index)}
+                          className={`h-1.5 w-4 rounded-full transition ${
+                            index === modalImageIndex ? 'bg-lime-200' : 'bg-white/30'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
 
             {bookingStep === 'details' ? (
             <>
@@ -673,12 +763,8 @@ function HomePage() {
             </div>
 
             <div className="mt-5 rounded-[1.25rem] border border-lime-100/10 bg-black/20 p-4 text-sm text-[#cdd6c9]">
-              <div className="flex items-center justify-between">
-                <span>Nightly rate ({modalTotalGuests} guest{modalTotalGuests === 1 ? '' : 's'})</span>
-                <span className="font-semibold text-[#f5f0dd]">{formatCurrency(selectedNightlyRate)}</span>
-              </div>
-              <div className="mt-1 flex items-center justify-between text-base font-bold text-lime-200">
-                <span>Estimated per night</span>
+              <div className="flex items-center justify-between text-base font-bold text-lime-200">
+                <span>Total</span>
                 <span>{formatCurrency(modalEstimate)}</span>
               </div>
             </div>
@@ -1041,7 +1127,6 @@ function HomePage() {
                     onClick={proceedToBook}
                     disabled={
                       placingBooking ||
-                      !policyAccepted ||
                       !bookingDraft.contactName.trim() ||
                       !bookingDraft.contactEmail.trim() ||
                       !bookingDraft.contactPhone.trim()
