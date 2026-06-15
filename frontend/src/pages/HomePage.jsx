@@ -386,13 +386,7 @@ function HomePage() {
   };
 
   const activeTotals = activeBooking ? computeItemTotals(activeBooking, bookingDraft) : null;
-  const selectedNightlyRate = activeTotals?.nightlyRate || 0;
   const modalTotalGuests = Number(bookingDraft.adults) + Number(bookingDraft.children);
-  const modalEstimate = activeBooking?.isGroupBundle
-    ? selectedNightlyRate * (Number(bookingDraft.adults) + Number(bookingDraft.children)) + petFee * Number(bookingDraft.pets)
-    : selectedNightlyRate * Number(bookingDraft.adults) +
-      selectedNightlyRate * 0.5 * Number(bookingDraft.children) +
-      petFee * Number(bookingDraft.pets);
   const modalNights = activeTotals?.nights || 0;
   const modalRoomTotal = activeTotals?.roomTotal || 0;
   const modalPetTotal = activeTotals?.petTotal || 0;
@@ -745,7 +739,7 @@ function HomePage() {
             <div className="mt-5 rounded-[1.25rem] border border-lime-100/10 bg-black/20 p-4 text-sm text-[#cdd6c9]">
               <div className="flex items-center justify-between text-base font-bold text-lime-200">
                 <span>Total</span>
-                <span>{formatCurrency(modalEstimate)}</span>
+                <span>{formatCurrency(modalGrandTotal)}</span>
               </div>
             </div>
 
