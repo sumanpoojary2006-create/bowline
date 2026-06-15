@@ -26,5 +26,11 @@
       "src": "/(.*)",
       "dest": "/index.html"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/sync/airbnb/cron",
+      "schedule": "0 * * * *"
+    }
   ]
 }

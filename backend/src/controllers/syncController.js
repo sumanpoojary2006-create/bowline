@@ -386,6 +386,24 @@ export const getCalendarFeed = async (req, res, next) => {
   }
 };
 
+// ── GET /api/sync/airbnb/cron ───────────────────────────────────────────────
+// Called by Vercel Cron on a schedule. Authenticated via the CRON_SECRET env
+// var, which Vercel automatically sends as `Authorization: Bearer <secret>`.
+export const syncAirbnbCron = async (req, res, next) => {
+  try {
+    const auth = req.headers.authorization || '';
+    if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
+      res.status(401);
+      throw new Error('Invalid cron secret');
+    }
+
+    const results = await syncAllAirbnbCalendars();
+    res.json({ results });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // ── POST /api/sync/airbnb ───────────────────────────────────────────────────
 // Admin-triggered manual sync. Body may include { listingId } to sync just
 // one room, otherwise syncs every room with an airbnbIcalUrl configured.

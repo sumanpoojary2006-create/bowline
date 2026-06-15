@@ -8,6 +8,7 @@ import {
   importLegacy,
   getCalendarFeed,
   syncAirbnb,
+  syncAirbnbCron,
 } from '../controllers/syncController.js';
 
 const router = Router();
@@ -15,6 +16,9 @@ const router = Router();
 // Apps Script calls this — authenticated by secret in body, no JWT
 router.post('/inbound', inboundWebhook);
 router.post('/bookings-inbound', bookingRowInbound);
+
+// Vercel Cron calls this — authenticated by CRON_SECRET bearer token
+router.get('/airbnb/cron', syncAirbnbCron);
 
 // Public iCal feed for Airbnb to import
 router.get('/calendar/:id', getCalendarFeed);
