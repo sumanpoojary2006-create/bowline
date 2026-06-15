@@ -884,11 +884,11 @@ function HomePage() {
                 <div className="flex gap-3">
                   <button
                     className="btn-secondary flex-1 disabled:opacity-50"
-                    onClick={() => setActiveBooking(null)}
+                    onClick={() => setBookingStep('details')}
                     disabled={placingBooking}
                     type="button"
                   >
-                    Cancel
+                    Back
                   </button>
                   <button
                     className="btn-primary flex-1 disabled:opacity-50"
