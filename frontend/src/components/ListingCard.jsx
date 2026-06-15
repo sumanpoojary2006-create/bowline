@@ -10,13 +10,18 @@ const typeLabels = {
   camp: 'Camp',
 };
 
+function capitalize(text) {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 function getDescriptionPoints(text) {
   if (!text) return [];
   const cleaned = text.trim().replace(/\.$/, '');
   const [main, rest] = cleaned.split(/ with /i);
-  if (!rest) return [{ emoji: '✨', text: cleaned }];
+  if (!rest) return [{ emoji: '✨', text: capitalize(cleaned) }];
 
-  const points = [{ emoji: '🏠', text: main }];
+  const mainLabel = main.replace(/-floor pent house$/i, ' floor');
+  const points = [{ emoji: '🏠', text: capitalize(mainLabel) }];
   rest
     .split(/,| and /i)
     .map((segment) => segment.trim())
@@ -26,7 +31,7 @@ function getDescriptionPoints(text) {
       if (/bed/i.test(segment)) emoji = '🛏️';
       else if (/bathroom/i.test(segment)) emoji = '🚿';
       else if (/breakfast/i.test(segment)) emoji = '🍳';
-      points.push({ emoji, text: segment });
+      points.push({ emoji, text: capitalize(segment) });
     });
 
   return points;
