@@ -15,14 +15,46 @@ export const getRoomDisplayOrder = (listing) => {
   return index === -1 ? ROOM_DISPLAY_ORDER.length : index;
 };
 
-export const getRoomRate = (listing) =>
-  roomRates[listing?.slug] || {
-    weekday: listing?.price || 0,
-    weekend: listing?.price || 0,
-    min: 1,
-    max: listing?.capacity || 1,
-    floor: '',
-  };
+// Group booking bundles: fixed per-person rates that override each room's
+// individual tariff when guests book the whole bundle together.
+export const groupBookingTiers = {
+  'except-pent-house': {
+    key: 'except-pent-house',
+    label: 'Group Booking 1',
+    minGuests: 10,
+    maxGuests: 15,
+    weekday: 1699,
+    weekend: 1899,
+  },
+  'full-house': {
+    key: 'full-house',
+    label: 'Group Booking 2',
+    minGuests: 16,
+    maxGuests: 20,
+    weekday: 1599,
+    weekend: 1699,
+  },
+};
+
+export const getGroupBundleRooms = (rooms, bundle) =>
+  bundle === 'full-house' ? rooms : rooms.filter((room) => room.slug !== 'pent-house');
+
+export const getRoomRate = (listing) => {
+  if (listing?.isGroupBundle) {
+    const tier = groupBookingTiers[listing.bundle];
+    return { weekday: tier.weekday, weekend: tier.weekend, min: tier.minGuests, max: tier.maxGuests, floor: '' };
+  }
+
+  return (
+    roomRates[listing?.slug] || {
+      weekday: listing?.price || 0,
+      weekend: listing?.price || 0,
+      min: 1,
+      max: listing?.capacity || 1,
+      floor: '',
+    }
+  );
+};
 
 export const isWeekendStayDate = (date) => {
   const day = new Date(date).getDay();
@@ -32,20 +64,4 @@ export const isWeekendStayDate = (date) => {
 export const getNightlyRoomRate = (listing, date) => {
   const rates = getRoomRate(listing);
   return isWeekendStayDate(date) ? rates.weekend : rates.weekday;
-};
-
-export const getGroupRoomsForGuests = (rooms, guests) => {
-  const guestCount = Number(guests || 0);
-  if (guestCount >= 15 && guestCount <= 20) return rooms;
-  if (guestCount >= 10 && guestCount < 15) {
-    return rooms.filter((room) => room.slug !== 'pent-house');
-  }
-  return [];
-};
-
-export const getGroupBookingLabel = (guests) => {
-  const guestCount = Number(guests || 0);
-  if (guestCount >= 15 && guestCount <= 20) return 'Full house';
-  if (guestCount >= 10 && guestCount < 15) return 'All rooms except Pent House';
-  return 'Available for 10 to 20 guests';
 };

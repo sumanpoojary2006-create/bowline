@@ -63,14 +63,17 @@ export const calculateBookingPrice = async ({
   adultGuests,
   childGuests = 0,
   pets = 0,
+  groupRate = null,
 }) => {
   const units = calculateDurationUnits(bookingType, startDate, endDate);
   const effectiveBase = listing.manualPriceOverride ?? listing.price;
-  const rules = await getAppliedRules(listing, startDate, endDate);
+  const rules = groupRate ? [] : await getAppliedRules(listing, startDate, endDate);
   const adults = Number(adultGuests ?? guests ?? 1);
   const children = Number(childGuests || 0);
   const petCount = Number(pets || 0);
-  const payableGuestMultiplier = adults + children * 0.5;
+  // Group bookings charge every guest (adults and children) the same flat
+  // per-person tariff, with no half-price discount for children.
+  const payableGuestMultiplier = groupRate ? adults + children : adults + children * 0.5;
 
   if (bookingType === 'room') {
     const start = dayjs(startDate).startOf('day');
@@ -79,7 +82,7 @@ export const calculateBookingPrice = async ({
     let totalPrice = 0;
 
     for (let cursor = start; cursor.isBefore(end, 'day'); cursor = cursor.add(1, 'day')) {
-      let nightlyPrice = effectiveBase;
+      let nightlyPrice = groupRate ? (isWeekendNight(cursor) ? groupRate.weekend : groupRate.weekday) : effectiveBase;
 
       for (const rule of rules) {
         if (!isRuleApplicableForDate(rule, cursor)) {

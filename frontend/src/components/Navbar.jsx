@@ -71,11 +71,8 @@ function Navbar() {
             </>
           ) : (
             <>
-              <Link className="btn-secondary" to="/manage-booking">
+              <Link className="btn-primary" to="/manage-booking">
                 Manage Booking
-              </Link>
-              <Link className="btn-primary" to="/stays">
-                Book Now
               </Link>
             </>
           )}
@@ -137,12 +134,9 @@ function Navbar() {
                   </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  <Link className="btn-secondary" onClick={() => setOpen(false)} to="/manage-booking">
+                <div className="grid grid-cols-1 gap-2">
+                  <Link className="btn-primary w-full" onClick={() => setOpen(false)} to="/manage-booking">
                     Manage Booking
-                  </Link>
-                  <Link className="btn-primary" onClick={() => setOpen(false)} to="/stays">
-                    Book Now
                   </Link>
                 </div>
               )}

@@ -24,6 +24,20 @@ function unsyncFromSheet(booking) {
   clearBookingFromSheet(booking).catch(() => {});
 }
 
+// Only these per-person group booking tariffs are accepted from clients,
+// preventing arbitrary price overrides via the multi-booking endpoint.
+const ALLOWED_GROUP_RATES = [
+  { weekday: 1699, weekend: 1899 }, // Group Booking 1 (10-15 guests, all rooms except Pent House)
+  { weekday: 1599, weekend: 1699 }, // Group Booking 2 (16-20 guests, full house)
+];
+
+function isAllowedGroupRate(rate) {
+  if (!rate) return false;
+  return ALLOWED_GROUP_RATES.some(
+    (allowed) => allowed.weekday === Number(rate.weekday) && allowed.weekend === Number(rate.weekend)
+  );
+}
+
 export const createBooking = async (req, res, next) => {
   try {
     const {
@@ -183,7 +197,10 @@ export const createMultiBooking = async (req, res, next) => {
     const preparedItems = [];
 
     for (const item of items) {
-      const { listingId, startDate, endDate, guests, adultGuests, childGuests = 0, pets = 0, vegCount = 0, nonVegCount = 0 } = item;
+      const { listingId, startDate, endDate, guests, adultGuests, childGuests = 0, pets = 0, vegCount = 0, nonVegCount = 0, groupRate } = item;
+      const appliedGroupRate = isGroupBooking && isAllowedGroupRate(groupRate)
+        ? { weekday: Number(groupRate.weekday), weekend: Number(groupRate.weekend) }
+        : null;
       const listing = await Listing.findById(listingId);
 
       if (!listing || !listing.active) {
@@ -226,6 +243,7 @@ export const createMultiBooking = async (req, res, next) => {
         adultGuests: normalizedAdults,
         childGuests: normalizedChildren,
         pets: normalizedPets,
+        groupRate: appliedGroupRate,
       });
 
       preparedItems.push({

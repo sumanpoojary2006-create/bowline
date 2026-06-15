@@ -20,9 +20,8 @@ import EmptyState from '../components/EmptyState';
 import RoomCalendar from '../components/RoomCalendar';
 import { formatCurrency } from '../lib/formatters';
 import { addDays, ensureCheckoutDate, formatDateParam, parseDateParam } from '../lib/dateUtils';
-import { useBookingCart } from '../context/BookingCartContext';
 import { useAuth } from '../context/AuthContext';
-import { getGroupBookingLabel, getGroupRoomsForGuests, getNightlyRoomRate, getRoomDisplayOrder, petFee } from '../lib/roomRates';
+import { getGroupBundleRooms, getNightlyRoomRate, getRoomDisplayOrder, groupBookingTiers, petFee } from '../lib/roomRates';
 
 const forestBackdrop =
   'https://images.unsplash.com/photo-1473448912268-2022ce9509d8?auto=format&fit=crop&w=1800&q=80';
@@ -33,11 +32,69 @@ const increment = (value, amount, min = 0, max = 20) => Math.max(min, Math.min(m
 const computeItemTotals = (listing, draft) => {
   const nightlyRate = getNightlyRoomRate(listing, draft.startDate);
   const nights = Math.max(Math.round((draft.endDate - draft.startDate) / 86400000), 1);
-  const roomTotal =
-    (nightlyRate * Number(draft.adults) + nightlyRate * 0.5 * Number(draft.children)) * nights;
+  const roomTotal = listing?.isGroupBundle
+    ? nightlyRate * (Number(draft.adults) + Number(draft.children)) * nights
+    : (nightlyRate * Number(draft.adults) + nightlyRate * 0.5 * Number(draft.children)) * nights;
   const petTotal = petFee * Number(draft.pets);
   const grandTotal = roomTotal + petTotal;
   return { nightlyRate, nights, roomTotal, petTotal, grandTotal };
+};
+
+// Spread `total` guests across bundle rooms, respecting each room's
+// min/max occupancy so no single room is over- or under-booked.
+const distributeGuestsAcrossRooms = (totalGuests, bundleRooms) => {
+  const counts = bundleRooms.map((room) => room.minOccupancy || 1);
+  let remaining = totalGuests - counts.reduce((sum, count) => sum + count, 0);
+
+  // Large groups can exceed each room's normal maxOccupancy (extra mattresses/floor
+  // space), so once minimums are met, spread any remainder round-robin without a cap.
+  let i = 0;
+  while (remaining > 0) {
+    counts[i % counts.length] += 1;
+    remaining -= 1;
+    i += 1;
+  }
+
+  return counts;
+};
+
+// Split a count proportionally across rooms (by guest share) while keeping
+// the per-room totals exact and never exceeding that room's guest count.
+const splitProportionally = (total, guestsForRoom) => {
+  let remainingTotal = total;
+  let remainingGuests = guestsForRoom.reduce((sum, count) => sum + count, 0);
+
+  return guestsForRoom.map((guests) => {
+    const share = remainingGuests > 0 ? Math.round((remainingTotal / remainingGuests) * guests) : 0;
+    remainingTotal -= share;
+    remainingGuests -= guests;
+    return share;
+  });
+};
+
+const buildGroupBookingItems = (listing, draft, rooms) => {
+  const bundleRooms = getGroupBundleRooms(rooms, listing.bundle);
+  const tier = groupBookingTiers[listing.bundle];
+  const adults = Number(draft.adults);
+  const children = Number(draft.children);
+  const totalGuests = adults + children;
+
+  const guestsForRoom = distributeGuestsAcrossRooms(totalGuests, bundleRooms);
+  const adultsForRoom = splitProportionally(adults, guestsForRoom);
+  const vegForRoom = splitProportionally(draft.vegCount, guestsForRoom);
+
+  return bundleRooms.map((room, index) => ({
+    listingId: room._id,
+    startDate: formatDateParam(draft.startDate),
+    endDate: formatDateParam(draft.endDate),
+    guests: guestsForRoom[index],
+    adultGuests: adultsForRoom[index],
+    childGuests: guestsForRoom[index] - adultsForRoom[index],
+    pets: index === 0 ? Number(draft.pets) : 0,
+    vegCount: vegForRoom[index],
+    nonVegCount: guestsForRoom[index] - vegForRoom[index],
+    groupRate: { weekday: tier.weekday, weekend: tier.weekend },
+  }));
 };
 
 const toBookingItem = (listing, draft) => ({
@@ -62,7 +119,6 @@ const clampMealCounts = (draft) => {
 function HomePage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { addItem } = useBookingCart();
   const { user } = useAuth();
   const [filters] = useState({
     startDate: tomorrow(),
@@ -71,14 +127,8 @@ function HomePage() {
   });
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showGroupBooking, setShowGroupBooking] = useState(false);
   const [activeBooking, setActiveBooking] = useState(null);
   const [bookingStep, setBookingStep] = useState('details');
-  const [groupGuests, setGroupGuests] = useState(10);
-  const [groupDates, setGroupDates] = useState({
-    startDate: tomorrow(),
-    endDate: addDays(tomorrow(), 1),
-  });
   const [bookingDraft, setBookingDraft] = useState({
     startDate: tomorrow(),
     endDate: addDays(tomorrow(), 1),
@@ -121,7 +171,28 @@ function HomePage() {
     }
   }, [location.state]);
 
-  const groupRooms = useMemo(() => getGroupRoomsForGuests(rooms, groupGuests), [groupGuests, rooms]);
+  const groupListings = useMemo(() => {
+    if (!rooms.length) return [];
+
+    return Object.values(groupBookingTiers).map((tier) => {
+      const bundleRooms = getGroupBundleRooms(rooms, tier.key);
+      return {
+        _id: `group-booking-${tier.key}`,
+        isGroupBundle: true,
+        bundle: tier.key,
+        type: 'room',
+        slug: `group-booking-${tier.key}`,
+        name: tier.label,
+        shortDescription: `Includes ${bundleRooms.map((room) => room.name).join(', ')} with breakfast for everyone.`,
+        images: bundleRooms.flatMap((room) => room.images || []),
+        price: tier.weekday,
+        priceUnit: 'person',
+        minOccupancy: tier.minGuests,
+        maxOccupancy: tier.maxGuests,
+        capacity: tier.maxGuests,
+      };
+    });
+  }, [rooms]);
 
   const openBookingPrompt = (listing) => {
     setActiveBooking(listing);
@@ -132,6 +203,9 @@ function HomePage() {
     setHouseRulesExpanded(false);
     setPolicyAccepted(false);
     setModalImageIndex(0);
+    if (listing.isGroupBundle) {
+      setRoomCart([]);
+    }
     const adults = Math.max(Number(filters.guests || 2), listing.minOccupancy || 1);
     setBookingDraft({
       startDate: filters.startDate,
@@ -186,6 +260,47 @@ function HomePage() {
 
     setPlacingBooking(true);
     try {
+      if (activeBooking.isGroupBundle) {
+        const items = buildGroupBookingItems(activeBooking, bookingDraft, rooms);
+
+        const { data } = await api.post('/bookings/multi', {
+          items,
+          contactName: bookingDraft.contactName,
+          contactEmail: bookingDraft.contactEmail,
+          contactPhone: bookingDraft.contactPhone,
+          couponCode: couponOffer?.coupon?.code || '',
+          isGroupBooking: true,
+          groupName: activeBooking.name,
+        });
+
+        const bookings = data.bookings;
+
+        try {
+          const result = await payForBookings({
+            bookingIds: bookings.map((booking) => booking._id),
+            contact: bookingDraft,
+          });
+
+          sessionStorage.setItem('bowline_celebrate_booking', result.bookings[0]._id);
+          navigate(`/booking/confirmation/${result.bookings[0]._id}`, {
+            state: { booking: result.bookings[0], resetBookingModal: true, showCelebration: true },
+          });
+        } catch (paymentError) {
+          if (paymentError.message === 'PAYMENT_CANCELLED') {
+            toast.error('Payment cancelled. Your booking is saved as pending.');
+            setActiveBooking(null);
+            navigate('/', { replace: true, state: { resetBookingModal: true } });
+            return;
+          } else {
+            toast.error('Payment could not be completed. Your booking is saved as pending.');
+          }
+          navigate(`/booking/confirmation/${bookings[0]._id}`, {
+            state: { booking: bookings[0], resetBookingModal: true },
+          });
+        }
+        return;
+      }
+
       if (roomCart.length === 0) {
         const { data } = await api.post('/bookings', {
           ...toBookingItem(activeBooking, bookingDraft),
@@ -270,24 +385,14 @@ function HomePage() {
     }
   };
 
-  const confirmGroupBooking = () => {
-    if (!groupRooms.length) return;
-
-    const guestsPerRoom = Math.max(1, Math.ceil(groupGuests / groupRooms.length));
-    groupRooms.forEach((listing) => {
-      addItem(listing, groupDates.startDate, groupDates.endDate, guestsPerRoom);
-    });
-
-    navigate('/checkout');
-  };
-
   const activeTotals = activeBooking ? computeItemTotals(activeBooking, bookingDraft) : null;
   const selectedNightlyRate = activeTotals?.nightlyRate || 0;
   const modalTotalGuests = Number(bookingDraft.adults) + Number(bookingDraft.children);
-  const modalEstimate =
-    selectedNightlyRate * Number(bookingDraft.adults) +
-    selectedNightlyRate * 0.5 * Number(bookingDraft.children) +
-    petFee * Number(bookingDraft.pets);
+  const modalEstimate = activeBooking?.isGroupBundle
+    ? selectedNightlyRate * (Number(bookingDraft.adults) + Number(bookingDraft.children)) + petFee * Number(bookingDraft.pets)
+    : selectedNightlyRate * Number(bookingDraft.adults) +
+      selectedNightlyRate * 0.5 * Number(bookingDraft.children) +
+      petFee * Number(bookingDraft.pets);
   const modalNights = activeTotals?.nights || 0;
   const modalRoomTotal = activeTotals?.roomTotal || 0;
   const modalPetTotal = activeTotals?.petTotal || 0;
@@ -352,7 +457,7 @@ function HomePage() {
                 <PageLoader label="Loading rooms..." />
               ) : rooms.length ? (
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                  {rooms.map((listing) => (
+                  {[...rooms, ...groupListings].map((listing) => (
                     <ListingCard
                       key={listing._id}
                       listing={listing}
@@ -362,124 +467,10 @@ function HomePage() {
                       showPrice
                     />
                   ))}
-
-                  <article className="glass flex h-full flex-col overflow-hidden rounded-[1.75rem] shadow-[0_18px_50px_rgba(0,0,0,0.28)] transition hover:-translate-y-1.5">
-                    <div className="relative h-48 overflow-hidden">
-                      <img src={forestBackdrop} alt="Group booking" className="h-full w-full object-cover" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-[#07110b] via-[#07110b]/20 to-transparent" />
-                      <div className="absolute left-4 top-4 inline-flex rounded-full bg-lime-200 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-slate-950">
-                        Group
-                      </div>
-                    </div>
-
-                    <div className="flex flex-1 flex-col space-y-4 p-5">
-                      <h3 className="text-2xl font-semibold text-[#f5f0dd]">Group Booking</h3>
-                      <p className="text-sm text-[#d7ded3]">
-                        Book multiple rooms together for 10-20 guests at once.
-                      </p>
-                      <div className="grid grid-cols-1 gap-2 text-xs text-[#c4cec0]">
-                        <span className="rounded-xl border border-lime-100/10 bg-black/15 px-3 py-2">
-                          10-14 guests: all rooms except Pent House
-                        </span>
-                        <span className="rounded-xl border border-lime-100/10 bg-black/15 px-3 py-2">
-                          15-20 guests: full house, including Pent House
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        className="btn-primary mt-auto w-full rounded-[1rem] px-4"
-                        onClick={() => setShowGroupBooking((value) => !value)}
-                      >
-                        {showGroupBooking ? 'Hide group booking' : 'Book Now'}
-                      </button>
-                    </div>
-                  </article>
                 </div>
               ) : (
                 <EmptyState title="No rooms yet" description="Add room listings from the admin panel." />
               )}
-
-              {showGroupBooking ? (
-                <div className="space-y-4 rounded-[1.5rem] border border-lime-100/10 bg-black/20 p-5">
-                  <div className="flex flex-wrap items-center justify-between gap-4">
-                    <div>
-                      <h3 className="text-xl font-semibold text-[#f5f0dd]">Group booking</h3>
-                      <p className="mt-1 text-sm text-[#cdd6c9]">
-                        10-14 guests blocks all rooms except Pent House. 15-20 guests books the full house.
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3 rounded-full border border-lime-100/10 bg-black/20 p-2">
-                      <button
-                        className="rounded-full border border-lime-100/15 p-2 text-white disabled:opacity-40"
-                        type="button"
-                        disabled={groupGuests <= 10}
-                        onClick={() => setGroupGuests((value) => increment(value, -1, 10, 20))}
-                      >
-                        <MinusIcon className="h-4 w-4" />
-                      </button>
-                      <span className="min-w-24 text-center text-sm font-semibold text-[#f5f0dd]">{groupGuests} guests</span>
-                      <button
-                        className="rounded-full border border-lime-100/15 p-2 text-white disabled:opacity-40"
-                        type="button"
-                        disabled={groupGuests >= 20}
-                        onClick={() => setGroupGuests((value) => increment(value, 1, 10, 20))}
-                      >
-                        <PlusIcon className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <label className="text-xs uppercase tracking-[0.22em] text-lime-200/80">Check-in</label>
-                      <input
-                        type="date"
-                        className="input mt-2"
-                        value={formatDateParam(groupDates.startDate)}
-                        onChange={(e) => {
-                          const date = parseDateParam(e.target.value, groupDates.startDate);
-                          setGroupDates((prev) => ({
-                            startDate: date,
-                            endDate: ensureCheckoutDate(date, prev.endDate, 1),
-                          }));
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs uppercase tracking-[0.22em] text-lime-200/80">Check-out</label>
-                      <input
-                        type="date"
-                        className="input mt-2"
-                        value={formatDateParam(groupDates.endDate)}
-                        onChange={(e) => {
-                          const date = parseDateParam(e.target.value, groupDates.endDate);
-                          setGroupDates((prev) => ({
-                            ...prev,
-                            endDate: ensureCheckoutDate(prev.startDate, date, 1),
-                          }));
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="rounded-[1.25rem] border border-lime-100/10 bg-black/20 p-4">
-                    <p className="text-xs uppercase tracking-[0.22em] text-lime-200/80">Selected bundle</p>
-                    <p className="mt-2 text-xl font-semibold text-[#f5f0dd]">{getGroupBookingLabel(groupGuests)}</p>
-                    <p className="mt-2 text-sm text-[#cdd6c9]">
-                      Rooms included: {groupRooms.map((room) => room.name).join(', ') || 'Choose 10 to 20 guests'}
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="btn-primary w-full"
-                    disabled={!groupRooms.length}
-                    onClick={confirmGroupBooking}
-                  >
-                    Book this bundle
-                  </button>
-                </div>
-              ) : null}
             </div>
           </div>
         </div>
@@ -546,19 +537,47 @@ function HomePage() {
             {bookingStep === 'details' ? (
             <>
             <div className="mt-5 rounded-[1.5rem] border border-lime-100/10 bg-[#0d1710]/80 p-4">
-              <RoomCalendar
-                listingId={activeBooking._id}
-                listingType="room"
-                startDate={bookingDraft.startDate}
-                endDate={bookingDraft.endDate}
-                onStartDate={updateDraftStartDate}
-                onEndDate={(date) =>
-                  setBookingDraft((prev) => ({
-                    ...prev,
-                    endDate: ensureCheckoutDate(prev.startDate, date, 1),
-                  }))
-                }
-              />
+              {activeBooking.isGroupBundle ? (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="text-xs uppercase tracking-[0.22em] text-lime-200/80">Check-in</label>
+                    <input
+                      type="date"
+                      className="input mt-2"
+                      value={formatDateParam(bookingDraft.startDate)}
+                      onChange={(e) => updateDraftStartDate(parseDateParam(e.target.value, bookingDraft.startDate))}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs uppercase tracking-[0.22em] text-lime-200/80">Check-out</label>
+                    <input
+                      type="date"
+                      className="input mt-2"
+                      value={formatDateParam(bookingDraft.endDate)}
+                      onChange={(e) =>
+                        setBookingDraft((prev) => ({
+                          ...prev,
+                          endDate: ensureCheckoutDate(prev.startDate, parseDateParam(e.target.value, prev.endDate), 1),
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+              ) : (
+                <RoomCalendar
+                  listingId={activeBooking._id}
+                  listingType="room"
+                  startDate={bookingDraft.startDate}
+                  endDate={bookingDraft.endDate}
+                  onStartDate={updateDraftStartDate}
+                  onEndDate={(date) =>
+                    setBookingDraft((prev) => ({
+                      ...prev,
+                      endDate: ensureCheckoutDate(prev.startDate, date, 1),
+                    }))
+                  }
+                />
+              )}
               <div className="mt-4 grid grid-cols-2 gap-3 border-t border-white/10 pt-4 text-sm text-slate-300">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-slate-500">Check-in</p>
@@ -609,7 +628,12 @@ function HomePage() {
                   <button
                     className="rounded-full border border-lime-100/15 p-2 text-white disabled:opacity-40"
                     type="button"
-                    onClick={() => setBookingDraft((prev) => clampMealCounts({ ...prev, adults: increment(prev.adults, 1, 1, 20) }))}
+                    disabled={activeBooking?.isGroupBundle && modalTotalGuests >= (activeBooking.maxOccupancy || 20)}
+                    onClick={() =>
+                      setBookingDraft((prev) =>
+                        clampMealCounts({ ...prev, adults: increment(prev.adults, 1, 1, activeBooking?.maxOccupancy || 20) })
+                      )
+                    }
                   >
                     <PlusIcon className="h-4 w-4" />
                   </button>
@@ -619,7 +643,9 @@ function HomePage() {
               <div className="flex items-center justify-between rounded-[1.25rem] border border-lime-100/10 bg-black/20 px-4 py-3">
                 <div>
                   <p className="text-sm font-semibold text-[#f5f0dd]">Children</p>
-                  <p className="text-xs text-[#aab5a5]">Age 6-12 · 50% of adult tariff</p>
+                  <p className="text-xs text-[#aab5a5]">
+                    {activeBooking?.isGroupBundle ? 'Age 6-12 · same group tariff' : 'Age 6-12 · 50% of adult tariff'}
+                  </p>
                 </div>
                 <div className="flex items-center gap-3">
                   <button
@@ -634,7 +660,12 @@ function HomePage() {
                   <button
                     className="rounded-full border border-lime-100/15 p-2 text-white disabled:opacity-40"
                     type="button"
-                    onClick={() => setBookingDraft((prev) => clampMealCounts({ ...prev, children: increment(prev.children, 1, 0, 20) }))}
+                    disabled={activeBooking?.isGroupBundle && modalTotalGuests >= (activeBooking.maxOccupancy || 20)}
+                    onClick={() =>
+                      setBookingDraft((prev) =>
+                        clampMealCounts({ ...prev, children: increment(prev.children, 1, 0, activeBooking?.maxOccupancy || 20) })
+                      )
+                    }
                   >
                     <PlusIcon className="h-4 w-4" />
                   </button>
@@ -746,17 +777,19 @@ function HomePage() {
             </div>
 
             <div className="mt-6 flex gap-3">
-              <button
-                className="btn-secondary flex-1 border-lime-100/30 bg-lime-200/10 text-lime-100 hover:bg-lime-200/20 disabled:opacity-50"
-                onClick={addCurrentRoomToCart}
-                disabled={!modalMealSelectionComplete}
-                type="button"
-              >
-                <span className="inline-flex items-center justify-center gap-2">
-                  <PlusIcon className="h-4 w-4" />
-                  Add Another Room
-                </span>
-              </button>
+              {!activeBooking.isGroupBundle ? (
+                <button
+                  className="btn-secondary flex-1 border-lime-100/30 bg-lime-200/10 text-lime-100 hover:bg-lime-200/20 disabled:opacity-50"
+                  onClick={addCurrentRoomToCart}
+                  disabled={!modalMealSelectionComplete}
+                  type="button"
+                >
+                  <span className="inline-flex items-center justify-center gap-2">
+                    <PlusIcon className="h-4 w-4" />
+                    Add Another Room
+                  </span>
+                </button>
+              ) : null}
               <button
                 className="btn-primary flex-1 disabled:opacity-50"
                 onClick={() => setBookingStep('summary')}
