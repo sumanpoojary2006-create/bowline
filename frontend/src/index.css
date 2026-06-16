@@ -9,16 +9,16 @@
   --bg-forest: #08110a;
   --bg-canopy: #0f1b13;
   --bg-moss: #18271d;
-  --surface: rgba(22, 34, 25, 0.78);
-  --surface-strong: rgba(16, 26, 19, 0.92);
+  --surface: rgba(22, 34, 25, 0.92);
+  --surface-strong: rgba(16, 26, 19, 0.96);
   --border-soft: rgba(164, 194, 150, 0.14);
   --accent: #9fba77;
   --accent-strong: #b7cf8f;
   --text-muted: #b7c2b2;
 }
 
-/* Smooth 60/90/120Hz scrolling on all platforms */
 html {
+  /* Adaptive refresh rate — browser uses 60/90/120Hz automatically */
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
   text-size-adjust: 100%;
@@ -27,20 +27,13 @@ html {
 
 body {
   @apply font-sans text-slate-100 antialiased;
+  /* Gradient directly on body — most reliable cross-platform */
   background-color: var(--bg-forest);
-}
-
-/* Gradient on a fixed layer — never repaints during scroll */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
   background-image:
     radial-gradient(circle at top, rgba(159, 186, 119, 0.18), transparent 24%),
     radial-gradient(circle at bottom right, rgba(73, 98, 64, 0.28), transparent 28%),
     linear-gradient(180deg, #08110a 0%, #0d1710 44%, #050a06 100%);
-  pointer-events: none;
+  background-attachment: scroll;
 }
 
 #root {
@@ -49,15 +42,14 @@ body::before {
 
 .glass {
   border: 1px solid var(--border-soft);
+  /* Solid opaque fallback — no blur needed for good look */
   background: var(--surface);
-  /* Use backdrop-filter only on devices that can handle it smoothly */
-  @supports (backdrop-filter: blur(1px)) {
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+  /* Blur only on iOS Safari which handles it well */
+  @supports (-webkit-touch-callout: none) {
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    background: rgba(22, 34, 25, 0.78);
   }
-  /* Promote to its own compositor layer to avoid scroll jank */
-  will-change: transform;
-  transform: translateZ(0);
 }
 
 .section-shell {
@@ -107,27 +99,6 @@ body::before {
   @apply grid gap-5 sm:grid-cols-2 xl:grid-cols-3;
 }
 
-/* GPU-accelerate images to prevent decode jank during scroll */
-img {
-  transform: translateZ(0);
-  will-change: auto;
-}
-
-/* Reduce motion for users who prefer it */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
-/* Faster transitions on mobile to feel snappier */
-@media (max-width: 768px) {
-  .transition {
-    transition-duration: 150ms !important;
-  }
-}
-
 .scrollbar-none {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -141,14 +112,24 @@ img {
   z-index: 60 !important;
 }
 
-/* Animations use only composited properties (opacity + transform) — no layout thrash */
+/* Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Snappier tap response on mobile */
+@media (max-width: 768px) {
+  .transition {
+    transition-duration: 150ms !important;
+  }
+}
+
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 @keyframes popIn {
@@ -163,24 +144,14 @@ img {
 }
 
 @keyframes circleDraw {
-  to {
-    stroke-dashoffset: 0;
-  }
+  to { stroke-dashoffset: 0; }
 }
 
 @keyframes checkDraw {
-  to {
-    stroke-dashoffset: 0;
-  }
+  to { stroke-dashoffset: 0; }
 }
 
 @keyframes gearFall {
-  0% {
-    transform: translateY(-10vh) rotate(0deg);
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(110vh) rotate(var(--gear-spin, 360deg));
-    opacity: 0;
-  }
+  0%   { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(110vh) rotate(var(--gear-spin, 360deg)); opacity: 0; }
 }
