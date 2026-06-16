@@ -19,12 +19,18 @@ function isInRange(date, start, end) {
   return date > start && date < end;
 }
 
+function toLocalMidnight(dateStr) {
+  const d = new Date(dateStr);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 function isBookedDay(date, bookedRanges) {
   return bookedRanges.some(
     (r) =>
       r.status === 'confirmed' &&
-      new Date(r.startDate) <= date &&
-      new Date(r.endDate) > date
+      toLocalMidnight(r.startDate) <= date &&
+      toLocalMidnight(r.endDate) > date
   );
 }
 
