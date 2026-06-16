@@ -1,6 +1,7 @@
 import { FireIcon } from '@heroicons/react/24/outline';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
 import { formatCurrency } from '../lib/formatters';
 import { getRoomRate } from '../lib/roomRates';
 
@@ -37,6 +38,43 @@ function getDescriptionPoints(text) {
   return points;
 }
 
+function ImageCarousel({ images, name, compact }) {
+  const [idx, setIdx] = useState(0);
+  const imgs = images?.length ? images : ['https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80'];
+
+  useEffect(() => {
+    if (imgs.length <= 1) return;
+    const t = setInterval(() => setIdx((i) => (i + 1) % imgs.length), 3000);
+    return () => clearInterval(t);
+  }, [imgs.length]);
+
+  return (
+    <>
+      {imgs.map((src, i) => (
+        <img
+          key={i}
+          src={src}
+          alt={`${name} ${i + 1}`}
+          className="absolute inset-0 h-full w-full object-cover transition-opacity duration-700"
+          style={{ opacity: i === idx ? 1 : 0 }}
+        />
+      ))}
+      {imgs.length > 1 && (
+        <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5">
+          {imgs.map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => setIdx(i)}
+              className={`h-1.5 rounded-full transition-all ${i === idx ? 'w-4 bg-lime-300' : 'w-1.5 bg-white/40'}`}
+            />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
 function ListingCard({
   listing,
   onBookNow,
@@ -51,11 +89,7 @@ function ListingCard({
   return (
     <motion.article whileHover={{ y: -6 }} className="glass flex h-full flex-col overflow-hidden rounded-[1.75rem] shadow-[0_18px_50px_rgba(0,0,0,0.28)]">
       <div className={`relative overflow-hidden ${compact ? 'h-48' : 'h-60'}`}>
-        <img
-          src={listing.images?.[0] || 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80'}
-          alt={listing.name}
-          className="h-full w-full object-cover"
-        />
+        <ImageCarousel images={listing.images} name={listing.name} compact={compact} />
         <div className="absolute inset-0 bg-gradient-to-t from-[#07110b] via-[#07110b]/20 to-transparent" />
         <div className="absolute left-4 top-4 inline-flex rounded-full bg-lime-200 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-slate-950">
           {typeLabels[listing.type]}
