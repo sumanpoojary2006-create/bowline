@@ -8,6 +8,77 @@ import PageLoader from '../components/PageLoader';
 import SectionHeader from '../components/SectionHeader';
 import EmptyState from '../components/EmptyState';
 
+function CancelRefundDialog({ booking, onClose, onDone }) {
+  const [refundPercent, setRefundPercent] = useState(100);
+  const [loading, setLoading] = useState(false);
+  const isPaid = booking.paymentStatus === 'paid';
+  const refundAmount = isPaid ? Math.round(booking.totalPrice * refundPercent / 100) : 0;
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    try {
+      await api.post(`/bookings/admin/${booking._id}/cancel-refund`, { refundPercent: isPaid ? refundPercent : 0 });
+      toast.success(isPaid && refundPercent > 0 ? `Booking cancelled · ₹${refundAmount} refund initiated` : 'Booking cancelled');
+      onDone();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Unable to cancel booking');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-[2rem] border border-lime-100/10 bg-[#0d1710] p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-xl font-semibold text-white">Cancel booking</h3>
+        <p className="mt-1 text-sm text-slate-400">{booking.contactName} · {booking.listing?.name}</p>
+        <p className="mt-1 text-sm text-slate-400">Total paid: {formatCurrency(booking.totalPrice)} · Status: {booking.paymentStatus}</p>
+
+        {isPaid ? (
+          <div className="mt-5 space-y-3">
+            <label className="text-sm font-semibold text-white">Refund percentage</label>
+            <div className="flex gap-2">
+              {[0, 50, 100].map((pct) => (
+                <button
+                  key={pct}
+                  type="button"
+                  className={`flex-1 rounded-[1rem] border py-2 text-sm font-semibold transition ${refundPercent === pct ? 'border-lime-400 bg-lime-400/20 text-lime-200' : 'border-white/10 text-slate-400 hover:border-white/30'}`}
+                  onClick={() => setRefundPercent(pct)}
+                >
+                  {pct}%
+                </button>
+              ))}
+            </div>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              className="input"
+              value={refundPercent}
+              onChange={(e) => setRefundPercent(Math.min(100, Math.max(0, Number(e.target.value))))}
+            />
+            <p className="text-sm text-slate-300">
+              Refund amount: <span className="font-semibold text-lime-200">{formatCurrency(refundAmount)}</span>
+              {refundPercent === 0 && <span className="ml-2 text-slate-400">(no refund)</span>}
+            </p>
+          </div>
+        ) : (
+          <p className="mt-4 rounded-[1rem] border border-white/10 bg-slate-900/50 px-4 py-3 text-sm text-slate-400">
+            Payment status is <span className="capitalize text-white">{booking.paymentStatus}</span> — no refund will be processed.
+          </p>
+        )}
+
+        <div className="mt-6 grid grid-cols-2 gap-3">
+          <button className="btn-secondary" onClick={onClose} disabled={loading}>Back</button>
+          <button className="btn-primary bg-rose-600 hover:bg-rose-500" onClick={handleSubmit} disabled={loading}>
+            {loading ? 'Processing…' : isPaid && refundPercent > 0 ? `Cancel & refund ${refundPercent}%` : 'Cancel booking'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const SOURCE_LABELS = {
   website: 'Website',
   airbnb: 'Airbnb',
@@ -29,6 +100,7 @@ function AdminBookingsPage() {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [creatingManualBooking, setCreatingManualBooking] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState(null);
   const [filters, setFilters] = useState({
     type: '',
     status: '',
@@ -147,6 +219,13 @@ function AdminBookingsPage() {
 
   return (
     <div className="space-y-6">
+      {cancelTarget && (
+        <CancelRefundDialog
+          booking={cancelTarget}
+          onClose={() => setCancelTarget(null)}
+          onDone={() => { setCancelTarget(null); fetchBookings(); }}
+        />
+      )}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <SectionHeader
           eyebrow="Booking Management"
@@ -341,8 +420,11 @@ function AdminBookingsPage() {
                               </button>
                             </div>
                           ) : section.key === 'confirmed' ? (
-                            <button className="btn-secondary w-full" onClick={() => updateBooking(booking._id, { status: 'cancelled' })}>
-                              Move to Cancelled
+                            <button
+                              className="btn-secondary w-full border-rose-500/40 text-rose-300 hover:border-rose-400 hover:text-rose-200"
+                              onClick={() => setCancelTarget(booking)}
+                            >
+                              Cancel &amp; Refund
                             </button>
                           ) : (
                             <div className="rounded-[1.25rem] border border-lime-100/10 bg-[#0d1710]/70 px-4 py-3 text-sm text-[#c4cec0]">

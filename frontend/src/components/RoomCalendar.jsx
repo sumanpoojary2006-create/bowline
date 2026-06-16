@@ -55,7 +55,7 @@ function CalendarMonth({ year, month, bookedRanges, startDate, endDate, showEnd,
           if (!date) return <div key={`empty-${idx}`} />;
 
           const booked = isBookedDay(date, bookedRanges);
-          const isPast = date < today;
+          const isPast = date <= today;
           const isStart = startDate && isSameDay(date, startDate);
           const isEnd = showEnd && endDate && isSameDay(date, endDate);
           const inRange = showEnd && isInRange(date, startDate, endDate);

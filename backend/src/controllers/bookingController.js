@@ -603,6 +603,72 @@ export const getCalendarBookings = async (req, res, next) => {
   }
 };
 
+export const adminCancelWithRefund = async (req, res, next) => {
+  try {
+    const booking = await Booking.findById(req.params.id)
+      .populate('listing')
+      .populate('user', 'name email');
+
+    if (!booking) {
+      res.status(404);
+      throw new Error('Booking not found');
+    }
+
+    if (booking.status === 'cancelled') {
+      res.status(400);
+      throw new Error('Booking is already cancelled');
+    }
+
+    const refundPercent = Math.min(100, Math.max(0, Number(req.body.refundPercent ?? 0)));
+
+    if (booking.paymentStatus === 'paid' && refundPercent > 0) {
+      if (!booking.razorpayPaymentId) {
+        res.status(400);
+        throw new Error('No Razorpay payment ID on record — cannot process refund');
+      }
+      if (!isRazorpayConfigured()) {
+        res.status(500);
+        throw new Error('Razorpay is not configured');
+      }
+
+      const refundAmount = Math.round(booking.totalPrice * (refundPercent / 100) * 100);
+      const refund = await createRazorpayRefund({
+        paymentId: booking.razorpayPaymentId,
+        amount: refundAmount,
+        notes: { bookingId: String(booking._id), reason: 'admin_cancellation', refundPercent: String(refundPercent) },
+      });
+
+      booking.razorpayRefundId = refund.id;
+      booking.refundAmount = refundAmount / 100;
+      booking.refundPercentage = refundPercent;
+      booking.paymentStatus = refundPercent === 100 ? 'refunded' : 'partially_refunded';
+    }
+
+    booking.status = 'cancelled';
+    await booking.save();
+
+    unsyncFromSheet(booking);
+    writeFullBookingToSheet(booking).catch(() => {});
+
+    if (booking.contactEmail && isEmailConfigured('booking')) {
+      const refundNote =
+        booking.refundAmount > 0
+          ? ` A refund of ₹${booking.refundAmount} (${refundPercent}%) has been initiated to your original payment method.`
+          : '';
+      sendMail({
+        to: booking.contactEmail,
+        subject: `Booking Cancelled — ${booking.listing?.name}`,
+        text: `Hi ${booking.contactName},\n\nYour booking for ${booking.listing?.name} has been cancelled by Bowline.${refundNote}\n\nBowline Nature Stay`,
+        kind: 'booking',
+      }).catch(() => {});
+    }
+
+    res.json({ booking });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const updateBookingStatus = async (req, res, next) => {
   try {
     const booking = await Booking.findById(req.params.id)

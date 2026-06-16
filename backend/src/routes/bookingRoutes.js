@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+  adminCancelWithRefund,
   cancelGuestBooking,
   cancelMyBooking,
   confirmReschedule,
@@ -37,5 +38,6 @@ router.get('/admin/all', protect, authorize('admin'), getAllBookings);
 router.get('/admin/calendar', protect, authorize('admin'), getCalendarBookings);
 router.post('/admin/manual-room', protect, authorize('admin'), createAdminManualRoomBooking);
 router.patch('/admin/:id', protect, authorize('admin'), updateBookingStatus);
+router.post('/admin/:id/cancel-refund', protect, authorize('admin'), adminCancelWithRefund);
 
 export default router;
