@@ -444,11 +444,8 @@ function HomePage() {
 
   return (
     <>
-      <section className="relative overflow-hidden pb-10 pt-6">
-        <img src={forestBackdrop} alt="Forest valley" className="absolute inset-0 h-full w-full object-cover" />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,12,7,0.45)_0%,rgba(7,15,9,0.65)_50%,rgba(5,10,6,0.80)_100%)]" />
-
-        <div className="relative section-shell space-y-8">
+      <section className="pb-10 pt-6">
+        <div className="section-shell space-y-8">
           <div className="mx-auto max-w-6xl rounded-[2rem] border border-lime-100/10 bg-[#0d1f10]/60 p-5">
             <div className="space-y-4">
               <div>
