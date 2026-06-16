@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const LOGO_PATH = join(__dirname, '../../../frontend/src/assets/bowline-logo.png');
+const LOGO_PATH = join(__dirname, '../../../frontend/src/assets/bowline-logo.jpg');
 
 const GREEN = '#2d5a1b';
 const GREEN_LIGHT = '#4a7c2f';
@@ -14,25 +14,31 @@ const MARGIN = 45;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
 
 function drawHeader(doc) {
-  // Green banner
-  doc.rect(0, 0, PAGE_WIDTH, 100).fill(GREEN);
+  const LOGO_HEIGHT = 110;
+  const INFO_HEIGHT = 28;
 
-  // Logo
+  // Logo banner — full width
   try {
-    doc.image(LOGO_PATH, MARGIN, 18, { height: 64, fit: [64, 64] });
+    doc.image(LOGO_PATH, 0, 0, { width: PAGE_WIDTH, height: LOGO_HEIGHT });
   } catch {
-    // logo not found — skip silently
+    // fallback: plain navy band
+    doc.rect(0, 0, PAGE_WIDTH, LOGO_HEIGHT).fill('#1a237e');
+    doc.font('Helvetica-Bold').fontSize(24).fillColor('#ffffff')
+      .text('BOWLINE Nature Stay', 0, 38, { align: 'center', width: PAGE_WIDTH });
   }
 
-  // Brand name + tagline
-  doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(22).text('BOWLINE', MARGIN + 74, 26, { continued: true });
-  doc.font('Helvetica').fontSize(22).text(' Nature Stay');
-  doc.font('Helvetica').fontSize(10).fillColor('#c8e6b0').text('Devaramane, Mudigere, Chikkamagaluru · www.bowlinestays.com', MARGIN + 74, 55);
-  doc.font('Helvetica').fontSize(9).fillColor('#a8d88a').text('bowlinestays@gmail.com  ·  +91 74116 60024', MARGIN + 74, 70);
+  // "BOOKING RECEIPT" label over logo (top-right)
+  doc.font('Helvetica-Bold').fontSize(9).fillColor('#ffffff')
+    .text('BOOKING RECEIPT', 0, 10, { align: 'right', width: PAGE_WIDTH - MARGIN });
 
-  // Receipt label top-right
-  doc.font('Helvetica-Bold').fontSize(9).fillColor('#c8e6b0')
-    .text('BOOKING RECEIPT', 0, 22, { align: 'right', width: PAGE_WIDTH - MARGIN });
+  // Contact strip below logo
+  doc.rect(0, LOGO_HEIGHT, PAGE_WIDTH, INFO_HEIGHT).fill(GREEN);
+  doc.font('Helvetica').fontSize(8.5).fillColor('#c8e6b0')
+    .text(
+      'Devaramane, Mudigere, Chikkamagaluru  ·  bowlinestays@gmail.com  ·  +91 74116 60024  ·  www.bowlinestays.com',
+      0, LOGO_HEIGHT + 8,
+      { align: 'center', width: PAGE_WIDTH }
+    );
 }
 
 function drawSectionLabel(doc, label, y) {
@@ -64,7 +70,7 @@ export const generateBookingReceiptPdf = (bookings) =>
 
     // ── Header ──────────────────────────────────────────────────────────────
     drawHeader(doc);
-    let y = 116;
+    let y = 148;
 
     // ── Receipt meta ────────────────────────────────────────────────────────
     doc.font('Helvetica').fontSize(9).fillColor('#888')
