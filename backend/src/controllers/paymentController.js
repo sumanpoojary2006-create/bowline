@@ -116,7 +116,7 @@ export const verifyPayment = async (req, res, next) => {
       type: 'booking',
     }).catch(() => {});
 
-    sendBookingConfirmationEmail(updated).catch((error) => {
+    await sendBookingConfirmationEmail(updated).catch((error) => {
       console.error('Failed to send booking confirmation email', error);
     });
 
