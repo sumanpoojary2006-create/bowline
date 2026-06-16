@@ -23,7 +23,7 @@ export const getRoomDisplayOrder = (listing) => {
 export const groupBookingTiers = {
   'except-pent-house': {
     key: 'except-pent-house',
-    label: 'Group Booking 1',
+    label: 'Group Booking',
     minGuests: 10,
     maxGuests: 15,
     weekday: 1699,
@@ -31,7 +31,7 @@ export const groupBookingTiers = {
   },
   'full-house': {
     key: 'full-house',
-    label: 'Group Booking 2',
+    label: 'Full House',
     minGuests: 16,
     maxGuests: 20,
     weekday: 1599,
