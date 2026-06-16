@@ -113,9 +113,9 @@ export const generateBookingReceiptPdf = (bookings) =>
         y = row(doc, 'Special requests', booking.specialRequests, y);
       }
       if (booking.pricingBreakdown?.coupon?.code) {
-        y = row(doc, 'Coupon', `${booking.pricingBreakdown.coupon.code}  −₹${booking.pricingBreakdown.coupon.discount}`, y, { color: '#c0392b' });
+        y = row(doc, 'Coupon', `${booking.pricingBreakdown.coupon.code}  -Rs.${booking.pricingBreakdown.coupon.discount}`, y, { color: '#c0392b' });
       }
-      y = row(doc, 'Room total', `₹${booking.totalPrice.toLocaleString('en-IN')}`, y, { bold: true });
+      y = row(doc, 'Room total', `Rs. ${booking.totalPrice.toLocaleString('en-IN')}`, y, { bold: true });
       y += 6;
     });
 
@@ -129,7 +129,7 @@ export const generateBookingReceiptPdf = (bookings) =>
     doc.font('Helvetica').fontSize(10).fillColor('#555')
       .text('TOTAL PAID', MARGIN + 12, y + 10);
     doc.font('Helvetica-Bold').fontSize(22).fillColor(GREEN)
-      .text(`₹${grandTotal.toLocaleString('en-IN')}`, MARGIN + 12, y + 22);
+      .text(`Rs. ${grandTotal.toLocaleString('en-IN')}`, MARGIN + 12, y + 22);
     doc.font('Helvetica').fontSize(9).fillColor('#777')
       .text(`Payment via ${first.paymentMethod === 'razorpay' ? 'Razorpay' : first.paymentMethod || 'Online'}`, PAGE_WIDTH - MARGIN - 180, y + 10, { align: 'right', width: 180 });
     if (first.razorpayPaymentId) {
@@ -143,8 +143,8 @@ export const generateBookingReceiptPdf = (bookings) =>
     y += 8;
     const policies = [
       'Check-in: 1:00 PM  ·  Check-out: 10:00 AM',
-      'Breakfast is complimentary. Lunch & dinner are ₹350 per person per meal.',
-      'Pets are welcome with prior notice. Pet fee: ₹400 per stay.',
+      'Breakfast is complimentary. Lunch & dinner are Rs.350 per person per meal.',
+      'Pets are welcome with prior notice. Pet fee: Rs.400 per stay.',
       'For cancellations or changes please contact us at bowlinestays@gmail.com.',
     ];
     policies.forEach((line) => {
