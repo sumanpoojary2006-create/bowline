@@ -367,7 +367,8 @@ export const getCalendarFeed = async (req, res, next) => {
 
     const bookings = await Booking.find({
       listing: listing._id,
-      status: { $in: ['pending', 'confirmed'] },
+      status: 'confirmed',
+      paymentStatus: 'paid',
     }).select('startDate endDate status _id');
 
     const events = bookings.map((b) => ({

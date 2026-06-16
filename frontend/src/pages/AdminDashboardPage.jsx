@@ -94,6 +94,28 @@ function AdminDashboardPage() {
     fetchAnalytics();
   }, [month]);
 
+  const [syncing, setSyncing] = useState(false);
+
+  const syncAllAirbnb = async () => {
+    setSyncing(true);
+    try {
+      const { data } = await api.post('/sync/airbnb');
+      const results = data.results || [];
+      const created = results.reduce((s, r) => s + (r.created || 0), 0);
+      const cancelled = results.reduce((s, r) => s + (r.cancelled || 0), 0);
+      const errors = results.flatMap((r) => r.errors || []);
+      if (errors.length) {
+        toast.error(`Sync done with errors: ${errors[0]}`);
+      } else {
+        toast.success(`Airbnb synced — ${created} new block${created !== 1 ? 's' : ''}, ${cancelled} released`);
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Airbnb sync failed');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const downloadMonthlyCsv = async () => {
     setDownloading(true);
     try {
@@ -132,11 +154,23 @@ function AdminDashboardPage() {
         description="A snapshot of confirmed bookings, revenue, and what needs your attention."
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={CalendarDaysIcon} label="Total bookings" value={overview.totalBookings} />
-        <StatCard icon={BanknotesIcon} label="Estimated booking value" value={formatCurrency(overview.revenue)} />
-        <StatCard icon={BuildingOffice2Icon} label="Active listings" value={overview.activeListings} />
-        <StatCard icon={UsersIcon} label="Active users" value={overview.activeUsers} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="grid flex-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard icon={CalendarDaysIcon} label="Total bookings" value={overview.totalBookings} />
+          <StatCard icon={BanknotesIcon} label="Estimated booking value" value={formatCurrency(overview.revenue)} />
+          <StatCard icon={BuildingOffice2Icon} label="Active listings" value={overview.activeListings} />
+          <StatCard icon={UsersIcon} label="Active users" value={overview.activeUsers} />
+        </div>
+        <button
+          className="btn-secondary flex shrink-0 items-center gap-2 self-start"
+          onClick={syncAllAirbnb}
+          disabled={syncing}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582M20 20v-5h-.581M5.635 15A9 9 0 104.582 9H4" />
+          </svg>
+          {syncing ? 'Syncing…' : 'Sync Airbnb'}
+        </button>
       </div>
 
       {breakdownEntries.length > 0 ? (
