@@ -195,6 +195,7 @@ function HomePage() {
         slug: `group-booking-${tier.key}`,
         name: tier.label,
         shortDescription: `Includes ${bundleRooms.map((room) => room.name).join(', ')} with breakfast for everyone.`,
+        extraPoints: tier.key === 'except-pent-house' ? [{ emoji: '🚫', text: 'Penthouse excluded' }] : [],
         images: bundleRooms.flatMap((room) => room.images || []),
         price: tier.weekday,
         priceUnit: 'person',

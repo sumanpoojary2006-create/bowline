@@ -92,7 +92,7 @@ function ListingCard({
 
         {isRoom ? (
           <ul className="space-y-1 text-sm text-[#d7ded3]">
-            {getDescriptionPoints(listing.shortDescription || listing.description).map((point, index) => (
+            {[...getDescriptionPoints(listing.shortDescription || listing.description), ...(listing.extraPoints || [])].map((point, index) => (
               <li key={index} className="flex items-start gap-2">
                 <span>{point.emoji}</span>
                 <span>{point.text}</span>
