@@ -17,13 +17,20 @@
   --text-muted: #b7c2b2;
 }
 
+/* Smooth 60/90/120Hz scrolling on all platforms */
+html {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   @apply font-sans text-slate-100 antialiased;
-  background-image:
-    radial-gradient(circle at top, rgba(159, 186, 119, 0.18), transparent 24%),
-    radial-gradient(circle at bottom right, rgba(73, 98, 64, 0.28), transparent 28%),
-    linear-gradient(180deg, #08110a 0%, #0d1710 44%, #050a06 100%);
-  background-color: var(--bg-forest);
+  background-color: #08110a;
+  /* Fixed gradient avoids repaint on scroll */
+  background-image: linear-gradient(180deg, #08110a 0%, #0d1710 44%, #050a06 100%);
+  background-attachment: fixed;
 }
 
 #root {
@@ -33,7 +40,14 @@ body {
 .glass {
   border: 1px solid var(--border-soft);
   background: var(--surface);
-  backdrop-filter: blur(24px);
+  /* Use backdrop-filter only on devices that can handle it smoothly */
+  @supports (backdrop-filter: blur(1px)) {
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+  /* Promote to its own compositor layer to avoid scroll jank */
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 .section-shell {
@@ -83,6 +97,27 @@ body {
   @apply grid gap-5 sm:grid-cols-2 xl:grid-cols-3;
 }
 
+/* GPU-accelerate images to prevent decode jank during scroll */
+img {
+  transform: translateZ(0);
+  will-change: auto;
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Faster transitions on mobile to feel snappier */
+@media (max-width: 768px) {
+  .transition {
+    transition-duration: 150ms !important;
+  }
+}
+
 .scrollbar-none {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -96,6 +131,7 @@ body {
   z-index: 60 !important;
 }
 
+/* Animations use only composited properties (opacity + transform) — no layout thrash */
 @keyframes fadeIn {
   from {
     opacity: 0;

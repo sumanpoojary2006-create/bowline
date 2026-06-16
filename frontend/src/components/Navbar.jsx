@@ -24,7 +24,7 @@ function Navbar() {
   };
 
   return (
-    <header className="sticky top-0 z-40 border-b border-lime-100/10 bg-[#0a130d]/72 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-lime-100/10 bg-[#0a130d] supports-[backdrop-filter]:bg-[#0a130d]/80 supports-[backdrop-filter]:backdrop-blur-md" style={{ transform: 'translateZ(0)', willChange: 'transform' }}>
       <div className="section-shell flex h-20 items-center justify-between gap-4">
         <Link to="/" className="flex items-center gap-3">
           <img src={bowlineLogo} alt="Bowline Nature Stay" className="h-14 w-auto rounded-xl" />
