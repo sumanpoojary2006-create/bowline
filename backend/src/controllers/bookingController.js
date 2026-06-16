@@ -469,7 +469,7 @@ export const createAdminManualRoomBooking = async (req, res, next) => {
       },
       paymentMethod: 'manual',
       status: 'confirmed',
-      paymentStatus: 'pending',
+      paymentStatus: 'paid',
       contactName: String(contactName).trim(),
       contactEmail: String(contactEmail).trim().toLowerCase(),
       contactPhone: String(contactPhone || '').trim(),
