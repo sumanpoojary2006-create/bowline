@@ -3,15 +3,16 @@ import Booking from '../models/Booking.js';
 export const getBookedDateRanges = async (listingId, fromDate, toDate) => {
   const bookings = await Booking.find({
     listing: listingId,
-    status: { $in: ['confirmed', 'pending'] },
+    status: { $in: ['confirmed', 'pending', 'blocked'] },
     startDate: { $lt: new Date(toDate) },
     endDate: { $gt: new Date(fromDate) },
-  }).select('startDate endDate status');
+  }).select('startDate endDate status blockNote');
 
   return bookings.map((b) => ({
     startDate: b.startDate,
     endDate: b.endDate,
     status: b.status,
+    blockNote: b.blockNote,
   }));
 };
 
@@ -164,7 +165,7 @@ export const validateListingAvailability = async ({
   });
 
   if (listing.type === 'room') {
-    const hasConfirmedOverlap = existingBookings.some((booking) => booking.status === 'confirmed');
+    const hasConfirmedOverlap = existingBookings.some((booking) => booking.status === 'confirmed' || booking.status === 'blocked');
     if (hasConfirmedOverlap) {
       return {
         available: false,

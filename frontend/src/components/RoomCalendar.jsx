@@ -28,7 +28,7 @@ function toLocalMidnight(dateStr) {
 function isBookedDay(date, bookedRanges) {
   return bookedRanges.some(
     (r) =>
-      r.status === 'confirmed' &&
+      (r.status === 'confirmed' || r.status === 'blocked') &&
       toLocalMidnight(r.startDate) <= date &&
       toLocalMidnight(r.endDate) > date
   );

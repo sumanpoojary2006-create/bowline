@@ -1135,3 +1135,51 @@ export const confirmReschedule = async (req, res, next) => {
     next(error);
   }
 };
+
+// ── POST /api/bookings/admin/block ──────────────────────────────────────────
+export const blockRoomDates = async (req, res, next) => {
+  try {
+    const { listingId, startDate, endDate, blockNote = 'Blocked' } = req.body;
+
+    if (!listingId || !startDate || !endDate) {
+      res.status(400);
+      throw new Error('listingId, startDate and endDate are required');
+    }
+
+    const listing = await Listing.findById(listingId);
+    if (!listing) { res.status(404); throw new Error('Listing not found'); }
+
+    const block = await Booking.create({
+      listing: listing._id,
+      user: req.user._id,
+      bookingType: 'room',
+      startDate: new Date(startDate),
+      endDate: new Date(endDate),
+      status: 'blocked',
+      paymentStatus: 'paid',
+      paymentMethod: 'manual',
+      blockNote: String(blockNote).trim() || 'Blocked',
+      contactName: 'Admin Block',
+      contactEmail: 'admin@bowline.internal',
+      guests: 1,
+      adultGuests: 1,
+      totalPrice: 0,
+      source: 'admin',
+    });
+
+    res.status(201).json({ block });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ── DELETE /api/bookings/admin/block/:id ────────────────────────────────────
+export const unblockRoomDates = async (req, res, next) => {
+  try {
+    const block = await Booking.findOneAndDelete({ _id: req.params.id, status: 'blocked' });
+    if (!block) { res.status(404); throw new Error('Block not found'); }
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+};

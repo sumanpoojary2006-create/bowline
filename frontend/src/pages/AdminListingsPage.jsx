@@ -101,6 +101,50 @@ function AdminListingsPage() {
     return `${base}/sync/calendar/${selectedId}.ics`;
   }, [selectedId]);
 
+  const [blockForm, setBlockForm] = useState({ startDate: '', endDate: '', note: '' });
+  const [blocks, setBlocks] = useState([]);
+  const [blockLoading, setBlockLoading] = useState(false);
+
+  const fetchBlocks = async (listingId) => {
+    try {
+      const { data } = await api.get('/bookings/admin/all', { params: { listingId, status: 'blocked' } });
+      setBlocks((data.bookings || []).filter((b) => b.status === 'blocked'));
+    } catch { setBlocks([]); }
+  };
+
+  const submitBlock = async () => {
+    if (!blockForm.startDate || !blockForm.endDate || !blockForm.note.trim()) {
+      toast.error('Fill in dates and a reason');
+      return;
+    }
+    setBlockLoading(true);
+    try {
+      await api.post('/bookings/admin/block', {
+        listingId: selectedId,
+        startDate: blockForm.startDate,
+        endDate: blockForm.endDate,
+        blockNote: blockForm.note,
+      });
+      toast.success('Room blocked');
+      setBlockForm({ startDate: '', endDate: '', note: '' });
+      fetchBlocks(selectedId);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to block');
+    } finally {
+      setBlockLoading(false);
+    }
+  };
+
+  const removeBlock = async (id) => {
+    try {
+      await api.delete(`/bookings/admin/block/${id}`);
+      toast.success('Block removed');
+      fetchBlocks(selectedId);
+    } catch {
+      toast.error('Failed to remove block');
+    }
+  };
+
   const syncAirbnbNow = async (listingId) => {
     try {
       const { data } = await api.post('/sync/airbnb', { listingId });
@@ -138,12 +182,14 @@ function AdminListingsPage() {
     if (!selectedListing) {
       setForm((prev) => ({ ...emptyForm, type: prev.type || activeType }));
       setImageUrlDraft('');
+      setBlocks([]);
       return;
     }
 
     setActiveType(selectedListing.type);
     setForm(parseListingToForm(selectedListing));
     setImageUrlDraft('');
+    if (selectedListing.type === 'room') fetchBlocks(selectedListing._id);
   }, [selectedListing, activeType]);
 
   const resetForm = (type = activeType) => {
@@ -526,6 +572,53 @@ function AdminListingsPage() {
               <button type="button" className="btn-secondary" onClick={() => syncAirbnbNow(selectedId)}>
                 Sync Airbnb now
               </button>
+
+              <div className="mt-2 space-y-3 rounded-[1.5rem] border border-rose-400/20 bg-rose-950/20 p-4">
+              <p className="text-sm font-semibold text-white">Block dates</p>
+              <p className="text-xs text-[#b7c2b2]">Blocked dates are hidden from customers. Only visible to admin.</p>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <div className="flex-1">
+                  <label className="label">From</label>
+                  <input type="date" className="input" value={blockForm.startDate}
+                    onChange={(e) => setBlockForm((f) => ({ ...f, startDate: e.target.value }))} />
+                </div>
+                <div className="flex-1">
+                  <label className="label">To</label>
+                  <input type="date" className="input" value={blockForm.endDate}
+                    onChange={(e) => setBlockForm((f) => ({ ...f, endDate: e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <label className="label">Reason (admin only)</label>
+                <input type="text" className="input" placeholder="e.g. Maintenance, Deep cleaning…"
+                  value={blockForm.note}
+                  onChange={(e) => setBlockForm((f) => ({ ...f, note: e.target.value }))} />
+              </div>
+              <button type="button" className="btn-secondary w-full border-rose-400/30 text-rose-300"
+                onClick={submitBlock} disabled={blockLoading}>
+                {blockLoading ? 'Blocking…' : 'Block these dates'}
+              </button>
+
+              {blocks.length > 0 && (
+                <div className="mt-2 space-y-2">
+                  <p className="text-xs font-semibold text-[#b7c2b2]">Active blocks</p>
+                  {blocks.map((b) => (
+                    <div key={b._id} className="flex items-center justify-between gap-3 rounded-xl border border-rose-400/15 bg-rose-950/30 px-3 py-2 text-xs">
+                      <div>
+                        <span className="font-semibold text-rose-300">{b.blockNote}</span>
+                        <span className="ml-2 text-[#b7c2b2]">
+                          {new Date(b.startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                          {' → '}
+                          {new Date(b.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </span>
+                      </div>
+                      <button type="button" onClick={() => removeBlock(b._id)}
+                        className="shrink-0 text-rose-400 hover:text-rose-200">Remove</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              </div>
             </div>
           ) : null}
         </form>
