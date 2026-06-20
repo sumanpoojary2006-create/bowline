@@ -235,6 +235,12 @@ function RoomCalendar({ listingId, listingIds, startDate, endDate, onStartDate, 
       {nextAvailable && (
         <div className="rounded-[1.25rem] border border-amber-400/30 bg-amber-400/10 p-3 text-sm">
           <p className="font-semibold text-amber-300">Those dates are booked</p>
+          {ids.length > 1 && nextAvailable.blockingRooms?.length > 0 && (
+            <p className="mt-0.5 text-xs text-amber-200/80">
+              {nextAvailable.blockingRooms.join(', ')}{' '}
+              {nextAvailable.blockingRooms.length > 1 ? 'are' : 'is'} already booked that night.
+            </p>
+          )}
           <p className="mt-0.5 text-slate-300">
             Next available:{' '}
             <span className="font-semibold text-white">

@@ -1,7 +1,7 @@
 import Listing from '../models/Listing.js';
 import { slugify } from '../utils/slugify.js';
 import { calculateBookingPrice } from '../utils/pricing.js';
-import { validateListingAvailability, getBookedDateRanges, getNextAvailableWindow, getNextAvailableWindowMulti } from '../utils/availability.js';
+import { validateListingAvailability, getBookedDateRanges, getNextAvailableWindow, getNextAvailableWindowMulti, getBlockingListingIds } from '../utils/availability.js';
 import { persistUploadedFiles } from '../utils/upload.js';
 
 const parseArray = (value) => {
@@ -292,9 +292,21 @@ export const getNextAvailableForListings = async (req, res, next) => {
 
     const nights = Math.max(Number(req.query.nights) || 1, 1);
     const from = req.query.from ? new Date(req.query.from) : new Date();
+    const to = new Date(from);
+    to.setDate(to.getDate() + nights);
 
-    const result = await getNextAvailableWindowMulti(ids, nights, from);
-    res.json(result || {});
+    const [result, blockingIds] = await Promise.all([
+      getNextAvailableWindowMulti(ids, nights, from),
+      getBlockingListingIds(ids, from, to),
+    ]);
+
+    let blockingRooms = [];
+    if (blockingIds.length) {
+      const blockingListings = await Listing.find({ _id: { $in: blockingIds } }).select('name');
+      blockingRooms = blockingListings.map((listing) => listing.name);
+    }
+
+    res.json({ ...(result || {}), blockingRooms });
   } catch (error) {
     next(error);
   }

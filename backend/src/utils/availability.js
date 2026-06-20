@@ -104,6 +104,27 @@ export const isWindowAvailable = async (listingId, startDate, endDate) => {
   );
 };
 
+// For a multi-room bundle (Group Booking / Full House), identifies which of
+// the requested listings actually has a conflicting booking for the window —
+// so the UI can tell the guest *which* room is the blocker, not just that
+// "the bundle" is unavailable.
+export const getBlockingListingIds = async (listingIds, startDate, endDate) => {
+  const results = await Promise.all(
+    listingIds.map(async (listingId) => {
+      const ranges = await getBookedDateRanges(listingId, startDate, endDate);
+      const blocked = ranges.some(
+        (r) =>
+          (r.status === 'confirmed' || r.status === 'blocked') &&
+          new Date(r.startDate) < endDate &&
+          new Date(r.endDate) > startDate
+      );
+      return blocked ? listingId : null;
+    })
+  );
+
+  return results.filter(Boolean);
+};
+
 export const getExistingBookingsForRange = async ({
   listingId,
   startDate,
