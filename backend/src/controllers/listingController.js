@@ -60,6 +60,11 @@ const buildListingPayload = async (body, files = []) => {
   };
 };
 
+// Dormitory is inactive (not offered as a standalone bookable room) but is
+// still overflow space for the Group Booking / Full House bundles — callers
+// building those bundles pass includeBundleExtras=true to get it included.
+const BUNDLE_ALWAYS_INCLUDE_SLUGS = ['dormitory-open-loft'];
+
 export const getListings = async (req, res, next) => {
   try {
     const {
@@ -72,9 +77,17 @@ export const getListings = async (req, res, next) => {
       difficulty,
       location,
       limit,
+      includeBundleExtras,
     } = req.query;
 
-    const query = { active: true };
+    const query = {};
+    const andClauses = [];
+
+    if (includeBundleExtras === 'true') {
+      andClauses.push({ $or: [{ active: true }, { slug: { $in: BUNDLE_ALWAYS_INCLUDE_SLUGS } }] });
+    } else {
+      query.active = true;
+    }
 
     if (type) query.type = type;
     if (featured === 'true') query.featured = true;
@@ -87,12 +100,16 @@ export const getListings = async (req, res, next) => {
       if (maxPrice) query.price.$lte = Number(maxPrice);
     }
     if (search) {
-      query.$or = [
-        { name: new RegExp(search, 'i') },
-        { description: new RegExp(search, 'i') },
-        { location: new RegExp(search, 'i') },
-      ];
+      andClauses.push({
+        $or: [
+          { name: new RegExp(search, 'i') },
+          { description: new RegExp(search, 'i') },
+          { location: new RegExp(search, 'i') },
+        ],
+      });
     }
+
+    if (andClauses.length) query.$and = andClauses;
 
     const listings = await Listing.find(query)
       .sort({ featured: -1, createdAt: -1 })

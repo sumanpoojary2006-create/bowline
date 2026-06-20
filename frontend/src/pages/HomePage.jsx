@@ -137,6 +137,7 @@ function HomePage() {
     guests: '2',
   });
   const [rooms, setRooms] = useState([]);
+  const [bundleRooms, setBundleRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeBooking, setActiveBooking] = useState(null);
   const [bookingStep, setBookingStep] = useState('details');
@@ -166,8 +167,14 @@ function HomePage() {
 
     const fetchHomeData = async () => {
       try {
-        const { data } = await api.get('/listings', { params: { type: 'room', limit: 8 } });
+        const [{ data }, { data: bundleData }] = await Promise.all([
+          api.get('/listings', { params: { type: 'room', limit: 8 } }),
+          // Dormitory is inactive (not bookable standalone) but is still
+          // overflow space for the Group Booking / Full House bundles.
+          api.get('/listings', { params: { type: 'room', limit: 8, includeBundleExtras: true } }),
+        ]);
         setRooms([...data.listings].sort((a, b) => getRoomDisplayOrder(a) - getRoomDisplayOrder(b)));
+        setBundleRooms([...bundleData.listings].sort((a, b) => getRoomDisplayOrder(a) - getRoomDisplayOrder(b)));
       } finally {
         setLoading(false);
       }
@@ -183,10 +190,10 @@ function HomePage() {
   }, [location.state]);
 
   const groupListings = useMemo(() => {
-    if (!rooms.length) return [];
+    if (!bundleRooms.length) return [];
 
     return Object.values(groupBookingTiers).map((tier) => {
-      const bundleRooms = getGroupBundleRooms(rooms, tier.key);
+      const tierRooms = getGroupBundleRooms(bundleRooms, tier.key);
       return {
         _id: `group-booking-${tier.key}`,
         isGroupBundle: true,
@@ -194,9 +201,9 @@ function HomePage() {
         type: 'room',
         slug: `group-booking-${tier.key}`,
         name: tier.label,
-        shortDescription: `Includes ${bundleRooms.map((room) => room.name).join(', ')} with breakfast for everyone.`,
+        shortDescription: `Includes ${tierRooms.map((room) => room.name).join(', ')} with breakfast for everyone.`,
         extraPoints: tier.key === 'except-pent-house' ? [{ emoji: '🚫', text: 'Penthouse excluded' }] : [],
-        images: bundleRooms.flatMap((room) => room.images || []),
+        images: tierRooms.flatMap((room) => room.images || []),
         price: tier.weekday,
         priceUnit: 'person',
         minOccupancy: tier.minGuests,
@@ -204,7 +211,7 @@ function HomePage() {
         capacity: tier.maxGuests,
       };
     });
-  }, [rooms]);
+  }, [bundleRooms]);
 
   const openBookingPrompt = (listing) => {
     setActiveBooking(listing);
@@ -273,7 +280,7 @@ function HomePage() {
     setPlacingBooking(true);
     try {
       if (activeBooking.isGroupBundle) {
-        const items = buildGroupBookingItems(activeBooking, bookingDraft, rooms);
+        const items = buildGroupBookingItems(activeBooking, bookingDraft, bundleRooms);
 
         const { data } = await api.post('/bookings/multi', {
           items,
@@ -542,7 +549,7 @@ function HomePage() {
             <div className="mt-5 rounded-[1.5rem] border border-lime-100/10 bg-[#0d1710]/80 p-4">
               <RoomCalendar
                 listingId={activeBooking.isGroupBundle ? undefined : activeBooking._id}
-                listingIds={activeBooking.isGroupBundle ? getGroupBundleRooms(rooms, activeBooking.bundle).map((room) => room._id) : undefined}
+                listingIds={activeBooking.isGroupBundle ? getGroupBundleRooms(bundleRooms, activeBooking.bundle).map((room) => room._id) : undefined}
                 listingType="room"
                 startDate={bookingDraft.startDate}
                 endDate={bookingDraft.endDate}
