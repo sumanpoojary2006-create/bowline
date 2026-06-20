@@ -117,6 +117,20 @@ function AdminBookingsPage() {
     specialRequests: '',
     source: 'whatsapp',
   });
+  const [creatingGroupBooking, setCreatingGroupBooking] = useState(false);
+  const [groupForm, setGroupForm] = useState({
+    bundle: 'except-pent-house',
+    startDate: defaultCheckIn,
+    endDate: defaultCheckOut,
+    adultGuests: 10,
+    childGuests: 0,
+    pets: 0,
+    contactName: '',
+    contactEmail: '',
+    contactPhone: '',
+    specialRequests: '',
+    source: 'whatsapp',
+  });
 
   const fetchBookings = async () => {
     setLoading(true);
@@ -190,6 +204,37 @@ function AdminBookingsPage() {
       toast.error(error.response?.data?.message || 'Unable to create manual booking');
     } finally {
       setCreatingManualBooking(false);
+    }
+  };
+
+  const createGroupBooking = async (event) => {
+    event.preventDefault();
+    setCreatingGroupBooking(true);
+    try {
+      const payload = {
+        ...groupForm,
+        adultGuests: Number(groupForm.adultGuests),
+        childGuests: Number(groupForm.childGuests),
+        pets: Number(groupForm.pets),
+      };
+
+      const { data } = await api.post('/bookings/admin/manual-group', payload);
+      toast.success(`Group booking created — ${data.bookings.length} room(s) confirmed and blocked`);
+      setGroupForm((prev) => ({
+        ...prev,
+        adultGuests: 10,
+        childGuests: 0,
+        pets: 0,
+        contactName: '',
+        contactEmail: '',
+        contactPhone: '',
+        specialRequests: '',
+      }));
+      fetchBookings();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Unable to create group booking');
+    } finally {
+      setCreatingGroupBooking(false);
     }
   };
 
@@ -343,6 +388,129 @@ function AdminBookingsPage() {
           className="input min-h-24"
           value={manualForm.specialRequests}
           onChange={(event) => setManualForm((prev) => ({ ...prev, specialRequests: event.target.value }))}
+          placeholder="Internal notes or guest requests"
+        />
+      </form>
+
+      <form className="grid gap-4 rounded-[2rem] border border-lime-100/10 bg-[#0d1710]/70 p-5" onSubmit={createGroupBooking}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-xl font-semibold text-white">Group booking</h3>
+            <p className="mt-1 text-sm text-[#c4cec0]">
+              Confirms every room in the bundle at once — none get missed. Use this once payment has actually been
+              collected (advance/cash/UPI); every room is created confirmed and blocked immediately.
+            </p>
+          </div>
+          <button className="btn-primary" type="submit" disabled={creatingGroupBooking}>
+            {creatingGroupBooking ? 'Creating...' : 'Create & Block All Rooms'}
+          </button>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <select
+            className="input"
+            value={groupForm.bundle}
+            onChange={(event) => setGroupForm((prev) => ({ ...prev, bundle: event.target.value }))}
+          >
+            <option value="except-pent-house">Group Booking (all rooms except Pent House)</option>
+            <option value="full-house">Full House (all rooms)</option>
+          </select>
+
+          <input
+            className="input"
+            type="date"
+            value={groupForm.startDate}
+            onChange={(event) => {
+              const nextStart = event.target.value;
+              setGroupForm((prev) => {
+                const minimumCheckout = formatDateParam(addDays(new Date(nextStart), 1));
+                return {
+                  ...prev,
+                  startDate: nextStart,
+                  endDate: prev.endDate < minimumCheckout ? minimumCheckout : prev.endDate,
+                };
+              });
+            }}
+            required
+          />
+
+          <input
+            className="input"
+            type="date"
+            value={groupForm.endDate}
+            min={formatDateParam(addDays(new Date(groupForm.startDate), 1))}
+            onChange={(event) => setGroupForm((prev) => ({ ...prev, endDate: event.target.value }))}
+            required
+          />
+
+          <input
+            className="input"
+            value={groupForm.contactPhone}
+            onChange={(event) => setGroupForm((prev) => ({ ...prev, contactPhone: event.target.value }))}
+            placeholder="Guest phone"
+          />
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-5">
+          <input
+            className="input"
+            type="number"
+            min="1"
+            value={groupForm.adultGuests}
+            onChange={(event) => setGroupForm((prev) => ({ ...prev, adultGuests: event.target.value }))}
+            placeholder="Adults"
+            required
+          />
+          <input
+            className="input"
+            type="number"
+            min="0"
+            value={groupForm.childGuests}
+            onChange={(event) => setGroupForm((prev) => ({ ...prev, childGuests: event.target.value }))}
+            placeholder="Children"
+          />
+          <input
+            className="input"
+            type="number"
+            min="0"
+            value={groupForm.pets}
+            onChange={(event) => setGroupForm((prev) => ({ ...prev, pets: event.target.value }))}
+            placeholder="Pets"
+          />
+          <select
+            className="input"
+            value={groupForm.source}
+            onChange={(event) => setGroupForm((prev) => ({ ...prev, source: event.target.value }))}
+          >
+            <option value="whatsapp">WhatsApp</option>
+            <option value="website">Website</option>
+            <option value="admin">Admin</option>
+            <option value="sheet">Sheets</option>
+          </select>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <input
+            className="input"
+            value={groupForm.contactName}
+            onChange={(event) => setGroupForm((prev) => ({ ...prev, contactName: event.target.value }))}
+            placeholder="Guest / group name"
+            required
+          />
+          <input
+            className="input"
+            type="email"
+            value={groupForm.contactEmail}
+            onChange={(event) => setGroupForm((prev) => ({ ...prev, contactEmail: event.target.value }))}
+            placeholder="Guest email"
+            required
+          />
+        </div>
+
+        <textarea
+          className="input min-h-24"
+          value={groupForm.specialRequests}
+          onChange={(event) => setGroupForm((prev) => ({ ...prev, specialRequests: event.target.value }))}
           placeholder="Internal notes or guest requests"
         />
       </form>

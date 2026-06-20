@@ -493,6 +493,191 @@ export const createAdminManualRoomBooking = async (req, res, next) => {
   }
 };
 
+// Group/Full House bundle tiers admin can book in one action. Mirrors
+// frontend/src/lib/roomRates.js groupBookingTiers — keep both in sync.
+const ADMIN_GROUP_BUNDLE_TIERS = {
+  'except-pent-house': { label: 'Group Booking', weekday: 1699, weekend: 1899, excludePentHouse: true },
+  'full-house': { label: 'Full House', weekday: 1599, weekend: 1699, excludePentHouse: false },
+};
+
+// Dormitory is marked inactive (not offered as a standalone bookable room on
+// the site) but is still overflow space for both group bundles — always
+// include it regardless of its `active` flag.
+const DORMITORY_SLUG = 'dormitory-open-loft';
+
+// Admin attests payment was already collected offline (advance/cash/UPI), so
+// every room in the bundle is created confirmed+paid in one atomic action —
+// guaranteeing none of the bundle's rooms are missed, unlike booking each
+// room individually through the single-room manual-booking form.
+export const createAdminGroupBooking = async (req, res, next) => {
+  try {
+    const {
+      bundle,
+      startDate,
+      endDate,
+      adultGuests,
+      childGuests = 0,
+      pets = 0,
+      contactName,
+      contactEmail,
+      contactPhone = '',
+      specialRequests = '',
+      source = 'admin',
+    } = req.body;
+
+    const tier = ADMIN_GROUP_BUNDLE_TIERS[bundle];
+    if (!tier) {
+      res.status(400);
+      throw new Error('Invalid group booking bundle');
+    }
+
+    if (!startDate || !endDate || !contactName || !contactEmail) {
+      res.status(400);
+      throw new Error('Dates, contact name, and contact email are required');
+    }
+
+    const normalizedStart = new Date(startDate);
+    const normalizedEnd = new Date(endDate);
+    const normalizedAdults = Math.max(Number(adultGuests) || 0, 1);
+    const normalizedChildren = Math.max(Number(childGuests) || 0, 0);
+    const totalGuests = normalizedAdults + normalizedChildren;
+    const normalizedPets = Math.max(Number(pets) || 0, 0);
+
+    const allowedSources = ['website', 'admin', 'sheet', 'airbnb', 'whatsapp'];
+    const normalizedSource = allowedSources.includes(source) ? source : 'admin';
+
+    const roomQuery = { type: 'room', $or: [{ active: true }, { slug: DORMITORY_SLUG }] };
+    if (tier.excludePentHouse) roomQuery.slug = { $ne: 'pent-house' };
+    const bundleRooms = await Listing.find(roomQuery).sort({ minOccupancy: -1 });
+
+    if (!bundleRooms.length) {
+      res.status(400);
+      throw new Error('No active rooms found for this bundle');
+    }
+
+    // Spread guests across rooms: fill each room's minOccupancy first, then
+    // round-robin the remainder without exceeding any room's actual capacity
+    // (unlike the customer-facing bundle, which can overshoot a room's normal
+    // max with extra mattresses — admin bookings must stay within real capacity
+    // or every per-room availability check below fails with a confusing error).
+    const guestCounts = bundleRooms.map((room) => Math.min(room.minOccupancy || 1, room.capacity || 1));
+    let remaining = totalGuests - guestCounts.reduce((sum, count) => sum + count, 0);
+
+    if (remaining > 0) {
+      let madeProgress = true;
+      while (remaining > 0 && madeProgress) {
+        madeProgress = false;
+        for (let index = 0; index < bundleRooms.length && remaining > 0; index += 1) {
+          const capacity = bundleRooms[index].capacity || 1;
+          if (guestCounts[index] < capacity) {
+            guestCounts[index] += 1;
+            remaining -= 1;
+            madeProgress = true;
+          }
+        }
+      }
+    }
+
+    if (remaining > 0) {
+      const totalCapacity = bundleRooms.reduce((sum, room) => sum + (room.capacity || 1), 0);
+      res.status(400);
+      throw new Error(
+        `${totalGuests} guests exceed this bundle's combined room capacity of ${totalCapacity}. Activate more rooms or reduce the guest count.`
+      );
+    }
+
+    const validationErrors = [];
+    const preparedItems = [];
+
+    for (let index = 0; index < bundleRooms.length; index += 1) {
+      const room = bundleRooms[index];
+      const roomGuests = guestCounts[index];
+
+      const availability = await validateListingAvailability({
+        listing: room,
+        startDate: normalizedStart,
+        endDate: normalizedEnd,
+        guests: roomGuests,
+      });
+
+      if (!availability.available) {
+        validationErrors.push(`${room.name}: ${availability.reason}`);
+        continue;
+      }
+
+      const pricing = await calculateBookingPrice({
+        listing: room,
+        bookingType: 'room',
+        startDate: normalizedStart,
+        endDate: normalizedEnd,
+        guests: roomGuests,
+        adultGuests: roomGuests,
+        childGuests: 0,
+        pets: index === 0 ? normalizedPets : 0,
+        groupRate: { weekday: tier.weekday, weekend: tier.weekend },
+      });
+
+      preparedItems.push({ room, roomGuests, pets: index === 0 ? normalizedPets : 0, pricing });
+    }
+
+    if (validationErrors.length > 0) {
+      res.status(400);
+      throw new Error(validationErrors.join('; '));
+    }
+
+    const groupId = randomUUID();
+
+    const createdBookings = await Promise.all(
+      preparedItems.map(({ room, roomGuests, pets: roomPets, pricing }) =>
+        Booking.create({
+          bookingType: 'room',
+          listing: room._id,
+          user: null,
+          startDate: normalizedStart,
+          endDate: normalizedEnd,
+          guests: roomGuests,
+          adultGuests: roomGuests,
+          childGuests: 0,
+          pets: roomPets,
+          vegCount: 0,
+          nonVegCount: 0,
+          unitPrice: pricing.unitPrice,
+          totalPrice: pricing.totalPrice,
+          pricingBreakdown: {
+            basePrice: pricing.basePrice,
+            adjustments: pricing.adjustments,
+          },
+          paymentMethod: 'manual',
+          status: 'confirmed',
+          paymentStatus: 'paid',
+          contactName: String(contactName).trim(),
+          contactEmail: String(contactEmail).trim().toLowerCase(),
+          contactPhone: String(contactPhone || '').trim(),
+          specialRequests: String(specialRequests || '').trim(),
+          source: normalizedSource,
+          groupId,
+          groupName: tier.label,
+          isGroupBooking: true,
+        })
+      )
+    );
+
+    const populatedBookings = await Booking.find({ _id: { $in: createdBookings.map((b) => b._id) } })
+      .populate('listing')
+      .populate('user', 'name email phone');
+
+    populatedBookings.forEach(syncToSheet);
+
+    sendBookingConfirmationEmail(populatedBookings).catch((error) => {
+      console.error('Failed to send booking confirmation email', error);
+    });
+
+    res.status(201).json({ bookings: populatedBookings, groupId });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getMyBookings = async (req, res, next) => {
   try {
     const bookings = await Booking.find({ user: req.user._id })

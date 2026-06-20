@@ -5,6 +5,7 @@ import {
   cancelGuestBooking,
   cancelMyBooking,
   confirmReschedule,
+  createAdminGroupBooking,
   createAdminManualRoomBooking,
   createBooking,
   createMultiBooking,
@@ -39,6 +40,7 @@ router.patch('/:id/reschedule', confirmReschedule);
 router.get('/admin/all', protect, authorize('admin'), getAllBookings);
 router.get('/admin/calendar', protect, authorize('admin'), getCalendarBookings);
 router.post('/admin/manual-room', protect, authorize('admin'), createAdminManualRoomBooking);
+router.post('/admin/manual-group', protect, authorize('admin'), createAdminGroupBooking);
 router.patch('/admin/:id', protect, authorize('admin'), updateBookingStatus);
 router.post('/admin/:id/cancel-refund', protect, authorize('admin'), adminCancelWithRefund);
 router.post('/admin/block', protect, authorize('admin'), blockRoomDates);
