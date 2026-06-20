@@ -1,5 +1,3 @@
-import { getChecklistTemplate } from '../config/checklistTemplates.js';
-
 const pointsForResponse = (field, value) => {
   if (!field.maxPoints) {
     return 0;
@@ -19,10 +17,8 @@ const pointsForResponse = (field, value) => {
   }
 };
 
-export const buildChecklistResponses = (type, answers = {}) => {
-  const template = getChecklistTemplate(type);
-
-  return template.map((field) => {
+export const buildChecklistResponses = (fields, answers = {}) => {
+  return (fields || []).map((field) => {
     const value = answers[field.key] ?? null;
     const points = pointsForResponse(field, value);
 

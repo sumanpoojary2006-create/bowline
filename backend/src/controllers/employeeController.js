@@ -2,7 +2,7 @@ import dayjs from 'dayjs';
 import Attendance from '../models/Attendance.js';
 import ChecklistSubmission from '../models/ChecklistSubmission.js';
 import AppSetting from '../models/AppSetting.js';
-import { getChecklistTemplate } from '../config/checklistTemplates.js';
+import { resolveChecklistFields } from '../utils/checklistFields.js';
 import { buildChecklistResponses, computeChecklistScore } from '../utils/scoring.js';
 import { getClientIp, isAllowedIp } from '../utils/network.js';
 
@@ -112,11 +112,16 @@ export const checkIn = async (req, res, next) => {
   }
 };
 
-export const getChecklistTemplateForEmployee = async (req, res) => {
-  res.json({
-    type: req.employee.role,
-    fields: getChecklistTemplate(req.employee.role),
-  });
+export const getChecklistTemplateForEmployee = async (req, res, next) => {
+  try {
+    const fields = await resolveChecklistFields(req.employee.role);
+    res.json({
+      type: req.employee.role,
+      fields,
+    });
+  } catch (error) {
+    next(error);
+  }
 };
 
 export const checkOut = async (req, res, next) => {
@@ -146,7 +151,8 @@ export const checkOut = async (req, res, next) => {
       throw new Error('Checklist answers are required to check out');
     }
 
-    const responses = buildChecklistResponses(req.employee.role, answers);
+    const fields = await resolveChecklistFields(req.employee.role);
+    const responses = buildChecklistResponses(fields, answers);
     const totalScore = computeChecklistScore(responses);
 
     const checklist = await ChecklistSubmission.create({

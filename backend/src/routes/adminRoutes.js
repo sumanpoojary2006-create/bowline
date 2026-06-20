@@ -19,12 +19,17 @@ import {
 } from '../controllers/adminController.js';
 import { authorize, protect } from '../middleware/auth.js';
 import {
+  createChecklistItem,
   createEmployee,
+  deleteChecklistItem,
   getAllAttendance,
+  getChecklistItems,
   getChecklistSubmissions,
   getEmployees,
   getWifiSetting,
+  reorderChecklistItems,
   reviewChecklistSubmission,
+  updateChecklistItem,
   updateEmployee,
   updateWifiSetting,
 } from '../controllers/adminEmployeeController.js';
@@ -56,6 +61,15 @@ router.put('/employees/:id', updateEmployee);
 router.get('/attendance', getAllAttendance);
 router.get('/checklists', getChecklistSubmissions);
 router.put('/checklists/:id', reviewChecklistSubmission);
+
+// Checklist editor (templates per employee type). `reorder` must be registered
+// before the `:id` route so it isn't captured as an id.
+router.get('/checklist-items', getChecklistItems);
+router.post('/checklist-items', createChecklistItem);
+router.put('/checklist-items/reorder', reorderChecklistItems);
+router.put('/checklist-items/:id', updateChecklistItem);
+router.delete('/checklist-items/:id', deleteChecklistItem);
+
 router.get('/settings/wifi', getWifiSetting);
 router.put('/settings/wifi', updateWifiSetting);
 
