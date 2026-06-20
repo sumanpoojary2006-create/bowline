@@ -62,7 +62,14 @@ export const notifyAdmins = async ({ title, message, emailBody, type = 'system' 
       .map((email) => email.trim())
       .filter(Boolean);
 
-    const recipients = [...new Set([...admins.map((admin) => admin.email).filter(Boolean), ...extraRecipients])];
+    // Drop placeholder addresses that have no real mailbox — they only bounce.
+    // `@bowline.com` is the seed/demo domain (not a domain we own) and
+    // `@bowline.internal` is the synthetic address used for admin date-blocks.
+    const isDeliverable = (email) => !/@bowline\.(com|internal)$/i.test(email);
+
+    const recipients = [
+      ...new Set([...admins.map((admin) => admin.email).filter(Boolean), ...extraRecipients]),
+    ].filter(isDeliverable);
 
     if (recipients.length) {
       try {

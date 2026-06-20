@@ -217,7 +217,7 @@ const seed = async () => {
 
   const admin = await User.create({
     name: 'Bowline Admin',
-    email: 'admin@bowline.com',
+    email: 'bowlinestays@gmail.com',
     password: 'Admin@123',
     role: 'admin',
     phone: '+91 6366004404',

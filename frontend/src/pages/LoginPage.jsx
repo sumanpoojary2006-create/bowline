@@ -104,7 +104,7 @@ function LoginPage() {
         ) : null}
 
         <div className="mt-6 rounded-[1.5rem] bg-slate-900/70 p-4 text-sm text-slate-300">
-          <p>Admin: `admin@bowline.com` / `Admin@123`</p>
+          <p>Admin: `bowlinestays@gmail.com` / `Admin@123`</p>
         </div>
       </div>
     </section>
