@@ -2,7 +2,7 @@ import Booking from '../models/Booking.js';
 import Listing from '../models/Listing.js';
 import { calculateBookingPrice } from './pricing.js';
 import { parseIcsEvents } from './ical.js';
-import { isSheetsConfigured, writeFullBookingToSheet, clearBookingFromSheet } from './googleSheets.js';
+import { isSheetsConfigured, writeBookingToSheet, writeFullBookingToSheet, clearBookingFromSheet } from './googleSheets.js';
 
 // Pulls a listing's Airbnb "export calendar" iCal feed and mirrors its busy
 // dates into our Booking collection as source:'airbnb' bookings, so the
@@ -96,6 +96,8 @@ export const syncListingFromAirbnb = async (listing) => {
     for (const booking of populated) {
       if (booking.status === 'cancelled') {
         await clearBookingFromSheet(booking).catch(() => {});
+      } else {
+        await writeBookingToSheet(booking).catch(() => {});
       }
       await writeFullBookingToSheet(booking).catch(() => {});
     }

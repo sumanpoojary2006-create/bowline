@@ -151,9 +151,29 @@ export const getListingBySlug = async (req, res, next) => {
   }
 };
 
+// Two listings pointed at the same Airbnb calendar means every real
+// reservation on one room silently blocks the other too — this caused a real
+// incident (Cozy 2 was wrongly synced to Pent House's feed). Reject it early.
+const findAirbnbUrlConflict = (icalUrl, excludeId = null) => {
+  if (!icalUrl) return Promise.resolve(null);
+
+  return Listing.findOne({
+    airbnbIcalUrl: icalUrl,
+    ...(excludeId ? { _id: { $ne: excludeId } } : {}),
+  }).select('name');
+};
+
 export const createListing = async (req, res, next) => {
   try {
-    const listing = await Listing.create(await buildListingPayload(req.body, req.files));
+    const payload = await buildListingPayload(req.body, req.files);
+
+    const conflict = await findAirbnbUrlConflict(payload.airbnbIcalUrl);
+    if (conflict) {
+      res.status(400);
+      throw new Error(`This Airbnb calendar URL is already assigned to "${conflict.name}"`);
+    }
+
+    const listing = await Listing.create(payload);
     res.status(201).json({ listing });
   } catch (error) {
     next(error);
@@ -169,7 +189,15 @@ export const updateListing = async (req, res, next) => {
       throw new Error('Listing not found');
     }
 
-    Object.assign(listing, await buildListingPayload(req.body, req.files));
+    const payload = await buildListingPayload(req.body, req.files);
+
+    const conflict = await findAirbnbUrlConflict(payload.airbnbIcalUrl, listing._id);
+    if (conflict) {
+      res.status(400);
+      throw new Error(`This Airbnb calendar URL is already assigned to "${conflict.name}"`);
+    }
+
+    Object.assign(listing, payload);
     await listing.save();
 
     res.json({ listing });
