@@ -107,7 +107,7 @@ function AdminBookingsPage() {
     source: '',
   });
   const [manualForm, setManualForm] = useState({
-    listingId: '',
+    listingIds: [],
     startDate: defaultCheckIn,
     endDate: defaultCheckOut,
     guests: 1,
@@ -117,6 +117,7 @@ function AdminBookingsPage() {
     specialRequests: '',
     source: 'whatsapp',
   });
+  const [searchQuery, setSearchQuery] = useState('');
   const [creatingGroupBooking, setCreatingGroupBooking] = useState(false);
   const [groupForm, setGroupForm] = useState({
     bundle: 'except-pent-house',
@@ -174,24 +175,56 @@ function AdminBookingsPage() {
     }
   };
 
-  const selectedRoom = useMemo(
-    () => rooms.find((room) => room._id === manualForm.listingId) || null,
-    [rooms, manualForm.listingId]
+  const selectedRooms = useMemo(
+    () => rooms.filter((room) => manualForm.listingIds.includes(room._id)),
+    [rooms, manualForm.listingIds]
   );
+  const maxGuestsAllowed = selectedRooms.length
+    ? Math.min(...selectedRooms.map((room) => room.capacity || 20))
+    : 20;
+
+  const toggleManualRoom = (roomId) => {
+    setManualForm((prev) => ({
+      ...prev,
+      listingIds: prev.listingIds.includes(roomId)
+        ? prev.listingIds.filter((id) => id !== roomId)
+        : [...prev.listingIds, roomId],
+    }));
+  };
 
   const createManualBooking = async (event) => {
     event.preventDefault();
+    if (!manualForm.listingIds.length) {
+      toast.error('Select at least one room');
+      return;
+    }
+
     setCreatingManualBooking(true);
     try {
-      const payload = {
-        ...manualForm,
-        guests: Number(manualForm.guests),
-      };
+      const { listingIds, ...rest } = manualForm;
+      const results = await Promise.allSettled(
+        listingIds.map((listingId) =>
+          api.post('/bookings/admin/manual-room', { ...rest, listingId, guests: Number(rest.guests) })
+        )
+      );
 
-      await api.post('/bookings/admin/manual-room', payload);
-      toast.success('Manual room booking created and confirmed');
+      const succeeded = results.filter((result) => result.status === 'fulfilled').length;
+      const failed = results.filter((result) => result.status === 'rejected');
+
+      if (succeeded) {
+        toast.success(`${succeeded} room booking${succeeded > 1 ? 's' : ''} created and confirmed`);
+      }
+      if (failed.length) {
+        toast.error(
+          `${failed.length} room${failed.length > 1 ? 's' : ''} could not be booked: ${
+            failed[0].reason?.response?.data?.message || 'Unknown error'
+          }`
+        );
+      }
+
       setManualForm((prev) => ({
         ...prev,
+        listingIds: [],
         guests: 1,
         contactName: '',
         contactEmail: '',
@@ -200,8 +233,6 @@ function AdminBookingsPage() {
       }));
       // keep prev.source so the next manual entry reuses the same channel
       fetchBookings();
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Unable to create manual booking');
     } finally {
       setCreatingManualBooking(false);
     }
@@ -238,17 +269,41 @@ function AdminBookingsPage() {
     }
   };
 
-  const estimatedValue = useMemo(() => bookings.reduce((sum, booking) => sum + booking.totalPrice, 0), [bookings]);
+  const filteredBookings = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return bookings;
+
+    return bookings.filter((booking) => {
+      const haystack = [
+        booking.contactName,
+        booking.contactEmail,
+        booking.contactPhone,
+        booking.listing?.name,
+        booking.user?.name,
+        booking.user?.email,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return haystack.includes(query);
+    });
+  }, [bookings, searchQuery]);
+
+  const estimatedValue = useMemo(
+    () => filteredBookings.reduce((sum, booking) => sum + booking.totalPrice, 0),
+    [filteredBookings]
+  );
   const groupedBookings = useMemo(
     () =>
-      bookings.reduce(
+      filteredBookings.reduce(
         (acc, booking) => {
           acc[booking.status] = [...(acc[booking.status] || []), booking];
           return acc;
         },
         { pending: [], confirmed: [], cancelled: [] }
       ),
-    [bookings]
+    [filteredBookings]
   );
   const visibleSections = useMemo(() => {
     if (filters.status) {
@@ -295,21 +350,34 @@ function AdminBookingsPage() {
           </button>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <select
-            className="input"
-            value={manualForm.listingId}
-            onChange={(event) => setManualForm((prev) => ({ ...prev, listingId: event.target.value }))}
-            required
-          >
-            <option value="">Select room</option>
-            {rooms.map((room) => (
-              <option key={room._id} value={room._id}>
-                {room.name} (max {room.capacity})
-              </option>
-            ))}
-          </select>
+        <div>
+          <label className="label mb-2 block">Rooms (select one or more)</label>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+            {rooms.map((room) => {
+              const checked = manualForm.listingIds.includes(room._id);
+              return (
+                <label
+                  key={room._id}
+                  className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm cursor-pointer transition ${
+                    checked
+                      ? 'border-lime-400 bg-lime-400/10 text-lime-100'
+                      : 'border-white/10 text-slate-300 hover:border-white/30'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    className="accent-lime-400"
+                    checked={checked}
+                    onChange={() => toggleManualRoom(room._id)}
+                  />
+                  {room.name} (max {room.capacity})
+                </label>
+              );
+            })}
+          </div>
+        </div>
 
+        <div className="grid gap-4 md:grid-cols-3">
           <input
             className="input"
             type="date"
@@ -341,10 +409,10 @@ function AdminBookingsPage() {
             className="input"
             type="number"
             min="1"
-            max={selectedRoom?.capacity || 20}
+            max={maxGuestsAllowed}
             value={manualForm.guests}
             onChange={(event) => setManualForm((prev) => ({ ...prev, guests: event.target.value }))}
-            placeholder="Guests"
+            placeholder="Guests per room"
             required
           />
         </div>
@@ -515,7 +583,13 @@ function AdminBookingsPage() {
         />
       </form>
 
-      <div className="grid gap-4 rounded-[2rem] border border-lime-100/10 bg-[#0d1710]/70 p-4 md:grid-cols-3">
+      <div className="grid gap-4 rounded-[2rem] border border-lime-100/10 bg-[#0d1710]/70 p-4 md:grid-cols-4">
+        <input
+          className="input"
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
+          placeholder="Search name, email, phone, room…"
+        />
         <select className="input" value={filters.type} onChange={(event) => setFilters((prev) => ({ ...prev, type: event.target.value }))}>
           <option value="">All types</option>
           <option value="room">Rooms</option>
