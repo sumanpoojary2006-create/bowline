@@ -31,27 +31,46 @@ export function isSheetsConfigured() {
 }
 
 // ── Call the Apps Script web app ───────────────────────────────────────────
+// Apps Script has no locking around the spreadsheet, so concurrent doPost
+// invocations (e.g. several rooms booked together) can silently collide and
+// drop writes. Serialize every call from this process so at most one is ever
+// in flight — this only helps within a single server instance, so callers
+// that fan out across separate HTTP requests (e.g. one request per room)
+// should also submit sequentially on the client side.
+let appsScriptQueue = Promise.resolve();
+
+function enqueueAppsScriptCall(task) {
+  const result = appsScriptQueue.then(task, task);
+  appsScriptQueue = result.then(
+    () => {},
+    () => {}
+  );
+  return result;
+}
+
 async function callAppsScript(payload) {
   const url = process.env.APPS_SCRIPT_WEB_APP_URL;
   if (!url) return;
 
-  const body = JSON.stringify({
-    ...payload,
-    secret: process.env.SHEETS_WEBHOOK_SECRET || '',
-  });
+  return enqueueAppsScriptCall(async () => {
+    const body = JSON.stringify({
+      ...payload,
+      secret: process.env.SHEETS_WEBHOOK_SECRET || '',
+    });
 
-  // Apps Script web apps redirect from /exec to /exec?... — follow redirects
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body,
-    redirect: 'follow',
-  });
+    // Apps Script web apps redirect from /exec to /exec?... — follow redirects
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+      redirect: 'follow',
+    });
 
-  if (!res.ok) {
-    throw new Error(`Apps Script responded ${res.status}: ${await res.text()}`);
-  }
-  return res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(`Apps Script responded ${res.status}: ${await res.text()}`);
+    }
+    return res.json().catch(() => ({}));
+  });
 }
 
 // ── Write a booking into the sheet ────────────────────────────────────────

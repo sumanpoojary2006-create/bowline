@@ -202,11 +202,22 @@ function AdminBookingsPage() {
     setCreatingManualBooking(true);
     try {
       const { listingIds, ...rest } = manualForm;
-      const results = await Promise.allSettled(
-        listingIds.map((listingId) =>
-          api.post('/bookings/admin/manual-room', { ...rest, listingId, guests: Number(rest.guests) })
-        )
-      );
+      // Submit sequentially, not concurrently: each booking triggers a Google
+      // Sheets sync, and Apps Script has no locking — simultaneous requests
+      // can silently collide and drop writes to the sheet.
+      const results = [];
+      for (const listingId of listingIds) {
+        try {
+          const response = await api.post('/bookings/admin/manual-room', {
+            ...rest,
+            listingId,
+            guests: Number(rest.guests),
+          });
+          results.push({ status: 'fulfilled', value: response });
+        } catch (error) {
+          results.push({ status: 'rejected', reason: error });
+        }
+      }
 
       const succeeded = results.filter((result) => result.status === 'fulfilled').length;
       const failed = results.filter((result) => result.status === 'rejected');
