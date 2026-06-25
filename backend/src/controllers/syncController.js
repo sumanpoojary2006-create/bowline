@@ -27,7 +27,7 @@ const LEGACY_ROOM_MAP = {
   'Cozy 1':    'Cozy 1',
   'Cozy 2':    'Cozy 2',
   'Cozy Mini': 'Cozy Mini',
-  'Dorm':      'Dormitory (Open Loft)',
+  'Dorm':      'Dormitory',
   'Penthouse': 'Pent House',
 };
 

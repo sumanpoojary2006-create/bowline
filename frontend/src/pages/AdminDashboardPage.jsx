@@ -134,10 +134,18 @@ function AdminDashboardPage() {
       const created = results.reduce((s, r) => s + (r.created || 0), 0);
       const cancelled = results.reduce((s, r) => s + (r.cancelled || 0), 0);
       const errors = results.flatMap((r) => r.errors || []);
+      const needsReview = results.flatMap((r) => r.needsReview || []);
       if (errors.length) {
         toast.error(`Sync done with errors: ${errors[0]}`);
       } else {
         toast.success(`Airbnb synced — ${created} new block${created !== 1 ? 's' : ''}, ${cancelled} released`);
+      }
+      if (needsReview.length) {
+        const dates = needsReview.map((d) => `${d.startDate}→${d.endDate}`).join(', ');
+        toast(
+          `Full House calendar shows unavailable on ${needsReview.length} date${needsReview.length !== 1 ? 's' : ''} with no matching guest name across rooms — not auto-blocked, check manually: ${dates}`,
+          { duration: 10000 }
+        );
       }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Airbnb sync failed');

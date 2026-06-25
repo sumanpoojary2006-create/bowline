@@ -114,18 +114,37 @@ export const syncListingFromAirbnb = async (listing) => {
   return result;
 };
 
+// Generic placeholders that don't count as evidence of a real guest — seeing
+// the same one of these across several rooms means nothing (it's just our
+// own default text), unlike a real name repeated across rooms.
+const GENERIC_CONTACT_NAMES = new Set([
+  '', 'airbnb guest', 'offline booking', 'offline block', 'test', 'bowline admin',
+]);
+
+const isGenericContactName = (name) => {
+  const normalized = String(name || '').trim().toLowerCase();
+  return !normalized || GENERIC_CONTACT_NAMES.has(normalized) || normalized.startsWith('airbnb guest');
+};
+
+const FULLHOUSE_EXTERNAL_ID_RE = /^fullhouse:(.+):([0-9a-fA-F]{24})$/;
+
 // Airbnb sells the whole property as its own separate listing ("Full House")
-// with its own iCal feed, distinct from the per-room feeds above. In practice
-// that feed mostly just mirrors whichever individual rooms are already
-// booked (same event UID, sometimes with a merged/extended date range), but
-// a guest can also book ONLY the Full House listing — that stay won't appear
-// in any single room's own feed at all. So instead of trusting per-room
-// mirroring, we fill the gap from our own DB: for every Full House event, any
-// room that doesn't already have an overlapping booking (from its own feed,
-// admin entry, etc.) gets one created here, source-tagged so it can be
-// tracked/cancelled independently of the per-room sync.
+// with its own iCal feed, distinct from the per-room feeds above. Its "Not
+// available" blocks are an UNRELIABLE signal though — they fire just as
+// often because several rooms happen to be independently booked by
+// different guests at once (so the bundle can't be sold as a whole) as they
+// do for an actual full-house sale. Blindly blocking every room for every
+// such date risks blocking rooms nobody actually booked.
+//
+// So instead of trusting the feed directly, we only act when our own DB
+// already shows two-or-more rooms independently booked under the SAME real
+// guest name for those dates (e.g. a guest recorded as "Nithin" on 3 of 5
+// rooms) — that's strong evidence of one real full-house guest, and we fill
+// in the remaining unbooked rooms under that same name. If no such name
+// match exists, we leave it alone and flag it for manual review instead of
+// guessing.
 export const syncFullHouseFromAirbnb = async () => {
-  const result = { listing: 'Full House', created: 0, updated: 0, cancelled: 0, errors: [] };
+  const result = { listing: 'Full House', created: 0, updated: 0, cancelled: 0, needsReview: [], errors: [] };
 
   const setting = await AppSetting.findOne({ key: FULL_HOUSE_SETTING_KEY });
   const icalUrl = (setting?.value || '').trim();
@@ -142,6 +161,7 @@ export const syncFullHouseFromAirbnb = async () => {
   }
 
   const events = parseIcsEvents(text);
+  const feedUids = new Set(events.map((e) => e.uid));
 
   const rooms = await Listing.find({
     type: 'room',
@@ -154,14 +174,49 @@ export const syncFullHouseFromAirbnb = async () => {
     externalId: { $regex: '^fullhouse:' },
   });
 
-  const handledExternalIds = new Set();
-
   for (const event of events) {
-    for (const room of rooms) {
-      const fhExternalId = `fullhouse:${event.uid}:${room._id}`;
-      handledExternalIds.add(fhExternalId);
+    // What does our own DB already show for these dates, independent of any
+    // previous full-house gap-fill?
+    const perRoom = await Promise.all(
+      rooms.map(async (room) => ({
+        room,
+        bookings: await getExistingBookingsForRange({
+          listingId: room._id,
+          startDate: event.start,
+          endDate: event.end,
+          statuses: ['pending', 'confirmed'],
+        }).then((list) => list.filter((b) => !String(b.externalId || '').startsWith('fullhouse:'))),
+      }))
+    );
 
+    const nameRoomCounts = new Map();
+    for (const { bookings } of perRoom) {
+      const namesInThisRoom = new Set(
+        bookings.map((b) => String(b.contactName || '').trim()).filter((n) => !isGenericContactName(n))
+      );
+      for (const name of namesInThisRoom) {
+        const key = name.toLowerCase();
+        const entry = nameRoomCounts.get(key) || { name, rooms: 0 };
+        entry.rooms += 1;
+        nameRoomCounts.set(key, entry);
+      }
+    }
+
+    const confirmedGuest = [...nameRoomCounts.values()].sort((a, b) => b.rooms - a.rooms)[0];
+    const isConfirmedFullHouse = confirmedGuest && confirmedGuest.rooms >= 2;
+
+    if (!isConfirmedFullHouse) {
+      result.needsReview.push({
+        startDate: event.start.toISOString().slice(0, 10),
+        endDate: event.end.toISOString().slice(0, 10),
+      });
+      continue;
+    }
+
+    for (const { room, bookings } of perRoom) {
+      const fhExternalId = `fullhouse:${event.uid}:${room._id}`;
       const existing = existingFullHouseBookings.find((b) => b.externalId === fhExternalId);
+
       if (existing) {
         if (
           existing.startDate.getTime() !== event.start.getTime() ||
@@ -175,14 +230,7 @@ export const syncFullHouseFromAirbnb = async () => {
         continue;
       }
 
-      // Already blocked independently (own feed, manual booking, etc.) — no gap to fill.
-      const overlapping = await getExistingBookingsForRange({
-        listingId: room._id,
-        startDate: event.start,
-        endDate: event.end,
-        statuses: ['pending', 'confirmed'],
-      });
-      if (overlapping.length) continue;
+      if (bookings.length) continue; // already independently covered
 
       const pricing = await calculateBookingPrice({
         listing: room,
@@ -205,7 +253,7 @@ export const syncFullHouseFromAirbnb = async () => {
         status: 'confirmed',
         paymentStatus: 'paid',
         paymentMethod: 'airbnb',
-        contactName: 'Airbnb Guest (Full House)',
+        contactName: confirmedGuest.name,
         contactEmail: 'airbnb-sync@bowline.internal',
         contactPhone: '',
         specialRequests: 'Synced from Airbnb Full House calendar',
@@ -216,9 +264,11 @@ export const syncFullHouseFromAirbnb = async () => {
     }
   }
 
-  // Cancel Full House gap-fill bookings whose event disappeared from the feed
+  // Cancel gap-fill bookings whose event disappeared from the feed entirely
   for (const booking of existingFullHouseBookings) {
-    if (!handledExternalIds.has(booking.externalId)) {
+    const match = booking.externalId.match(FULLHOUSE_EXTERNAL_ID_RE);
+    const uid = match?.[1];
+    if (!uid || !feedUids.has(uid)) {
       booking.status = 'cancelled';
       await booking.save();
       result.cancelled++;

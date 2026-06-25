@@ -13,11 +13,11 @@
 // These must match the column headers in your Google Sheet, row 1.
 // Keys = exact MongoDB Listing.name values.
 export const ROOM_COLUMN_INDEX = {
-  'Cozy 1':                { idx: 2 },
-  'Cozy 2':                { idx: 3 },
-  'Cozy Mini':             { idx: 4 },
-  'Dormitory (Open Loft)': { idx: 5 },
-  'Pent House':            { idx: 6 },
+  'Cozy 1':     { idx: 2 },
+  'Cozy 2':     { idx: 3 },
+  'Cozy Mini':  { idx: 4 },
+  'Dormitory':  { idx: 5 },
+  'Pent House': { idx: 6 },
 };
 
 export const STATUS_COLORS = {

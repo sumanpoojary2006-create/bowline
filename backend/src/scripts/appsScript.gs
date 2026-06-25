@@ -19,9 +19,9 @@
 // Sheet layout this script expects:
 //
 //   Calendar month tabs (e.g. "Jun 26", "Jul 26", ...):
-//     Row 1: A1 = "Date", B1.."F1" = room names matching ROOM_COLUMN_INDEX
-//            below ("Cozy 1", "Cozy 2", "Cozy Mini",
-//            "Dormitory (Open Loft)", "Pent House")
+//     Row 1: A1 = "Date", B1.."F1" = each room's column (any header text is
+//            fine — columns are addressed by the fixed index below, not by
+//            matching header text against the room name)
 //     Col A, rows 2+: one date per row (the days of that month)
 //     Cols B-F: guest name per cell; cell background colour encodes status
 //               (green = confirmed, blue = pending, white = empty/cancelled)
@@ -41,13 +41,14 @@ const SHEETS_SECRET = 'YOUR_SHEETS_WEBHOOK_SECRET';           // ← must match 
 
 const BOOKINGS_SHEET_NAME = 'Bookings';
 
-// Must match backend/src/utils/googleSheets.js ROOM_COLUMN_INDEX
+// Keys must match MongoDB Listing.name exactly, and this object must match
+// backend/src/utils/googleSheets.js ROOM_COLUMN_INDEX.
 const ROOM_COLUMN_INDEX = {
-  'Cozy 1':                2,
-  'Cozy 2':                3,
-  'Cozy Mini':             4,
-  'Dormitory (Open Loft)': 5,
-  'Pent House':            6,
+  'Cozy 1':     2,
+  'Cozy 2':     3,
+  'Cozy Mini':  4,
+  'Dormitory':  5,
+  'Pent House': 6,
 };
 
 const STATUS_COLORS = {
