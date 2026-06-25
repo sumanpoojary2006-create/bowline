@@ -11,6 +11,10 @@ const appSettingSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    value: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
   },
   {
     timestamps: true,

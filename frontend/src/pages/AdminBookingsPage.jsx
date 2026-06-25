@@ -175,6 +175,21 @@ function AdminBookingsPage() {
     }
   };
 
+  const updateGuestName = async (id, currentName) => {
+    const nextName = window.prompt('Guest name', currentName || '');
+    if (nextName === null) return;
+    const trimmed = nextName.trim();
+    if (!trimmed || trimmed === currentName) return;
+
+    try {
+      await api.patch(`/bookings/admin/${id}/contact`, { contactName: trimmed });
+      toast.success('Guest name updated');
+      fetchBookings();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Unable to update guest name');
+    }
+  };
+
   const selectedRooms = useMemo(
     () => rooms.filter((room) => manualForm.listingIds.includes(room._id)),
     [rooms, manualForm.listingIds]
@@ -651,8 +666,17 @@ function AdminBookingsPage() {
                           <h3 className="mt-2 text-xl font-semibold text-white">{booking.listing?.name}</h3>
                           <p className="mt-2 text-sm text-slate-300">{booking.user?.name} • {booking.user?.email}</p>
                           <p className="mt-2 text-sm text-slate-300">Stay dates: {formatDateRange(booking.startDate, booking.endDate)}</p>
-                          <p className="mt-2 text-sm text-slate-400">
-                            Contact: {booking.contactName} • {booking.contactPhone || 'No phone'}
+                          <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-400">
+                            <span>Contact: {booking.contactName} • {booking.contactPhone || 'No phone'}</span>
+                            {booking.source === 'airbnb' ? (
+                              <button
+                                type="button"
+                                className="text-xs font-semibold text-lime-300 underline-offset-2 hover:underline"
+                                onClick={() => updateGuestName(booking._id, booking.contactName)}
+                              >
+                                Edit name
+                              </button>
+                            ) : null}
                           </p>
                           <p className="mt-2 text-sm text-slate-300">Special requests: {booking.specialRequests || 'None'}</p>
                         </div>

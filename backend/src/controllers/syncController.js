@@ -13,7 +13,8 @@ import {
   SHEET_ROOM_TO_LISTING,
 } from '../utils/googleSheets.js';
 import { buildIcsCalendar } from '../utils/ical.js';
-import { syncAllAirbnbCalendars, syncListingFromAirbnb } from '../utils/airbnbSync.js';
+import { syncAllAirbnbCalendars, syncListingFromAirbnb, FULL_HOUSE_SETTING_KEY } from '../utils/airbnbSync.js';
+import AppSetting from '../models/AppSetting.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -424,6 +425,32 @@ export const syncAirbnb = async (req, res, next) => {
 
     const results = await syncAllAirbnbCalendars();
     res.json({ results });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ── GET/PUT /api/sync/airbnb/full-house-url — the property-wide "Full House"
+// Airbnb listing's iCal feed isn't tied to any one Listing document, so its
+// URL is stored as a standalone AppSetting instead. ───────────────────────
+export const getFullHouseAirbnbSetting = async (req, res, next) => {
+  try {
+    const setting = await AppSetting.findOne({ key: FULL_HOUSE_SETTING_KEY });
+    res.json({ icalUrl: setting?.value || '' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const updateFullHouseAirbnbSetting = async (req, res, next) => {
+  try {
+    const { icalUrl } = req.body;
+    const setting = await AppSetting.findOneAndUpdate(
+      { key: FULL_HOUSE_SETTING_KEY },
+      { value: String(icalUrl || '').trim() },
+      { upsert: true, new: true }
+    );
+    res.json({ icalUrl: setting.value });
   } catch (err) {
     next(err);
   }

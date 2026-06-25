@@ -9,6 +9,8 @@ import {
   getCalendarFeed,
   syncAirbnb,
   syncAirbnbCron,
+  getFullHouseAirbnbSetting,
+  updateFullHouseAirbnbSetting,
 } from '../controllers/syncController.js';
 
 const router = Router();
@@ -28,5 +30,7 @@ router.get('/status', protect, authorize('admin'), getSyncStatus);
 router.post('/push', protect, authorize('admin'), pushToSheet);
 router.post('/import-legacy', protect, authorize('admin'), importLegacy);
 router.post('/airbnb', protect, authorize('admin'), syncAirbnb);
+router.get('/airbnb/full-house-url', protect, authorize('admin'), getFullHouseAirbnbSetting);
+router.put('/airbnb/full-house-url', protect, authorize('admin'), updateFullHouseAirbnbSetting);
 
 export default router;

@@ -95,6 +95,36 @@ function AdminDashboardPage() {
   }, [month]);
 
   const [syncing, setSyncing] = useState(false);
+  const [fullHouseUrl, setFullHouseUrl] = useState('');
+  const [fullHouseUrlSaved, setFullHouseUrlSaved] = useState('');
+  const [savingFullHouseUrl, setSavingFullHouseUrl] = useState(false);
+
+  useEffect(() => {
+    const fetchFullHouseUrl = async () => {
+      try {
+        const { data } = await api.get('/sync/airbnb/full-house-url');
+        setFullHouseUrl(data.icalUrl || '');
+        setFullHouseUrlSaved(data.icalUrl || '');
+      } catch {
+        // non-critical — leave the field blank if it can't be loaded
+      }
+    };
+    fetchFullHouseUrl();
+  }, []);
+
+  const saveFullHouseUrl = async () => {
+    setSavingFullHouseUrl(true);
+    try {
+      const { data } = await api.put('/sync/airbnb/full-house-url', { icalUrl: fullHouseUrl.trim() });
+      setFullHouseUrl(data.icalUrl || '');
+      setFullHouseUrlSaved(data.icalUrl || '');
+      toast.success('Full House Airbnb calendar saved');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Could not save the Full House calendar URL');
+    } finally {
+      setSavingFullHouseUrl(false);
+    }
+  };
 
   const syncAllAirbnb = async () => {
     setSyncing(true);
@@ -171,6 +201,31 @@ function AdminDashboardPage() {
           </svg>
           {syncing ? 'Syncing…' : 'Sync Airbnb'}
         </button>
+      </div>
+
+      <div className="glass rounded-[2rem] p-6">
+        <h2 className="text-lg font-semibold text-white">Airbnb "Full House" calendar</h2>
+        <p className="mt-1 text-sm text-[#b7c2b2]">
+          Airbnb sells the whole property as its own separate listing, with its own calendar URL.
+          Paste that listing's export calendar link here so a Full House reservation blocks every
+          room (including ones without their own Airbnb listing) — it isn't linked automatically.
+        </p>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <input
+            type="url"
+            className="input min-w-0 flex-1"
+            placeholder="https://www.airbnb.co.in/calendar/ical/....ics?t=..."
+            value={fullHouseUrl}
+            onChange={(event) => setFullHouseUrl(event.target.value)}
+          />
+          <button
+            className="btn-secondary shrink-0"
+            onClick={saveFullHouseUrl}
+            disabled={savingFullHouseUrl || fullHouseUrl.trim() === fullHouseUrlSaved.trim()}
+          >
+            {savingFullHouseUrl ? 'Saving…' : 'Save'}
+          </button>
+        </div>
       </div>
 
       {breakdownEntries.length > 0 ? (

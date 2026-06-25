@@ -894,18 +894,52 @@ export const updateBookingStatus = async (req, res, next) => {
       syncToSheet(booking);
     }
 
-    await createNotification({
-      userId: booking.user._id,
-      title: 'Booking updated',
-      message: `Your booking for ${booking.listing.name} is now ${booking.status}.`,
-      type: 'booking',
-    });
+    if (booking.user) {
+      await createNotification({
+        userId: booking.user._id,
+        title: 'Booking updated',
+        message: `Your booking for ${booking.listing.name} is now ${booking.status}.`,
+        type: 'booking',
+      });
+    }
 
     if (nextStatus === 'confirmed' && previousStatus !== 'confirmed') {
       sendBookingConfirmationEmail(booking).catch((error) => {
         console.error('Failed to send booking confirmation email', error);
       });
     }
+
+    res.json({ booking });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Airbnb's iCal export never includes the guest's name (confirmed by direct
+// inspection of the feed), so synced bookings default to a placeholder name.
+// This lets an admin fill in the real name once they know it (e.g. from the
+// Airbnb app/inbox), without going through the full status-update flow.
+export const updateBookingContact = async (req, res, next) => {
+  try {
+    const booking = await Booking.findById(req.params.id)
+      .populate('listing')
+      .populate('user', 'name email');
+
+    if (!booking) {
+      res.status(404);
+      throw new Error('Booking not found');
+    }
+
+    const { contactName } = req.body;
+    if (typeof contactName !== 'string' || !contactName.trim()) {
+      res.status(400);
+      throw new Error('contactName is required');
+    }
+
+    booking.contactName = contactName.trim();
+    await booking.save();
+
+    syncToSheet(booking);
 
     res.json({ booking });
   } catch (error) {
