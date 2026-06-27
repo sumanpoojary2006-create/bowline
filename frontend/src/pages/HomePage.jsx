@@ -996,7 +996,7 @@ function HomePage() {
               </button>
             </div>
             </>
-            ) : (
+            ) : bookingStep === 'summary' ? (
               <div className="mt-5 space-y-3">
                 <div className="rounded-[1.5rem] border border-lime-100/10 bg-[#0d1710]/80 p-4">
                   <p className="text-xs uppercase tracking-[0.22em] text-lime-200/80">Booking summary</p>
@@ -1146,48 +1146,6 @@ function HomePage() {
                       <span>Revised total</span>
                       <span>{formatCurrency(modalFinalTotal)}</span>
                     </div>
-                  </div>
-                </div>
-
-                <div className="rounded-[1.5rem] border border-lime-100/10 bg-[#0d1710]/80 p-4">
-                  <p className="text-xs uppercase tracking-[0.22em] text-lime-200/80">How would you like to pay?</p>
-                  <div className="mt-3 grid grid-cols-2 gap-3">
-                    <label
-                      className={`cursor-pointer rounded-[1rem] border p-3 text-sm transition ${
-                        paymentPlan === 'deposit'
-                          ? 'border-lime-300 bg-lime-200/10 text-white'
-                          : 'border-lime-100/10 bg-black/20 text-[#cdd6c9]'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="paymentPlan"
-                        className="sr-only"
-                        checked={paymentPlan === 'deposit'}
-                        onChange={() => setPaymentPlan('deposit')}
-                      />
-                      <p className="font-semibold">Pay 50% now</p>
-                      <p className="mt-1 text-xs text-[#aab5a5]">
-                        {formatCurrency(Math.round(modalFinalTotal / 2))} now, rest at check-out
-                      </p>
-                    </label>
-                    <label
-                      className={`cursor-pointer rounded-[1rem] border p-3 text-sm transition ${
-                        paymentPlan === 'full'
-                          ? 'border-lime-300 bg-lime-200/10 text-white'
-                          : 'border-lime-100/10 bg-black/20 text-[#cdd6c9]'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="paymentPlan"
-                        className="sr-only"
-                        checked={paymentPlan === 'full'}
-                        onChange={() => setPaymentPlan('full')}
-                      />
-                      <p className="font-semibold">Pay 100% now</p>
-                      <p className="mt-1 text-xs text-[#aab5a5]">{formatCurrency(modalFinalTotal)} now, nothing due later</p>
-                    </label>
                   </div>
                 </div>
 
@@ -1371,7 +1329,13 @@ function HomePage() {
                   </button>
                   <button
                     className="btn-primary flex-1 disabled:opacity-50"
-                    onClick={proceedToBook}
+                    onClick={() => {
+                      if (!policyAccepted) {
+                        toast.error('Please read and check the cancellation & rescheduling policy and house rules.');
+                        return;
+                      }
+                      setBookingStep('payment');
+                    }}
                     disabled={
                       placingBooking ||
                       !bookingDraft.contactName.trim() ||
@@ -1380,11 +1344,79 @@ function HomePage() {
                     }
                     type="button"
                   >
+                    Proceed to Book
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-5 space-y-3">
+                <div className="rounded-[1.5rem] border border-lime-100/10 bg-[#0d1710]/80 p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-lime-200/80">How would you like to pay?</p>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <label
+                      className={`cursor-pointer rounded-[1rem] border p-3 text-sm transition ${
+                        paymentPlan === 'deposit'
+                          ? 'border-lime-300 bg-lime-200/10 text-white'
+                          : 'border-lime-100/10 bg-black/20 text-[#cdd6c9]'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="paymentPlan"
+                        className="sr-only"
+                        checked={paymentPlan === 'deposit'}
+                        onChange={() => setPaymentPlan('deposit')}
+                      />
+                      <p className="font-semibold">Pay 50% now</p>
+                      <p className="mt-1 text-xs text-[#aab5a5]">
+                        {formatCurrency(Math.round(modalFinalTotal / 2))} now, rest at check-out
+                      </p>
+                    </label>
+                    <label
+                      className={`cursor-pointer rounded-[1rem] border p-3 text-sm transition ${
+                        paymentPlan === 'full'
+                          ? 'border-lime-300 bg-lime-200/10 text-white'
+                          : 'border-lime-100/10 bg-black/20 text-[#cdd6c9]'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="paymentPlan"
+                        className="sr-only"
+                        checked={paymentPlan === 'full'}
+                        onChange={() => setPaymentPlan('full')}
+                      />
+                      <p className="font-semibold">Pay 100% now</p>
+                      <p className="mt-1 text-xs text-[#aab5a5]">{formatCurrency(modalFinalTotal)} now, nothing due later</p>
+                    </label>
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between rounded-[1rem] border border-lime-100/10 bg-black/20 px-4 py-3 text-sm">
+                    <span className="text-[#cdd6c9]">Amount to pay now</span>
+                    <span className="text-lg font-bold text-lime-200">
+                      {formatCurrency(paymentPlan === 'full' ? modalFinalTotal : Math.round(modalFinalTotal / 2))}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    className="btn-secondary flex-1 disabled:opacity-50"
+                    onClick={() => setBookingStep('summary')}
+                    disabled={placingBooking}
+                    type="button"
+                  >
+                    Back
+                  </button>
+                  <button
+                    className="btn-primary flex-1 disabled:opacity-50"
+                    onClick={proceedToBook}
+                    disabled={placingBooking}
+                    type="button"
+                  >
                     {placingBooking
                       ? 'Processing...'
-                      : roomCart.length > 0
-                      ? `Pay for ${roomCart.length + 1} Rooms`
-                      : 'Proceed to Book'}
+                      : `Pay ${formatCurrency(paymentPlan === 'full' ? modalFinalTotal : Math.round(modalFinalTotal / 2))} now`}
                   </button>
                 </div>
               </div>
