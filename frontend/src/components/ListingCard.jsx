@@ -137,6 +137,11 @@ function ListingCard({
           <p className="line-clamp-2 text-sm text-[#d7ded3]">{listing.shortDescription || listing.description}</p>
         )}
         {isRoom ? (
+          <span className="inline-flex w-fit items-center gap-1 rounded-full border border-lime-100/20 bg-lime-200/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-lime-200">
+            🔒 Private Room
+          </span>
+        ) : null}
+        {isRoom ? (
           <div className="grid grid-cols-2 gap-2 text-xs text-[#c4cec0]">
             <span className="rounded-xl border border-lime-100/10 bg-black/15 px-3 py-2">
               Weekend {formatCurrency(roomRate.weekend)}/person

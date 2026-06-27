@@ -48,10 +48,19 @@ export const syncListingFromAirbnb = async (listing) => {
         existing.startDate.getTime() !== event.start.getTime() ||
         existing.endDate.getTime() !== event.end.getTime()
       ) {
+        const oldStartDate = existing.startDate;
+        const oldEndDate = existing.endDate;
         existing.startDate = event.start;
         existing.endDate = event.end;
         await existing.save();
         result.updated++;
+
+        // The old date range is now stale in the calendar tab — clear it so a
+        // postponed/moved Airbnb reservation doesn't leave a phantom booking
+        // behind on its original dates.
+        if (isSheetsConfigured()) {
+          await clearBookingFromSheet({ listing, startDate: oldStartDate, endDate: oldEndDate }).catch(() => {});
+        }
       }
       continue;
     }
@@ -222,10 +231,16 @@ export const syncFullHouseFromAirbnb = async () => {
           existing.startDate.getTime() !== event.start.getTime() ||
           existing.endDate.getTime() !== event.end.getTime()
         ) {
+          const oldStartDate = existing.startDate;
+          const oldEndDate = existing.endDate;
           existing.startDate = event.start;
           existing.endDate = event.end;
           await existing.save();
           result.updated++;
+
+          if (isSheetsConfigured()) {
+            await clearBookingFromSheet({ listing: room, startDate: oldStartDate, endDate: oldEndDate }).catch(() => {});
+          }
         }
         continue;
       }
