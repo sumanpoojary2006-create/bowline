@@ -26,7 +26,12 @@ import { getGroupBundleRooms, getRoomRate, getRoomDisplayOrder, groupBookingTier
 const forestBackdrop =
   'https://images.unsplash.com/photo-1473448912268-2022ce9509d8?auto=format&fit=crop&w=1800&q=80';
 
-const tomorrow = () => addDays(new Date(), 1);
+const today = () => {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+const tomorrow = () => addDays(today(), 1);
 const increment = (value, amount, min = 0, max = 20) => Math.max(min, Math.min(max, Number(value || 0) + amount));
 
 // Sum a per-night rate (weekday vs weekend) across the stay, mirroring the
@@ -282,7 +287,7 @@ function HomePage() {
       }
 
       const timelineDays = [];
-      for (let offset = -15; offset <= 15; offset++) {
+      for (let offset = -7; offset <= 14; offset++) {
         timelineDays.push(addDays(dateSearch.startDate, offset));
       }
 
@@ -570,38 +575,21 @@ function HomePage() {
               <div className="rounded-2xl border border-lime-100/10 bg-black/20 p-4">
                 <p className="text-sm font-semibold text-[#f5f0dd]">Check availability for your dates</p>
 
-                <div className="mt-3 flex flex-wrap items-end gap-3 rounded-[1.25rem] border border-lime-100/10 bg-[#0d1710]/80 p-3 sm:p-4">
-                  <label className="flex flex-col text-xs text-[#aab5a5]">
-                    Check-in
-                    <input
-                      type="date"
-                      className="mt-1 rounded-lg border border-lime-100/15 bg-black/30 px-3 py-2 text-sm text-white"
-                      value={formatDateParam(dateSearch.startDate)}
-                      min={formatDateParam(tomorrow())}
-                      onChange={(e) => {
-                        const start = parseDateParam(e.target.value, dateSearch.startDate);
-                        setDateSearch((prev) => ({
-                          startDate: start,
-                          endDate: ensureCheckoutDate(start, prev.endDate, 1),
-                        }));
-                      }}
-                    />
-                  </label>
-                  <label className="flex flex-col text-xs text-[#aab5a5]">
-                    Check-out
-                    <input
-                      type="date"
-                      className="mt-1 rounded-lg border border-lime-100/15 bg-black/30 px-3 py-2 text-sm text-white"
-                      value={formatDateParam(dateSearch.endDate)}
-                      min={formatDateParam(addDays(dateSearch.startDate, 1))}
-                      onChange={(e) =>
-                        setDateSearch((prev) => ({ ...prev, endDate: parseDateParam(e.target.value, prev.endDate) }))
-                      }
-                    />
-                  </label>
+                <div className="mt-3 rounded-[1.25rem] border border-lime-100/10 bg-[#0d1710]/80 p-3 sm:p-4">
+                  <RoomCalendar
+                    startDate={dateSearch.startDate}
+                    endDate={dateSearch.endDate}
+                    onStartDate={(date) =>
+                      setDateSearch((prev) => ({
+                        startDate: date,
+                        endDate: ensureCheckoutDate(date, prev.endDate, 1),
+                      }))
+                    }
+                    onEndDate={(date) => setDateSearch((prev) => ({ ...prev, endDate: date }))}
+                  />
                   <button
                     type="button"
-                    className="btn-primary rounded-xl px-5 py-2.5 disabled:opacity-60"
+                    className="btn-primary mt-4 w-full rounded-xl px-5 py-2.5 disabled:opacity-60 sm:w-auto"
                     onClick={runDateSearch}
                     disabled={searching}
                   >
@@ -691,19 +679,26 @@ function HomePage() {
                           <p className="mt-3 text-xs text-[#cdd6c9]">No availability found in the next 90 days.</p>
                         ) : null}
 
-                        <p className="mt-3 text-xs text-[#aab5a5]">15 days before &amp; after your selected check-in</p>
+                        <p className="mt-3 text-xs text-[#aab5a5]">1 week before &amp; 2 weeks after your selected check-in</p>
                         <div className="mt-1.5 flex gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                           {searchResults.timelineDays.map((day) => {
                             const key = formatDateParam(day);
                             const booked = timelineBookedDays.has(key);
                             const isSelectedDay = key === formatDateParam(dateSearch.startDate);
+                            const isPast = day < today();
                             return (
                               <span
                                 key={key}
                                 title={day.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                                 className={`flex shrink-0 flex-col items-center justify-center rounded-md px-2 py-1 text-[10px] font-medium ${
                                   isSelectedDay ? 'ring-1 ring-lime-300' : ''
-                                } ${booked ? 'bg-rose-500/15 text-rose-300' : 'bg-lime-200/10 text-lime-200'}`}
+                                } ${
+                                  isPast
+                                    ? 'bg-white/5 text-[#5b6457]'
+                                    : booked
+                                      ? 'bg-rose-500/15 text-rose-300'
+                                      : 'bg-lime-200/10 text-lime-200'
+                                }`}
                               >
                                 <span>{day.getDate()}</span>
                                 <span className="text-[8px] uppercase text-[#8a9485]">
