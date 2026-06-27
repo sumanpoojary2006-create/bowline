@@ -533,61 +533,64 @@ function HomePage() {
         <div className="section-shell space-y-8">
           <div className="mx-auto max-w-6xl rounded-[2rem] border border-lime-100/10 bg-[#0d1f10]/60 p-5">
             <div className="space-y-4">
-              <div>
-                <h2 className="text-2xl font-semibold text-[#f5f0dd]">Room booking</h2>
-                <p className="mt-1 text-sm text-[#cdd6c9]">
-                  Weekday and weekend tariffs are shown per person. Breakfast is complimentary.
-                </p>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-2xl font-semibold text-[#f5f0dd]">Room booking</h2>
+                  <p className="mt-1 text-sm text-[#cdd6c9]">
+                    Weekday and weekend tariffs are shown per person. Breakfast is complimentary.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="rounded-xl border border-lime-100/15 px-4 py-2 text-xs font-semibold text-[#cdd6c9] disabled:opacity-40"
+                  onClick={() => setSearchResults(null)}
+                  disabled={!searchResults}
+                >
+                  Show all rooms
+                </button>
               </div>
 
               <div className="rounded-2xl border border-lime-100/10 bg-black/20 p-4">
-                <p className="mb-3 text-sm font-semibold text-[#f5f0dd]">Check availability for your dates</p>
-                <div className="flex flex-wrap items-end gap-3">
-                  <label className="flex flex-col text-xs text-[#aab5a5]">
-                    Check-in
-                    <input
-                      type="date"
-                      className="mt-1 rounded-lg border border-lime-100/15 bg-black/30 px-3 py-2 text-sm text-white"
-                      value={formatDateParam(dateSearch.startDate)}
-                      min={formatDateParam(tomorrow())}
-                      onChange={(e) => {
-                        const start = parseDateParam(e.target.value, dateSearch.startDate);
-                        setDateSearch((prev) => ({
-                          startDate: start,
-                          endDate: ensureCheckoutDate(start, prev.endDate, 1),
-                        }));
-                      }}
-                    />
-                  </label>
-                  <label className="flex flex-col text-xs text-[#aab5a5]">
-                    Check-out
-                    <input
-                      type="date"
-                      className="mt-1 rounded-lg border border-lime-100/15 bg-black/30 px-3 py-2 text-sm text-white"
-                      value={formatDateParam(dateSearch.endDate)}
-                      min={formatDateParam(addDays(dateSearch.startDate, 1))}
-                      onChange={(e) =>
-                        setDateSearch((prev) => ({ ...prev, endDate: parseDateParam(e.target.value, prev.endDate) }))
-                      }
-                    />
-                  </label>
+                <p className="text-sm font-semibold text-[#f5f0dd]">Check availability for your dates</p>
+
+                <div className="mt-3 rounded-[1.25rem] border border-lime-100/10 bg-[#0d1710]/80 p-3 sm:p-4">
+                  <RoomCalendar
+                    startDate={dateSearch.startDate}
+                    endDate={dateSearch.endDate}
+                    onStartDate={(date) =>
+                      setDateSearch((prev) => ({
+                        startDate: date,
+                        endDate: ensureCheckoutDate(date, prev.endDate, 1),
+                      }))
+                    }
+                    onEndDate={(date) =>
+                      setDateSearch((prev) => ({ ...prev, endDate: ensureCheckoutDate(prev.startDate, date, 1) }))
+                    }
+                  />
+
+                  <div className="mt-4 grid grid-cols-2 gap-3 border-t border-white/10 pt-4 text-sm text-slate-300">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-slate-500">Check-in</p>
+                      <p className="font-semibold text-white">
+                        {dateSearch.startDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-slate-500">Check-out</p>
+                      <p className="font-semibold text-white">
+                        {dateSearch.endDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
+                    </div>
+                  </div>
+
                   <button
                     type="button"
-                    className="btn-primary rounded-xl px-5 py-2 disabled:opacity-60"
+                    className="btn-primary mt-4 w-full rounded-xl px-5 py-2.5 disabled:opacity-60"
                     onClick={runDateSearch}
                     disabled={searching}
                   >
                     {searching ? 'Checking...' : 'Check availability'}
                   </button>
-                  {searchResults ? (
-                    <button
-                      type="button"
-                      className="rounded-xl border border-lime-100/15 px-4 py-2 text-sm text-[#cdd6c9]"
-                      onClick={() => setSearchResults(null)}
-                    >
-                      Clear
-                    </button>
-                  ) : null}
                 </div>
               </div>
 
@@ -595,75 +598,85 @@ function HomePage() {
                 <PageLoader label="Loading rooms..." />
               ) : searchResults ? (
                 <div className="space-y-4">
-                  {searchResults.rooms.map(({ room, isAvailable, bookedDays, nextAvailable }) => (
-                    <div key={room._id} className="rounded-2xl border border-lime-100/10 bg-black/15 p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <h3 className="text-lg font-semibold text-[#f5f0dd]">{room.name}</h3>
-                          <p className={`text-sm font-semibold ${isAvailable ? 'text-lime-300' : 'text-amber-300'}`}>
-                            {isAvailable ? 'Available for your dates' : 'Booked on some of your dates'}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          className="btn-primary rounded-xl px-4 py-2 text-sm disabled:opacity-40"
-                          disabled={!isAvailable}
-                          onClick={() =>
-                            openBookingPrompt(room, { startDate: dateSearch.startDate, endDate: dateSearch.endDate })
-                          }
-                        >
-                          Book Now
-                        </button>
-                      </div>
+                  {searchResults.rooms.map(({ room, isAvailable, bookedDays, nextAvailable }) => {
+                    const fullyBooked = !isAvailable && bookedDays.size >= searchResults.days.length;
+                    const statusLabel = isAvailable ? 'Available' : fullyBooked ? 'Booked' : 'Not fully available';
+                    const statusColor = isAvailable
+                      ? 'text-lime-300'
+                      : fullyBooked
+                        ? 'text-rose-400'
+                        : 'text-amber-300';
 
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {searchResults.days.map((day) => {
-                          const key = formatDateParam(day);
-                          const booked = bookedDays.has(key);
-                          return (
-                            <span
-                              key={key}
-                              className={`rounded-lg px-2.5 py-1 text-xs font-medium ${
-                                booked
-                                  ? 'bg-rose-500/15 text-rose-300 line-through'
-                                  : 'bg-lime-200/10 text-lime-200'
-                              }`}
-                            >
-                              {day.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                            </span>
-                          );
-                        })}
-                      </div>
-
-                      {!isAvailable && nextAvailable ? (
-                        <p className="mt-3 text-xs text-[#cdd6c9]">
-                          Nearest available window:{' '}
+                    return (
+                      <div key={room._id} className="rounded-2xl border border-lime-100/10 bg-black/15 p-4">
+                        {/* Row 1: status + Book Now */}
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <h3 className="text-lg font-semibold text-[#f5f0dd]">{room.name}</h3>
+                            <p className={`text-sm font-semibold ${statusColor}`}>{statusLabel}</p>
+                          </div>
                           <button
                             type="button"
-                            className="font-semibold text-lime-300 underline"
+                            className="btn-primary rounded-xl px-4 py-2 text-sm disabled:opacity-40"
+                            disabled={!isAvailable}
                             onClick={() =>
-                              setDateSearch({
-                                startDate: new Date(nextAvailable.startDate),
-                                endDate: new Date(nextAvailable.endDate),
-                              })
+                              openBookingPrompt(room, { startDate: dateSearch.startDate, endDate: dateSearch.endDate })
                             }
                           >
-                            {new Date(nextAvailable.startDate).toLocaleDateString('en-IN', {
-                              day: 'numeric',
-                              month: 'short',
-                            })}{' '}
-                            –{' '}
-                            {new Date(nextAvailable.endDate).toLocaleDateString('en-IN', {
-                              day: 'numeric',
-                              month: 'short',
-                            })}
+                            Book Now
                           </button>
-                        </p>
-                      ) : !isAvailable ? (
-                        <p className="mt-3 text-xs text-[#cdd6c9]">No availability found in the next 90 days.</p>
-                      ) : null}
-                    </div>
-                  ))}
+                        </div>
+
+                        {/* Row 2: slidable day-by-day availability */}
+                        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                          {searchResults.days.map((day) => {
+                            const key = formatDateParam(day);
+                            const booked = bookedDays.has(key);
+                            return (
+                              <span
+                                key={key}
+                                className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-medium ${
+                                  booked
+                                    ? 'bg-rose-500/15 text-rose-300 line-through'
+                                    : 'bg-lime-200/10 text-lime-200'
+                                }`}
+                              >
+                                {day.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                              </span>
+                            );
+                          })}
+                        </div>
+
+                        {!isAvailable && nextAvailable ? (
+                          <p className="mt-3 text-xs text-[#cdd6c9]">
+                            Nearest available window:{' '}
+                            <button
+                              type="button"
+                              className="font-semibold text-lime-300 underline"
+                              onClick={() =>
+                                setDateSearch({
+                                  startDate: new Date(nextAvailable.startDate),
+                                  endDate: new Date(nextAvailable.endDate),
+                                })
+                              }
+                            >
+                              {new Date(nextAvailable.startDate).toLocaleDateString('en-IN', {
+                                day: 'numeric',
+                                month: 'short',
+                              })}{' '}
+                              –{' '}
+                              {new Date(nextAvailable.endDate).toLocaleDateString('en-IN', {
+                                day: 'numeric',
+                                month: 'short',
+                              })}
+                            </button>
+                          </p>
+                        ) : !isAvailable ? (
+                          <p className="mt-3 text-xs text-[#cdd6c9]">No availability found in the next 90 days.</p>
+                        ) : null}
+                      </div>
+                    );
+                  })}
                 </div>
               ) : rooms.length ? (
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
