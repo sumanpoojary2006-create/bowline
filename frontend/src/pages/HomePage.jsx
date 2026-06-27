@@ -19,7 +19,7 @@ import PageLoader from '../components/PageLoader';
 import EmptyState from '../components/EmptyState';
 import RoomCalendar from '../components/RoomCalendar';
 import { formatCurrency } from '../lib/formatters';
-import { addDays, ensureCheckoutDate, formatDateParam } from '../lib/dateUtils';
+import { addDays, ensureCheckoutDate, formatDateParam, parseDateParam } from '../lib/dateUtils';
 import { useAuth } from '../context/AuthContext';
 import { getGroupBundleRooms, getRoomRate, getRoomDisplayOrder, groupBookingTiers, isWeekendStayDate, petFee } from '../lib/roomRates';
 
@@ -161,6 +161,12 @@ function HomePage() {
   const [houseRulesExpanded, setHouseRulesExpanded] = useState(false);
   const [policyAccepted, setPolicyAccepted] = useState(false);
   const [modalImageIndex, setModalImageIndex] = useState(0);
+  const [dateSearch, setDateSearch] = useState({
+    startDate: tomorrow(),
+    endDate: addDays(tomorrow(), 1),
+  });
+  const [searchResults, setSearchResults] = useState(null);
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
     document.title = 'Bowline Nature Stay | Book Your Hillside Stay';
@@ -213,7 +219,7 @@ function HomePage() {
     });
   }, [bundleRooms]);
 
-  const openBookingPrompt = (listing) => {
+  const openBookingPrompt = (listing, overrideDates = null) => {
     setActiveBooking(listing);
     setBookingStep('details');
     setCouponCode('');
@@ -227,8 +233,8 @@ function HomePage() {
     }
     const adults = Math.max(Number(filters.guests || 2), listing.minOccupancy || 1);
     setBookingDraft({
-      startDate: filters.startDate,
-      endDate: filters.endDate,
+      startDate: overrideDates?.startDate || filters.startDate,
+      endDate: overrideDates?.endDate || filters.endDate,
       adults,
       children: 0,
       pets: 0,
@@ -246,6 +252,72 @@ function HomePage() {
       startDate: date,
       endDate: ensureCheckoutDate(date, prev.endDate, 1),
     }));
+  };
+
+  const runDateSearch = async () => {
+    if (!rooms.length) return;
+
+    setSearching(true);
+    try {
+      const startParam = formatDateParam(dateSearch.startDate);
+      const endParam = formatDateParam(dateSearch.endDate);
+      const nights = Math.max(1, Math.round((dateSearch.endDate - dateSearch.startDate) / 86400000));
+
+      const { data: overallData } = await api.get('/listings/availability/rooms', {
+        params: { startDate: startParam, endDate: endParam },
+      });
+
+      const monthsSpan = Math.min(
+        12,
+        Math.max(1, Math.ceil((dateSearch.endDate - new Date()) / (1000 * 60 * 60 * 24 * 30)) + 1)
+      );
+
+      const days = [];
+      let cursor = new Date(dateSearch.startDate);
+      while (cursor < dateSearch.endDate) {
+        days.push(new Date(cursor));
+        cursor = addDays(cursor, 1);
+      }
+
+      const results = await Promise.all(
+        overallData.rooms.map(async (room) => {
+          const bookedDays = new Set();
+          let nextAvailable = null;
+
+          if (!room.isAvailable) {
+            const [{ data: bookedData }, { data: nextData }] = await Promise.all([
+              api.get('/listings/availability/booked-dates', {
+                params: { ids: room._id, months: monthsSpan },
+              }),
+              api.get(`/listings/${room._id}/next-available`, {
+                params: { nights, from: startParam },
+              }),
+            ]);
+
+            const blockingRanges = (bookedData.bookedRanges || []).filter(
+              (r) => r.status === 'confirmed' || r.status === 'blocked'
+            );
+            days.forEach((day) => {
+              const dayEnd = addDays(day, 1);
+              const isBlocked = blockingRanges.some(
+                (r) => new Date(r.startDate) < dayEnd && new Date(r.endDate) > day
+              );
+              if (isBlocked) bookedDays.add(formatDateParam(day));
+            });
+
+            if (nextData?.startDate) nextAvailable = nextData;
+          }
+
+          return { room, isAvailable: room.isAvailable, bookedDays, nextAvailable };
+        })
+      );
+
+      setSearchResults({ days, rooms: results });
+    } catch (error) {
+      toast.error('Unable to check availability right now');
+    } finally {
+      setSearching(false);
+    }
   };
 
   const [placingBooking, setPlacingBooking] = useState(false);
@@ -463,8 +535,131 @@ function HomePage() {
                 </p>
               </div>
 
+              <div className="rounded-2xl border border-lime-100/10 bg-black/20 p-4">
+                <p className="mb-3 text-sm font-semibold text-[#f5f0dd]">Check availability for your dates</p>
+                <div className="flex flex-wrap items-end gap-3">
+                  <label className="flex flex-col text-xs text-[#aab5a5]">
+                    Check-in
+                    <input
+                      type="date"
+                      className="mt-1 rounded-lg border border-lime-100/15 bg-black/30 px-3 py-2 text-sm text-white"
+                      value={formatDateParam(dateSearch.startDate)}
+                      min={formatDateParam(tomorrow())}
+                      onChange={(e) => {
+                        const start = parseDateParam(e.target.value, dateSearch.startDate);
+                        setDateSearch((prev) => ({
+                          startDate: start,
+                          endDate: ensureCheckoutDate(start, prev.endDate, 1),
+                        }));
+                      }}
+                    />
+                  </label>
+                  <label className="flex flex-col text-xs text-[#aab5a5]">
+                    Check-out
+                    <input
+                      type="date"
+                      className="mt-1 rounded-lg border border-lime-100/15 bg-black/30 px-3 py-2 text-sm text-white"
+                      value={formatDateParam(dateSearch.endDate)}
+                      min={formatDateParam(addDays(dateSearch.startDate, 1))}
+                      onChange={(e) =>
+                        setDateSearch((prev) => ({ ...prev, endDate: parseDateParam(e.target.value, prev.endDate) }))
+                      }
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="btn-primary rounded-xl px-5 py-2 disabled:opacity-60"
+                    onClick={runDateSearch}
+                    disabled={searching}
+                  >
+                    {searching ? 'Checking...' : 'Check availability'}
+                  </button>
+                  {searchResults ? (
+                    <button
+                      type="button"
+                      className="rounded-xl border border-lime-100/15 px-4 py-2 text-sm text-[#cdd6c9]"
+                      onClick={() => setSearchResults(null)}
+                    >
+                      Clear
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
               {loading ? (
                 <PageLoader label="Loading rooms..." />
+              ) : searchResults ? (
+                <div className="space-y-4">
+                  {searchResults.rooms.map(({ room, isAvailable, bookedDays, nextAvailable }) => (
+                    <div key={room._id} className="rounded-2xl border border-lime-100/10 bg-black/15 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <h3 className="text-lg font-semibold text-[#f5f0dd]">{room.name}</h3>
+                          <p className={`text-sm font-semibold ${isAvailable ? 'text-lime-300' : 'text-amber-300'}`}>
+                            {isAvailable ? 'Available for your dates' : 'Booked on some of your dates'}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn-primary rounded-xl px-4 py-2 text-sm disabled:opacity-40"
+                          disabled={!isAvailable}
+                          onClick={() =>
+                            openBookingPrompt(room, { startDate: dateSearch.startDate, endDate: dateSearch.endDate })
+                          }
+                        >
+                          Book Now
+                        </button>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {searchResults.days.map((day) => {
+                          const key = formatDateParam(day);
+                          const booked = bookedDays.has(key);
+                          return (
+                            <span
+                              key={key}
+                              className={`rounded-lg px-2.5 py-1 text-xs font-medium ${
+                                booked
+                                  ? 'bg-rose-500/15 text-rose-300 line-through'
+                                  : 'bg-lime-200/10 text-lime-200'
+                              }`}
+                            >
+                              {day.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                            </span>
+                          );
+                        })}
+                      </div>
+
+                      {!isAvailable && nextAvailable ? (
+                        <p className="mt-3 text-xs text-[#cdd6c9]">
+                          Nearest available window:{' '}
+                          <button
+                            type="button"
+                            className="font-semibold text-lime-300 underline"
+                            onClick={() =>
+                              setDateSearch({
+                                startDate: new Date(nextAvailable.startDate),
+                                endDate: new Date(nextAvailable.endDate),
+                              })
+                            }
+                          >
+                            {new Date(nextAvailable.startDate).toLocaleDateString('en-IN', {
+                              day: 'numeric',
+                              month: 'short',
+                            })}{' '}
+                            –{' '}
+                            {new Date(nextAvailable.endDate).toLocaleDateString('en-IN', {
+                              day: 'numeric',
+                              month: 'short',
+                            })}
+                          </button>
+                        </p>
+                      ) : !isAvailable ? (
+                        <p className="mt-3 text-xs text-[#cdd6c9]">No availability found in the next 90 days.</p>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
               ) : rooms.length ? (
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                   {[...rooms, ...groupListings].map((listing) => (
