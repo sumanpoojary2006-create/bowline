@@ -281,40 +281,57 @@ function HomePage() {
         cursor = addDays(cursor, 1);
       }
 
+      const timelineDays = [];
+      for (let offset = -15; offset <= 15; offset++) {
+        timelineDays.push(addDays(dateSearch.startDate, offset));
+      }
+
       const results = await Promise.all(
         overallData.rooms.map(async (room) => {
           const bookedDays = new Set();
+          const timelineBookedDays = new Set();
           let nextAvailable = null;
 
+          const requests = [
+            api.get('/listings/availability/booked-dates', {
+              params: { ids: room._id, months: monthsSpan },
+            }),
+          ];
           if (!room.isAvailable) {
-            const [{ data: bookedData }, { data: nextData }] = await Promise.all([
-              api.get('/listings/availability/booked-dates', {
-                params: { ids: room._id, months: monthsSpan },
-              }),
+            requests.push(
               api.get(`/listings/${room._id}/next-available`, {
                 params: { nights, from: startParam },
-              }),
-            ]);
-
-            const blockingRanges = (bookedData.bookedRanges || []).filter(
-              (r) => r.status === 'confirmed' || r.status === 'blocked'
+              })
             );
-            days.forEach((day) => {
-              const dayEnd = addDays(day, 1);
-              const isBlocked = blockingRanges.some(
-                (r) => new Date(r.startDate) < dayEnd && new Date(r.endDate) > day
-              );
-              if (isBlocked) bookedDays.add(formatDateParam(day));
-            });
-
-            if (nextData?.startDate) nextAvailable = nextData;
           }
 
-          return { room, isAvailable: room.isAvailable, bookedDays, nextAvailable };
+          const [{ data: bookedData }, nextRes] = await Promise.all(requests);
+
+          const blockingRanges = (bookedData.bookedRanges || []).filter(
+            (r) => r.status === 'confirmed' || r.status === 'blocked'
+          );
+          days.forEach((day) => {
+            const dayEnd = addDays(day, 1);
+            const isBlocked = blockingRanges.some(
+              (r) => new Date(r.startDate) < dayEnd && new Date(r.endDate) > day
+            );
+            if (isBlocked) bookedDays.add(formatDateParam(day));
+          });
+          timelineDays.forEach((day) => {
+            const dayEnd = addDays(day, 1);
+            const isBlocked = blockingRanges.some(
+              (r) => new Date(r.startDate) < dayEnd && new Date(r.endDate) > day
+            );
+            if (isBlocked) timelineBookedDays.add(formatDateParam(day));
+          });
+
+          if (nextRes?.data?.startDate) nextAvailable = nextRes.data;
+
+          return { room, isAvailable: room.isAvailable, bookedDays, timelineBookedDays, nextAvailable };
         })
       );
 
-      setSearchResults({ days, rooms: results });
+      setSearchResults({ days, timelineDays, rooms: results });
     } catch (error) {
       toast.error('Unable to check availability right now');
     } finally {
@@ -553,39 +570,38 @@ function HomePage() {
               <div className="rounded-2xl border border-lime-100/10 bg-black/20 p-4">
                 <p className="text-sm font-semibold text-[#f5f0dd]">Check availability for your dates</p>
 
-                <div className="mt-3 rounded-[1.25rem] border border-lime-100/10 bg-[#0d1710]/80 p-3 sm:p-4">
-                  <RoomCalendar
-                    startDate={dateSearch.startDate}
-                    endDate={dateSearch.endDate}
-                    onStartDate={(date) =>
-                      setDateSearch((prev) => ({
-                        startDate: date,
-                        endDate: ensureCheckoutDate(date, prev.endDate, 1),
-                      }))
-                    }
-                    onEndDate={(date) =>
-                      setDateSearch((prev) => ({ ...prev, endDate: ensureCheckoutDate(prev.startDate, date, 1) }))
-                    }
-                  />
-
-                  <div className="mt-4 grid grid-cols-2 gap-3 border-t border-white/10 pt-4 text-sm text-slate-300">
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-slate-500">Check-in</p>
-                      <p className="font-semibold text-white">
-                        {dateSearch.startDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-slate-500">Check-out</p>
-                      <p className="font-semibold text-white">
-                        {dateSearch.endDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </p>
-                    </div>
-                  </div>
-
+                <div className="mt-3 flex flex-wrap items-end gap-3 rounded-[1.25rem] border border-lime-100/10 bg-[#0d1710]/80 p-3 sm:p-4">
+                  <label className="flex flex-col text-xs text-[#aab5a5]">
+                    Check-in
+                    <input
+                      type="date"
+                      className="mt-1 rounded-lg border border-lime-100/15 bg-black/30 px-3 py-2 text-sm text-white"
+                      value={formatDateParam(dateSearch.startDate)}
+                      min={formatDateParam(tomorrow())}
+                      onChange={(e) => {
+                        const start = parseDateParam(e.target.value, dateSearch.startDate);
+                        setDateSearch((prev) => ({
+                          startDate: start,
+                          endDate: ensureCheckoutDate(start, prev.endDate, 1),
+                        }));
+                      }}
+                    />
+                  </label>
+                  <label className="flex flex-col text-xs text-[#aab5a5]">
+                    Check-out
+                    <input
+                      type="date"
+                      className="mt-1 rounded-lg border border-lime-100/15 bg-black/30 px-3 py-2 text-sm text-white"
+                      value={formatDateParam(dateSearch.endDate)}
+                      min={formatDateParam(addDays(dateSearch.startDate, 1))}
+                      onChange={(e) =>
+                        setDateSearch((prev) => ({ ...prev, endDate: parseDateParam(e.target.value, prev.endDate) }))
+                      }
+                    />
+                  </label>
                   <button
                     type="button"
-                    className="btn-primary mt-4 w-full rounded-xl px-5 py-2.5 disabled:opacity-60"
+                    className="btn-primary rounded-xl px-5 py-2.5 disabled:opacity-60"
                     onClick={runDateSearch}
                     disabled={searching}
                   >
@@ -598,7 +614,7 @@ function HomePage() {
                 <PageLoader label="Loading rooms..." />
               ) : searchResults ? (
                 <div className="space-y-4">
-                  {searchResults.rooms.map(({ room, isAvailable, bookedDays, nextAvailable }) => {
+                  {searchResults.rooms.map(({ room, isAvailable, bookedDays, timelineBookedDays, nextAvailable }) => {
                     const fullyBooked = !isAvailable && bookedDays.size >= searchResults.days.length;
                     const statusLabel = isAvailable ? 'Available' : fullyBooked ? 'Booked' : 'Not fully available';
                     const statusColor = isAvailable
@@ -674,6 +690,29 @@ function HomePage() {
                         ) : !isAvailable ? (
                           <p className="mt-3 text-xs text-[#cdd6c9]">No availability found in the next 90 days.</p>
                         ) : null}
+
+                        <p className="mt-3 text-xs text-[#aab5a5]">15 days before &amp; after your selected check-in</p>
+                        <div className="mt-1.5 flex gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                          {searchResults.timelineDays.map((day) => {
+                            const key = formatDateParam(day);
+                            const booked = timelineBookedDays.has(key);
+                            const isSelectedDay = key === formatDateParam(dateSearch.startDate);
+                            return (
+                              <span
+                                key={key}
+                                title={day.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                                className={`flex shrink-0 flex-col items-center justify-center rounded-md px-2 py-1 text-[10px] font-medium ${
+                                  isSelectedDay ? 'ring-1 ring-lime-300' : ''
+                                } ${booked ? 'bg-rose-500/15 text-rose-300' : 'bg-lime-200/10 text-lime-200'}`}
+                              >
+                                <span>{day.getDate()}</span>
+                                <span className="text-[8px] uppercase text-[#8a9485]">
+                                  {day.toLocaleDateString('en-IN', { month: 'short' })}
+                                </span>
+                              </span>
+                            );
+                          })}
+                        </div>
                       </div>
                     );
                   })}
@@ -774,20 +813,6 @@ function HomePage() {
                   }))
                 }
               />
-              <div className="mt-4 grid grid-cols-2 gap-3 border-t border-white/10 pt-4 text-sm text-slate-300">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-slate-500">Check-in</p>
-                  <p className="font-semibold text-white">
-                    {bookingDraft.startDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-slate-500">Check-out</p>
-                  <p className="font-semibold text-white">
-                    {bookingDraft.endDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </p>
-                </div>
-              </div>
             </div>
 
             <div className="mt-5 space-y-3">

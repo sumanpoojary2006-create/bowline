@@ -1,4 +1,4 @@
-import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { ArrowRightIcon, CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { useEffect, useState } from 'react';
 import api from '../lib/api';
 import { addDays } from '../lib/dateUtils';
@@ -34,7 +34,7 @@ function isBookedDay(date, bookedRanges) {
   );
 }
 
-function CalendarMonth({ year, month, bookedRanges, startDate, endDate, showEnd, onDayClick }) {
+export function CalendarMonth({ year, month, bookedRanges, startDate, endDate, showEnd, onDayClick }) {
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
   const today = new Date();
@@ -174,49 +174,84 @@ function RoomCalendar({ listingId, listingIds, startDate, endDate, onStartDate, 
     else setViewMonth((m) => m + 1);
   };
 
-  const monthLabel = new Date(viewYear, viewMonth, 1).toLocaleDateString('en-IN', {
-    month: 'long',
-    year: 'numeric',
-  });
+  const monthLabel = (year, month) =>
+    new Date(year, month, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+
+  const secondMonth = viewMonth === 11 ? 0 : viewMonth + 1;
+  const secondYear = viewMonth === 11 ? viewYear + 1 : viewYear;
 
   return (
     <div className="space-y-3">
+      {/* Check-in / Check-out pill header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.25rem] border border-lime-100/15 bg-black/30 px-4 py-3">
+        <div className="flex items-center gap-3 text-sm">
+          <CalendarDaysIcon className="h-5 w-5 text-lime-200" />
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.2em] text-[#aab5a5]">Check-in</p>
+            <p className="font-semibold text-white">
+              {startDate ? startDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'Select date'}
+            </p>
+          </div>
+        </div>
+        <ArrowRightIcon className="h-4 w-4 text-[#aab5a5]" />
+        <div className="text-sm">
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[#aab5a5]">Check-out</p>
+          <p className="font-semibold text-white">
+            {hasEndSelected && endDate ? endDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'Select date'}
+          </p>
+        </div>
+        <div className="ml-auto flex items-center gap-1">
+          <button
+            type="button"
+            onClick={prevMonth}
+            style={{ touchAction: 'manipulation' }}
+            className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 hover:bg-white/10 hover:text-white"
+          >
+            <ChevronLeftIcon className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={nextMonth}
+            style={{ touchAction: 'manipulation' }}
+            className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 hover:bg-white/10 hover:text-white"
+          >
+            <ChevronRightIcon className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+
       {/* Step prompt */}
       <p className="text-sm font-medium text-lime-300">
         {selecting === 'start' ? '① Tap your check-in date' : '② Tap your check-out date'}
       </p>
 
-      {/* Month header with navigation */}
-      <div className="flex items-center justify-between">
-        <button
-          type="button"
-          onClick={prevMonth}
-          style={{ touchAction: 'manipulation' }}
-          className="flex h-10 w-10 items-center justify-center rounded-full text-slate-400 hover:bg-white/10 hover:text-white"
-        >
-          <ChevronLeftIcon className="h-5 w-5" />
-        </button>
-        <p className="text-sm font-semibold text-slate-200">{monthLabel}</p>
-        <button
-          type="button"
-          onClick={nextMonth}
-          style={{ touchAction: 'manipulation' }}
-          className="flex h-10 w-10 items-center justify-center rounded-full text-slate-400 hover:bg-white/10 hover:text-white"
-        >
-          <ChevronRightIcon className="h-5 w-5" />
-        </button>
+      {/* Two months side by side on larger screens, one on mobile */}
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+        <div>
+          <p className="mb-1 text-center text-sm font-semibold text-slate-200">{monthLabel(viewYear, viewMonth)}</p>
+          <CalendarMonth
+            year={viewYear}
+            month={viewMonth}
+            bookedRanges={bookedRanges}
+            startDate={startDate}
+            endDate={endDate}
+            showEnd={hasEndSelected}
+            onDayClick={handleDayClick}
+          />
+        </div>
+        <div className="hidden sm:block">
+          <p className="mb-1 text-center text-sm font-semibold text-slate-200">{monthLabel(secondYear, secondMonth)}</p>
+          <CalendarMonth
+            year={secondYear}
+            month={secondMonth}
+            bookedRanges={bookedRanges}
+            startDate={startDate}
+            endDate={endDate}
+            showEnd={hasEndSelected}
+            onDayClick={handleDayClick}
+          />
+        </div>
       </div>
-
-      {/* Single month — always */}
-      <CalendarMonth
-        year={viewYear}
-        month={viewMonth}
-        bookedRanges={bookedRanges}
-        startDate={startDate}
-        endDate={endDate}
-        showEnd={hasEndSelected}
-        onDayClick={handleDayClick}
-      />
 
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-4 pt-1 text-xs text-slate-400">
