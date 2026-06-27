@@ -82,7 +82,7 @@ export async function payForBookings({ bookingIds, contact }) {
       currency: data.currency,
       order_id: data.orderId,
       name: 'Bowline Nature Stay',
-      description: 'Booking payment',
+      description: data.description || 'Booking payment',
       prefill: {
         name: contact?.contactName || '',
         email: contact?.contactEmail || '',

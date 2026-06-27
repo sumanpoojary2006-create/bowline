@@ -63,9 +63,11 @@ function BookingConfirmationPage() {
         <p className="text-xs uppercase tracking-[0.35em] text-emerald-300">Booking received</p>
         <h1 className="mt-4 font-display text-5xl text-white">Your Bowline plan is in motion</h1>
         <p className="mt-4 text-[#c1cbbd]">
-          {booking.paymentStatus === 'paid'
-            ? 'Your payment was received and your booking is confirmed. We look forward to hosting you!'
-            : 'Your reservation request has been received. Bowline will review the dates and follow up manually.'}
+          {booking.paymentStatus === 'partially_paid'
+            ? 'Your 50% deposit was received and your booking is confirmed. The remaining balance is due at check-out — pay it anytime from Manage Booking.'
+            : booking.paymentStatus === 'paid'
+              ? 'Your payment was received and your booking is confirmed. We look forward to hosting you!'
+              : 'Your reservation request has been received. Bowline will review the dates and follow up manually.'}
         </p>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
@@ -77,6 +79,12 @@ function BookingConfirmationPage() {
           <div className="rounded-[1.5rem] bg-slate-900/70 p-5">
             <p className="text-sm text-slate-400">Estimated booking value</p>
             <p className="mt-2 text-xl font-semibold text-lime-200">{formatCurrency(booking.totalPrice)}</p>
+            {booking.paymentStatus === 'partially_paid' ? (
+              <p className="mt-1 text-xs text-sky-300">
+                {formatCurrency(Math.round(booking.totalPrice / 2))} paid ·{' '}
+                {formatCurrency(booking.totalPrice - Math.round(booking.totalPrice / 2))} due at check-out
+              </p>
+            ) : null}
           </div>
           <div className="rounded-[1.5rem] bg-slate-900/70 p-5">
             <p className="text-sm text-slate-400">Stay dates</p>

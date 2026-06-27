@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import DatePicker from 'react-datepicker';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
-import { payRescheduleFee } from '../lib/razorpay';
+import { payForBookings, payRescheduleFee } from '../lib/razorpay';
 import { formatCurrency, formatDate, formatDateRange } from '../lib/formatters';
 import { addDays, parseDateParam, formatDateParam } from '../lib/dateUtils';
 import SectionHeader from '../components/SectionHeader';
@@ -18,6 +18,7 @@ const STATUS_STYLES = {
 
 const PAYMENT_STYLES = {
   pending: 'bg-amber-400/15 text-amber-300',
+  partially_paid: 'bg-sky-400/15 text-sky-300',
   paid: 'bg-emerald-400/15 text-emerald-300',
   failed: 'bg-rose-400/15 text-rose-300',
   refunded: 'bg-slate-400/15 text-slate-300',
@@ -119,8 +120,31 @@ function BookingCard({ booking, onUpdated }) {
   const [newEnd, setNewEnd] = useState(addDays(parseDateParam(booking.startDate), 1));
   const [quote, setQuote] = useState(null);
   const [quoting, setQuoting] = useState(false);
+  const [payingBalance, setPayingBalance] = useState(false);
 
   const contact = booking.contactEmail || booking.contactPhone;
+  const depositAmount = Math.round(booking.totalPrice / 2);
+  const remainingBalance = booking.totalPrice - depositAmount;
+
+  const handlePayRemainingBalance = async () => {
+    setPayingBalance(true);
+    try {
+      const { data } = await payForBookings({
+        bookingIds: [booking._id],
+        contact: { contactName: booking.contactName, contactEmail: booking.contactEmail, contactPhone: booking.contactPhone },
+      });
+      toast.success('Remaining balance paid — see you soon!');
+      onUpdated(data.bookings[0]);
+    } catch (error) {
+      if (error.message === 'PAYMENT_CANCELLED') {
+        toast.error('Payment cancelled');
+      } else {
+        toast.error(error.response?.data?.message || 'Unable to process payment');
+      }
+    } finally {
+      setPayingBalance(false);
+    }
+  };
 
   const handleCancel = async () => {
     const refundNote =
@@ -255,6 +279,23 @@ function BookingCard({ booking, onUpdated }) {
         <p className="mt-4 text-sm text-slate-300">
           Refund issued: {formatCurrency(booking.refundAmount)} ({booking.refundPercentage}%)
         </p>
+      ) : null}
+
+      {booking.paymentStatus === 'partially_paid' && booking.status !== 'cancelled' ? (
+        <div className="mt-4 rounded-[1.25rem] border border-sky-400/20 bg-sky-400/5 p-4">
+          <p className="text-sm text-sky-200">
+            50% deposit paid ({formatCurrency(depositAmount)}). Remaining balance of{' '}
+            <span className="font-semibold">{formatCurrency(remainingBalance)}</span> is due at check-out.
+          </p>
+          <button
+            type="button"
+            className="btn-primary mt-3"
+            onClick={handlePayRemainingBalance}
+            disabled={payingBalance}
+          >
+            {payingBalance ? 'Processing...' : `Pay remaining ${formatCurrency(remainingBalance)} now`}
+          </button>
+        </div>
       ) : null}
 
       {booking.status !== 'cancelled' ? (

@@ -11,6 +11,18 @@ function syncToSheet(booking) {
   writeFullBookingToSheet(booking).catch(() => {});
 }
 
+// Bookings are paid in two installments: 50% deposit at booking time, the
+// remaining 50% online at check-out. The deposit amount is derived from
+// totalPrice rather than stored, so it always reflects the booking's current
+// price (e.g. after a reschedule).
+export const getDepositAmount = (booking) => Math.round(booking.totalPrice / 2);
+
+export const getAmountDue = (booking) => {
+  if (booking.paymentStatus === 'paid') return 0;
+  if (booking.paymentStatus === 'partially_paid') return booking.totalPrice - getDepositAmount(booking);
+  return getDepositAmount(booking);
+};
+
 export const createPaymentOrder = async (req, res, next) => {
   try {
     if (!isRazorpayConfigured()) {
@@ -34,7 +46,13 @@ export const createPaymentOrder = async (req, res, next) => {
       throw new Error('Booking not found');
     }
 
-    const totalAmount = bookings.reduce((sum, booking) => sum + booking.totalPrice, 0);
+    const totalAmount = bookings.reduce((sum, booking) => sum + getAmountDue(booking), 0);
+    const isFinalPayment = bookings.every((booking) => booking.paymentStatus === 'partially_paid');
+
+    if (totalAmount <= 0) {
+      res.status(400);
+      throw new Error('This booking has already been paid in full.');
+    }
 
     const order = await createRazorpayOrder({
       amount: Math.round(totalAmount * 100),
@@ -50,6 +68,7 @@ export const createPaymentOrder = async (req, res, next) => {
       amount: order.amount,
       currency: order.currency,
       keyId: process.env.RAZORPAY_KEY_ID,
+      description: isFinalPayment ? 'Remaining balance' : 'Booking deposit (50%)',
     });
   } catch (error) {
     next(error);
@@ -83,10 +102,13 @@ export const verifyPayment = async (req, res, next) => {
       throw new Error('Booking not found for this payment');
     }
 
+    const isFinalPayment = bookings.every((booking) => booking.paymentStatus === 'partially_paid');
+    const nextPaymentStatus = isFinalPayment ? 'paid' : 'partially_paid';
+
     await Booking.updateMany(
       { razorpayOrderId: razorpay_order_id, ...ownerFilter },
       {
-        paymentStatus: 'paid',
+        paymentStatus: nextPaymentStatus,
         paymentMethod: 'razorpay',
         razorpayPaymentId: razorpay_payment_id,
         status: 'confirmed',
@@ -103,22 +125,28 @@ export const verifyPayment = async (req, res, next) => {
       if (booking.user) {
         createNotification({
           userId: booking.user._id,
-          title: 'Booking confirmed',
-          message: `Your booking for ${booking.listing.name} has been confirmed.`,
+          title: isFinalPayment ? 'Final payment received' : 'Booking confirmed',
+          message: isFinalPayment
+            ? `Your remaining balance for ${booking.listing.name} has been received. See you soon!`
+            : `Your booking for ${booking.listing.name} has been confirmed with a 50% deposit. The rest is due at check-out.`,
           type: 'booking',
         }).catch(() => {});
       }
     });
 
     notifyAdmins({
-      title: 'Booking confirmed via payment',
-      message: `${updated[0].contactName} paid and their booking for ${updated[0].listing.name} was auto-confirmed.`,
+      title: isFinalPayment ? 'Final payment received' : 'Booking confirmed via deposit',
+      message: isFinalPayment
+        ? `${updated[0].contactName} paid the remaining balance for ${updated[0].listing.name}.`
+        : `${updated[0].contactName} paid a 50% deposit and their booking for ${updated[0].listing.name} was auto-confirmed.`,
       type: 'booking',
     }).catch(() => {});
 
-    await sendBookingConfirmationEmail(updated).catch((error) => {
-      console.error('Failed to send booking confirmation email', error);
-    });
+    if (!isFinalPayment) {
+      await sendBookingConfirmationEmail(updated).catch((error) => {
+        console.error('Failed to send booking confirmation email', error);
+      });
+    }
 
     res.json({ bookings: updated });
   } catch (error) {
