@@ -160,6 +160,7 @@ function HomePage() {
   const [policyExpanded, setPolicyExpanded] = useState(false);
   const [houseRulesExpanded, setHouseRulesExpanded] = useState(false);
   const [policyAccepted, setPolicyAccepted] = useState(false);
+  const [paymentPlan, setPaymentPlan] = useState('deposit');
   const [modalImageIndex, setModalImageIndex] = useState(0);
   const [dateSearch, setDateSearch] = useState({
     startDate: tomorrow(),
@@ -228,6 +229,7 @@ function HomePage() {
     setHouseRulesExpanded(false);
     setPolicyAccepted(false);
     setModalImageIndex(0);
+    setPaymentPlan('deposit');
     if (listing.isGroupBundle) {
       setRoomCart([]);
     }
@@ -370,6 +372,7 @@ function HomePage() {
           const result = await payForBookings({
             bookingIds: bookings.map((booking) => booking._id),
             contact: bookingDraft,
+            payInFull: paymentPlan === 'full',
           });
 
           sessionStorage.setItem('bowline_celebrate_booking', result.bookings[0]._id);
@@ -407,6 +410,7 @@ function HomePage() {
           const result = await payForBookings({
             bookingIds: [booking._id],
             contact: bookingDraft,
+            payInFull: paymentPlan === 'full',
           });
 
           sessionStorage.setItem('bowline_celebrate_booking', booking._id);
@@ -448,6 +452,7 @@ function HomePage() {
         const result = await payForBookings({
           bookingIds: bookings.map((booking) => booking._id),
           contact: bookingDraft,
+          payInFull: paymentPlan === 'full',
         });
 
         setRoomCart([]);
@@ -1128,6 +1133,48 @@ function HomePage() {
                       <span>Revised total</span>
                       <span>{formatCurrency(modalFinalTotal)}</span>
                     </div>
+                  </div>
+                </div>
+
+                <div className="rounded-[1.5rem] border border-lime-100/10 bg-[#0d1710]/80 p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-lime-200/80">How would you like to pay?</p>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <label
+                      className={`cursor-pointer rounded-[1rem] border p-3 text-sm transition ${
+                        paymentPlan === 'deposit'
+                          ? 'border-lime-300 bg-lime-200/10 text-white'
+                          : 'border-lime-100/10 bg-black/20 text-[#cdd6c9]'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="paymentPlan"
+                        className="sr-only"
+                        checked={paymentPlan === 'deposit'}
+                        onChange={() => setPaymentPlan('deposit')}
+                      />
+                      <p className="font-semibold">Pay 50% now</p>
+                      <p className="mt-1 text-xs text-[#aab5a5]">
+                        {formatCurrency(Math.round(modalFinalTotal / 2))} now, rest at check-out
+                      </p>
+                    </label>
+                    <label
+                      className={`cursor-pointer rounded-[1rem] border p-3 text-sm transition ${
+                        paymentPlan === 'full'
+                          ? 'border-lime-300 bg-lime-200/10 text-white'
+                          : 'border-lime-100/10 bg-black/20 text-[#cdd6c9]'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="paymentPlan"
+                        className="sr-only"
+                        checked={paymentPlan === 'full'}
+                        onChange={() => setPaymentPlan('full')}
+                      />
+                      <p className="font-semibold">Pay 100% now</p>
+                      <p className="mt-1 text-xs text-[#aab5a5]">{formatCurrency(modalFinalTotal)} now, nothing due later</p>
+                    </label>
                   </div>
                 </div>
 

@@ -102,6 +102,12 @@ const bookingSchema = new mongoose.Schema(
       enum: ['pending', 'partially_paid', 'paid', 'failed', 'refunded', 'partially_refunded'],
       default: 'pending',
     },
+    // Set when the guest opts to pay the full amount upfront instead of the
+    // default 50% deposit. Read by verifyPayment, then cleared.
+    payInFullRequested: {
+      type: Boolean,
+      default: false,
+    },
     paymentMethod: {
       type: String,
       default: 'manual',

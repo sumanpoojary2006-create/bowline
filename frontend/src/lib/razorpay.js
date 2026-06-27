@@ -66,14 +66,14 @@ export async function payRescheduleFee({ bookingId, contact, startDate, endDate 
   });
 }
 
-export async function payForBookings({ bookingIds, contact }) {
+export async function payForBookings({ bookingIds, contact, payInFull = false }) {
   const loaded = await loadRazorpayScript();
 
   if (!loaded) {
     throw new Error('Unable to load payment gateway');
   }
 
-  const { data } = await api.post('/payments/create-order', { bookingIds });
+  const { data } = await api.post('/payments/create-order', { bookingIds, payInFull });
 
   return new Promise((resolve, reject) => {
     const checkout = new window.Razorpay({
