@@ -52,9 +52,10 @@ const ROOM_COLUMN_INDEX = {
 };
 
 const STATUS_COLORS = {
-  confirmed: '#b6d7a8',
-  pending:   '#a4c2f4',
-  cancelled: '#ffffff',
+  confirmed:      '#b6d7a8',
+  partially_paid: '#f6b26b',
+  pending:        '#a4c2f4',
+  cancelled:      '#ffffff',
 };
 
 const BOOKINGS_HEADERS = [

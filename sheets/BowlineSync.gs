@@ -23,7 +23,8 @@
 //
 // STATUS COLOURS
 // ──────────────
-// #b6d7a8  Confirmed (dates blocked on OTAs)
+// #b6d7a8  Confirmed, paid in full (dates blocked on OTAs)
+// #f6b26b  Confirmed with a 50% deposit — balance still due
 // #a4c2f4  Pending / not yet blocked on OTAs
 // #ffffff  Empty / Cancelled
 // ───────────────────────────────────────────────────────────────────────────
@@ -41,8 +42,9 @@ var ROOM_COLUMNS = {
 };
 
 var STATUS_COLORS = {
-  confirmed: '#b6d7a8',
-  pending:   '#a4c2f4'
+  confirmed:      '#b6d7a8',
+  partially_paid: '#f6b26b',
+  pending:        '#a4c2f4'
 };
 
 // ── App → Sheet: doPost handler ─────────────────────────────────────────────

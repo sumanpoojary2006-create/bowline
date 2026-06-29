@@ -21,10 +21,21 @@ export const ROOM_COLUMN_INDEX = {
 };
 
 export const STATUS_COLORS = {
-  confirmed: '#b6d7a8',
-  pending:   '#a4c2f4',
-  cancelled: '#ffffff',
+  confirmed:      '#b6d7a8',
+  partially_paid: '#f6b26b',
+  pending:        '#a4c2f4',
+  cancelled:      '#ffffff',
 };
+
+// The Sheet's cell color is keyed on this calendar status, which is a step
+// finer-grained than Booking.status — a 50% deposit still blocks the room
+// (status stays 'confirmed') but should render as orange, not green, so the
+// admin can see at a glance that the balance is still outstanding.
+function getCalendarStatus(booking) {
+  if (booking.status === 'cancelled') return 'cancelled';
+  if (booking.paymentStatus === 'partially_paid') return 'partially_paid';
+  return booking.status;
+}
 
 export function isSheetsConfigured() {
   return Boolean(process.env.APPS_SCRIPT_WEB_APP_URL);
@@ -86,7 +97,7 @@ export async function writeBookingToSheet(booking) {
     guestName: booking.contactName || booking.user?.name || '',
     startDate: toDateStr(booking.startDate),
     endDate:   toDateStr(booking.endDate),
-    status:    booking.status,
+    status:    getCalendarStatus(booking),
   });
 }
 
@@ -167,7 +178,7 @@ export async function pushAllBookingsToSheet(bookings) {
       guestName: b.contactName || b.user?.name || '',
       startDate: toDateStr(b.startDate),
       endDate:   toDateStr(b.endDate),
-      status:    b.status,
+      status:    getCalendarStatus(b),
     }));
 
   if (items.length === 0) return { pushed: 0 };
