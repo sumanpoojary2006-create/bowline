@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import Booking from '../models/Booking.js';
 import { createRazorpayOrder, isRazorpayConfigured } from '../utils/razorpay.js';
-import { createNotification, notifyAdmins } from '../utils/notifications.js';
+import { createNotification, notifyAdmins, formatBookingNotificationDetails } from '../utils/notifications.js';
 import { writeBookingToSheet, writeFullBookingToSheet, isSheetsConfigured } from '../utils/googleSheets.js';
 import { sendBookingConfirmationEmail } from '../utils/bookingConfirmationEmail.js';
 
@@ -160,12 +160,19 @@ export const verifyPayment = async (req, res, next) => {
     const adminCopy = {
       final: (b) => `${b.contactName} paid the remaining balance for ${b.listing.name}.`,
       full: (b) => `${b.contactName} paid in full and their booking for ${b.listing.name} was auto-confirmed.`,
-      deposit: (b) => `${b.contactName} paid a 50% deposit and their booking for ${b.listing.name} was auto-confirmed.`,
+      deposit: (b) => `${b.contactName} paid a 50% deposit and their booking for ${b.listing.name} was auto-confirmed. The remaining 50% is still pending, due at check-out.`,
+    }[stage];
+
+    const adminTitle = {
+      final: 'Final payment received',
+      full: 'Booking confirmed — paid in full',
+      deposit: 'Pending/Partial Payment — 50% paid',
     }[stage];
 
     notifyAdmins({
-      title: stage === 'final' ? 'Final payment received' : 'Booking confirmed via payment',
+      title: adminTitle,
       message: adminCopy(updated[0]),
+      emailBody: `${adminCopy(updated[0])}\n\n${formatBookingNotificationDetails(updated)}`,
       type: 'booking',
     }).catch(() => {});
 

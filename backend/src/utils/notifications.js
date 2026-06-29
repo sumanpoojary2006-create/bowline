@@ -28,6 +28,9 @@ export const formatBookingNotificationDetails = (bookings) => {
       `Room: ${booking.listing?.name || 'N/A'}`,
       `Dates: ${dates} (${nights} night${nights > 1 ? 's' : ''})`,
       `Guests: ${guestsLine}`,
+      `Guest name: ${booking.contactName || 'N/A'}`,
+      `Phone: ${booking.contactPhone || 'N/A'}`,
+      `Email: ${booking.contactEmail || 'N/A'}`,
       `Amount: Rs ${booking.totalPrice}`,
       `Booking ID: ${booking._id}`,
       ''

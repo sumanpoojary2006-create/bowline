@@ -4,10 +4,15 @@ import { validateListingAvailability } from '../utils/availability.js';
 import { createNotification, notifyAdmins, formatBookingNotificationDetails } from '../utils/notifications.js';
 import { writeBookingToSheet, writeFullBookingToSheet, isSheetsConfigured } from '../utils/googleSheets.js';
 
+// Awaited before returning so the initial (pending) sheet write can't race
+// the later "confirmed" write from payment verification — see the matching
+// comment in bookingController.js.
 function syncToSheet(booking) {
-  if (!isSheetsConfigured()) return;
-  writeBookingToSheet(booking).catch(() => {});
-  writeFullBookingToSheet(booking).catch(() => {});
+  if (!isSheetsConfigured()) return Promise.resolve();
+  return Promise.all([
+    writeBookingToSheet(booking).catch(() => {}),
+    writeFullBookingToSheet(booking).catch(() => {}),
+  ]);
 }
 
 export const createRoomBooking = async ({
@@ -98,7 +103,7 @@ export const createRoomBooking = async ({
     .populate('listing')
     .populate('user', 'name email phone');
 
-  syncToSheet(populatedBooking);
+  await syncToSheet(populatedBooking);
 
   return populatedBooking;
 };

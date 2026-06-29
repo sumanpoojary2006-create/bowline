@@ -13,10 +13,16 @@ import { isEmailConfigured, sendMail } from '../utils/email.js';
 import { createRazorpayOrder, createRazorpayRefund, isRazorpayConfigured } from '../utils/razorpay.js';
 import { daysUntil, getCancellationRefundPercent, getRescheduleFeePercent } from '../utils/bookingPolicy.js';
 
+// Awaited at booking-creation call sites so the initial (pending) sheet write
+// is guaranteed to land before the client can reach the payment step — Sheets
+// has no concept of write ordering, so two racing fire-and-forget calls could
+// otherwise let an earlier "pending" write overwrite a later "confirmed" one.
 function syncToSheet(booking) {
-  if (!isSheetsConfigured()) return;
-  writeBookingToSheet(booking).catch(() => {});
-  writeFullBookingToSheet(booking).catch(() => {});
+  if (!isSheetsConfigured()) return Promise.resolve();
+  return Promise.all([
+    writeBookingToSheet(booking).catch(() => {}),
+    writeFullBookingToSheet(booking).catch(() => {}),
+  ]);
 }
 
 function unsyncFromSheet(booking) {
@@ -166,7 +172,7 @@ export const createBooking = async (req, res, next) => {
       .populate('listing')
       .populate('user', 'name email phone');
 
-    syncToSheet(populatedBooking);
+    await syncToSheet(populatedBooking);
     res.status(201).json({ booking: populatedBooking });
   } catch (error) {
     next(error);
@@ -349,7 +355,7 @@ export const createMultiBooking = async (req, res, next) => {
       .populate('listing')
       .populate('user', 'name email phone');
 
-    populatedBookings.forEach(syncToSheet);
+    await Promise.all(populatedBookings.map(syncToSheet));
 
     res.status(201).json({ bookings: populatedBookings, groupId });
   } catch (error) {
