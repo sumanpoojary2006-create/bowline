@@ -22,14 +22,14 @@ export const ROOM_COLUMN_INDEX = {
 
 export const STATUS_COLORS = {
   confirmed:      '#b6d7a8',
-  partially_paid: '#f6b26b',
-  pending:        '#a4c2f4',
+  partially_paid: '#ffe599',
+  pending:        '#ea9999',
   cancelled:      '#ffffff',
 };
 
 // The Sheet's cell color is keyed on this calendar status, which is a step
 // finer-grained than Booking.status — a 50% deposit still blocks the room
-// (status stays 'confirmed') but should render as orange, not green, so the
+// (status stays 'confirmed') but should render as yellow, not green, so the
 // admin can see at a glance that the balance is still outstanding.
 function getCalendarStatus(booking) {
   if (booking.status === 'cancelled') return 'cancelled';

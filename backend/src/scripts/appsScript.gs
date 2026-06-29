@@ -53,8 +53,8 @@ const ROOM_COLUMN_INDEX = {
 
 const STATUS_COLORS = {
   confirmed:      '#b6d7a8',
-  partially_paid: '#f6b26b',
-  pending:        '#a4c2f4',
+  partially_paid: '#ffe599',
+  pending:        '#ea9999',
   cancelled:      '#ffffff',
 };
 

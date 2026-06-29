@@ -57,8 +57,8 @@ const APPS_SCRIPT_CODE = `// ── Bowline × Google Sheets — bidirectional b
 // Row 2+: One row per calendar day  |  Cell value = guest name  |  background = status
 //
 // COLOURS
-// #b6d7a8  Confirmed (paid in full)    #f6b26b  Confirmed (50% deposit)
-// #a4c2f4  Pending    #ffffff  Empty / Cancelled
+// #b6d7a8  Confirmed (paid in full)    #ffe599  Confirmed (50% deposit)
+// #ea9999  Pending / unpaid    #ffffff  Empty / Cancelled
 
 var WEBHOOK_URL    = 'https://YOUR_DOMAIN.vercel.app/api/sync/inbound';
 var WEBHOOK_SECRET = 'YOUR_SHEETS_WEBHOOK_SECRET';
@@ -71,7 +71,7 @@ var ROOM_COLUMNS = {
   6: 'Pent House'
 };
 
-var STATUS_COLORS = { confirmed: '#b6d7a8', partially_paid: '#f6b26b', pending: '#a4c2f4' };
+var STATUS_COLORS = { confirmed: '#b6d7a8', partially_paid: '#ffe599', pending: '#ea9999' };
 
 // ── App → Sheet : doPost ─────────────────────────────────────────────────────
 function doPost(e) {
@@ -435,8 +435,8 @@ function AdminSyncPage() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 text-sm">
           {[
             { color: '#b6d7a8', label: 'Confirmed, paid in full' },
-            { color: '#f6b26b', label: 'Confirmed, 50% deposit (balance due)' },
-            { color: '#a4c2f4', label: 'Pending / not yet blocked' },
+            { color: '#ffe599', label: 'Confirmed, 50% deposit (balance due)' },
+            { color: '#ea9999', label: 'Pending / unpaid' },
             { color: '#ffffff', label: 'Empty / Cancelled', border: true },
           ].map((item) => (
             <div key={item.color} className="flex items-center gap-2">
