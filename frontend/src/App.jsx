@@ -28,6 +28,7 @@ const AdminSyncPage = lazy(() => import('./pages/AdminSyncPage'));
 const BrowseRoomsPage = lazy(() => import('./pages/BrowseRoomsPage'));
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
+const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
 const EmployeeLoginPage = lazy(() => import('./pages/employee/EmployeeLoginPage'));
 const EmployeeDashboardPage = lazy(() => import('./pages/employee/EmployeeDashboardPage'));
 const EmployeeChecklistPage = lazy(() => import('./pages/employee/EmployeeChecklistPage'));
@@ -56,6 +57,7 @@ function App() {
           <Route path="/manage-booking" element={<ManageBookingPage />} />
           <Route path="/booking/confirmation/:id" element={<BookingConfirmationPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         </Route>
 
         <Route element={<EmployeeLayout />}>
