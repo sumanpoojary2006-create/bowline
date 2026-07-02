@@ -66,6 +66,11 @@ export function CalendarMonth({ year, month, bookedRanges, startDate, endDate, s
           const isEnd = showEnd && endDate && isSameDay(date, endDate);
           const inRange = showEnd && isInRange(date, startDate, endDate);
           const disabled = booked || isPast;
+          const dayLabel = date.toLocaleDateString('en-IN', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+          });
 
           let base = 'flex items-center justify-center text-sm select-none ';
           let size = 'aspect-square w-full ';
@@ -87,6 +92,7 @@ export function CalendarMonth({ year, month, bookedRanges, startDate, endDate, s
             <button
               key={date.toISOString()}
               type="button"
+              aria-label={dayLabel}
               disabled={disabled}
               style={{ touchAction: 'manipulation' }}
               className={base + size + style}
@@ -101,7 +107,7 @@ export function CalendarMonth({ year, month, bookedRanges, startDate, endDate, s
   );
 }
 
-function RoomCalendar({ listingId, listingIds, startDate, endDate, onStartDate, onEndDate }) {
+function RoomCalendar({ listingId, listingIds, startDate, endDate, onStartDate, onEndDate, onRangeComplete }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -160,6 +166,7 @@ function RoomCalendar({ listingId, listingIds, startDate, endDate, onStartDate, 
         onEndDate(date);
         setSelecting('start');
         setHasEndSelected(true);
+        onRangeComplete?.();
       }
     }
   };
@@ -291,6 +298,7 @@ function RoomCalendar({ listingId, listingIds, startDate, endDate, onStartDate, 
               onEndDate(new Date(nextAvailable.endDate));
               setSelecting('start');
               setHasEndSelected(true);
+              onRangeComplete?.();
             }}
           >
             Use these dates

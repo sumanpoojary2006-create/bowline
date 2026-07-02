@@ -379,7 +379,8 @@ function ListingDetailPage({ bookingFirst = false }) {
                               startDate={booking.startDate}
                               endDate={booking.endDate}
                               onStartDate={updateStartDate}
-                              onEndDate={(d) => { updateEndDate(d); setCalendarOpen(false); }}
+                              onEndDate={updateEndDate}
+                              onRangeComplete={() => setCalendarOpen(false)}
                             />
                           </div>
                         </div>

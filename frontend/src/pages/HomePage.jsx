@@ -981,10 +981,10 @@ function HomePage() {
                           startDate={bookingDraft.startDate}
                           endDate={bookingDraft.endDate}
                           onStartDate={updateDraftStartDate}
-                          onEndDate={(date) => {
-                            setBookingDraft((prev) => ({ ...prev, endDate: ensureCheckoutDate(prev.startDate, date, 1) }));
-                            setBookingCalOpen(false);
-                          }}
+                          onEndDate={(date) =>
+                            setBookingDraft((prev) => ({ ...prev, endDate: ensureCheckoutDate(prev.startDate, date, 1) }))
+                          }
+                          onRangeComplete={() => setBookingCalOpen(false)}
                         />
                       </div>
                     </div>
