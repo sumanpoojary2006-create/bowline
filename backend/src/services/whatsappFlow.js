@@ -2,7 +2,7 @@ import dayjs from 'dayjs';
 import WhatsAppSession from '../models/WhatsAppSession.js';
 import Listing from '../models/Listing.js';
 import Booking from '../models/Booking.js';
-import { sendText, sendButtons, sendList, sendImage, sendCtaUrl } from '../utils/whatsapp.js';
+import { sendText, sendButtons, sendList, sendImage, sendCtaUrl, sendImageButton } from '../utils/whatsapp.js';
 import { parseDateRange } from '../utils/dateParser.js';
 import {
   validateListingAvailability,
@@ -61,21 +61,16 @@ const startRoomSelect = async (session, phone, { resetCart = true } = {}) => {
 
   await session.save();
 
-  await sendList(phone, {
-    header: 'Our Rooms',
-    bodyText: 'Select a room to check availability and pricing.',
-    buttonText: 'View Rooms',
-    sections: [
-      {
-        title: 'Available Rooms',
-        rows: rooms.map((room) => ({
-          id: `room_${room._id}`,
-          title: room.name.slice(0, 24),
-          description: `From Rs ${room.price}/night - up to ${room.capacity} guests`.slice(0, 72),
-        })),
-      },
-    ],
-  });
+  await sendText(phone, '🏡 *Our Rooms* — tap a room to select it:');
+
+  for (const room of rooms) {
+    const body = `*${room.name}*\nFrom Rs ${room.price}/night · Up to ${room.capacity} guests`;
+    if (room.images?.length) {
+      await sendImageButton(phone, room.images[0], body, `room_${room._id}`, 'Select');
+    } else {
+      await sendButtons(phone, body, [{ id: `room_${room._id}`, title: 'Select' }]);
+    }
+  }
 };
 
 const handleMenu = async (session, phone, buttonId, profileName) => {
@@ -208,10 +203,6 @@ const handleRoomSelect = async (session, phone, buttonId) => {
   };
   session.step = 'CHECKIN';
   await session.save();
-
-  if (listing.images?.length) {
-    await sendImage(phone, listing.images[0], listing.name);
-  }
 
   await sendText(
     phone,

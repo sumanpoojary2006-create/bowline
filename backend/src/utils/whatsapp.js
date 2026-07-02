@@ -57,6 +57,21 @@ export function sendButtons(to, bodyText, buttons) {
   });
 }
 
+export function sendImageButton(to, imageUrl, bodyText, buttonId, buttonTitle) {
+  return sendMessage({
+    to,
+    type: 'interactive',
+    interactive: {
+      type: 'button',
+      header: { type: 'image', image: { link: imageUrl } },
+      body: { text: bodyText },
+      action: {
+        buttons: [{ type: 'reply', reply: { id: buttonId, title: buttonTitle } }],
+      },
+    },
+  });
+}
+
 export function sendCtaUrl(to, bodyText, displayText, url) {
   return sendMessage({
     to,
