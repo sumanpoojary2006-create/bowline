@@ -13,24 +13,21 @@ export const verifyWebhook = (req, res) => {
   res.sendStatus(403);
 };
 
-export const receiveWebhook = async (req, res) => {
+export const receiveWebhook = (req, res) => {
+  // Respond to Meta immediately — must be within a few seconds or Meta retries
   res.sendStatus(200);
 
-  try {
-    const entry = req.body?.entry?.[0];
-    const change = entry?.changes?.[0];
-    const value = change?.value;
-    const message = value?.messages?.[0];
+  const entry = req.body?.entry?.[0];
+  const change = entry?.changes?.[0];
+  const value = change?.value;
+  const message = value?.messages?.[0];
 
-    if (!message) {
-      return;
-    }
+  if (!message) return;
 
-    const from = message.from;
-    const profileName = value?.contacts?.[0]?.profile?.name;
+  const from = message.from;
+  const profileName = value?.contacts?.[0]?.profile?.name;
 
-    await handleIncomingMessage(from, message, profileName);
-  } catch (error) {
+  handleIncomingMessage(from, message, profileName).catch((error) => {
     console.error('Error handling WhatsApp webhook:', error);
-  }
+  });
 };
