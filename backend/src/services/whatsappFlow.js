@@ -1039,19 +1039,19 @@ const finalizeBookings = async (session, phone, profileName, payInFull = false) 
 
     await Booking.updateMany({ _id: { $in: bookingIds } }, { razorpayPaymentLinkId: paymentLink.id });
 
-    await sendCtaUrl(
-      phone,
-      `*Booking Request Received!* ✅\n\n${roomsList}\n\n*Total: Rs ${grandTotal}*\nAmount to pay now: *${depositLabel}*${remainingLabel}\n\n👇 Complete your payment to confirm the booking:\n${paymentLink.short_url}\n\nYou'll receive a confirmation message here once payment is done.`,
-      'Know More About The Stay',
-      'https://bowlinestays.com/'
-    );
+    const successBody = `*Booking Request Received!* ✅\n\n${roomsList}\n\n*Total: Rs ${grandTotal}*\nAmount to pay now: *${depositLabel}*${remainingLabel}\n\n👇 Complete your payment to confirm the booking:\n${paymentLink.short_url}\n\nYou'll receive a confirmation message here once payment is done.`;
+    try {
+      // WhatsApp caps button text at 20 chars — keep it short
+      await sendCtaUrl(phone, successBody, 'Know More 🌿', 'https://bowlinestays.com/');
+    } catch (sendError) {
+      console.error('[WA] cta_url send failed, falling back to text:', sendError?.message);
+      await sendText(phone, successBody);
+    }
   } catch (error) {
     console.error('[WA] Razorpay payment link failed:', error?.message, JSON.stringify(error));
-    await sendCtaUrl(
+    await sendText(
       phone,
-      `*Booking Request Received!* ✅\n\n${roomsList}\n\n*Total: Rs ${grandTotal}*\n${idsLabel}: ${bookingIds.join(', ')}\n\nOur team will contact you shortly to share the payment link.`,
-      'Know More About The Stay',
-      'https://bowlinestays.com/'
+      `*Booking Request Received!* ✅\n\n${roomsList}\n\n*Total: Rs ${grandTotal}*\n${idsLabel}: ${bookingIds.join(', ')}\n\nOur team will contact you shortly to share the payment link.`
     );
   }
 

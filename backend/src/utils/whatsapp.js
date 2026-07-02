@@ -26,6 +26,7 @@ async function sendMessage(payload) {
   const data = await response.json();
 
   if (!response.ok) {
+    console.error('[WA] API rejected message:', JSON.stringify(data.error));
     throw new Error(data.error?.message || 'Unable to send WhatsApp message');
   }
 
