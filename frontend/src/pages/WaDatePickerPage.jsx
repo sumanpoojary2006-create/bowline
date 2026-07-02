@@ -68,6 +68,7 @@ function CalendarGrid({ year, month, start, end, hovered, onDay, onHover }) {
 export default function WaDatePickerPage() {
   const params = new URLSearchParams(window.location.search);
   const room = params.get('room') || 'your room';
+  const phone = params.get('phone') || '';
 
   const today = startOfDay(new Date());
   const [start, setStart]     = useState(null);
@@ -106,21 +107,16 @@ export default function WaDatePickerPage() {
     else setViewMonth(m => m+1);
   };
 
-  const handleConfirm = async () => {
+  const handleConfirm = () => {
     if (!start || !end) return;
     const text = `DATES: ${fmtShort(start)} - ${fmtShort(end)}`;
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch (_) {
-      // fallback: select from a temp input
-      const el = document.createElement('input');
-      el.value = text;
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand('copy');
-      document.body.removeChild(el);
+    if (phone) {
+      window.location.href = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+    } else {
+      // fallback: copy to clipboard
+      navigator.clipboard?.writeText(text).catch(() => {});
+      setStep('copied');
     }
-    setStep('copied');
   };
 
   const nights = start && end ? Math.round((end - start) / 86400000) : 0;
