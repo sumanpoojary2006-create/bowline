@@ -57,6 +57,21 @@ export function sendButtons(to, bodyText, buttons) {
   });
 }
 
+export function sendCtaUrl(to, bodyText, displayText, url) {
+  return sendMessage({
+    to,
+    type: 'interactive',
+    interactive: {
+      type: 'cta_url',
+      body: { text: bodyText },
+      action: {
+        name: 'cta_url',
+        parameters: { display_text: displayText, url },
+      },
+    },
+  });
+}
+
 export function sendImage(to, imageUrl, caption = '') {
   return sendMessage({
     to,

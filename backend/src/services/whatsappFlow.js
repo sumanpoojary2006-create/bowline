@@ -2,7 +2,7 @@ import dayjs from 'dayjs';
 import WhatsAppSession from '../models/WhatsAppSession.js';
 import Listing from '../models/Listing.js';
 import Booking from '../models/Booking.js';
-import { sendText, sendButtons, sendList, sendImage } from '../utils/whatsapp.js';
+import { sendText, sendButtons, sendList, sendImage, sendCtaUrl } from '../utils/whatsapp.js';
 import { parseDateRange } from '../utils/dateParser.js';
 import {
   validateListingAvailability,
@@ -26,9 +26,15 @@ const formatDate = (date) => dayjs(date).format('D MMM YYYY');
 
 const sendMenu = async (phone, profileName) => {
   const greeting = profileName ? `Hi ${profileName}! ` : 'Hi there! ';
+  await sendCtaUrl(
+    phone,
+    `${greeting}Welcome to *Bowline Nature Stay* 🌿\n\nNestled in the forests of Chikkamagaluru, we offer peaceful stays with nature all around.\n\nBrowse our rooms and book directly on our website, or use the chat below to check availability and book.`,
+    'Book Now',
+    'https://bowline-omega.vercel.app/browse'
+  );
   await sendButtons(
     phone,
-    `${greeting}Welcome to Bowline Nature Stay 🌿\n\nWhat would you like to do?`,
+    'Or continue here to check availability:',
     [
       { id: 'book_room', title: 'Book a Room' },
       { id: 'group_booking', title: 'Group Booking' },
