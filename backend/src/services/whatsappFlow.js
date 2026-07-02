@@ -843,21 +843,27 @@ const finalizeBookings = async (session, phone, profileName, payInFull = false) 
   const remainingLabel = payInFull ? '' : `\nRemaining Rs ${grandTotal - depositAmount} due at check-in.`;
 
   try {
-    const paymentLink = await createPaymentLink({
-      amount: Math.round(depositAmount * 100),
-      currency: 'INR',
-      description:
-        bookings.length > 1
-          ? `Bowline Nature Stay - ${bookings.length} rooms`
-          : `Bowline Nature Stay - ${bookings[0].listing.name}`,
-      customer: {
-        name: contactName,
-        contact: contactPhone,
-      },
-      notes: {
-        bookingIds: bookingIds.join(','),
-      },
-    });
+    const razorpayTimeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Razorpay timeout')), 6000)
+    );
+    const paymentLink = await Promise.race([
+      createPaymentLink({
+        amount: Math.round(depositAmount * 100),
+        currency: 'INR',
+        description:
+          bookings.length > 1
+            ? `Bowline Nature Stay - ${bookings.length} rooms`
+            : `Bowline Nature Stay - ${bookings[0].listing.name}`,
+        customer: {
+          name: contactName,
+          contact: contactPhone,
+        },
+        notes: {
+          bookingIds: bookingIds.join(','),
+        },
+      }),
+      razorpayTimeout,
+    ]);
 
     await Booking.updateMany({ _id: { $in: bookingIds } }, { razorpayPaymentLinkId: paymentLink.id });
 
