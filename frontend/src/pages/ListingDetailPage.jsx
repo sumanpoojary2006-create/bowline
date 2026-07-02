@@ -51,6 +51,8 @@ function ListingDetailPage({ bookingFirst = false }) {
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [stickyBarVisible, setStickyBarVisible] = useState(true);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const calendarRef = useRef(null);
   const [booking, setBooking] = useState({
     startDate: initialStartDate,
     endDate: initialEndDate,
@@ -137,6 +139,21 @@ function ListingDetailPage({ bookingFirst = false }) {
     observer.observe(bookingFormRef.current);
     return () => observer.disconnect();
   }, [loading]);
+
+  useEffect(() => {
+    if (!calendarOpen) return;
+    const handler = (e) => {
+      if (calendarRef.current && !calendarRef.current.contains(e.target)) {
+        setCalendarOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    document.addEventListener('touchstart', handler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('touchstart', handler);
+    };
+  }, [calendarOpen]);
 
   const updateStartDate = (date) => {
     setAvailability(null);
@@ -315,29 +332,59 @@ function ListingDetailPage({ bookingFirst = false }) {
               {listing.type === 'room' ? (
                 <div>
                   <label className="label">Select dates</label>
-                  <div className="mt-2 rounded-[1.5rem] border border-white/10 bg-[#0d1710]/80 p-4">
-                    <RoomCalendar
-                      listingId={listing._id}
-                      listingType={listing.type}
-                      startDate={booking.startDate}
-                      endDate={booking.endDate}
-                      onStartDate={updateStartDate}
-                      onEndDate={updateEndDate}
-                    />
-                    <div className="mt-4 grid grid-cols-2 gap-3 border-t border-white/10 pt-4 text-sm text-slate-300">
-                      <div>
-                        <p className="text-xs uppercase tracking-wide text-slate-500">Check-in</p>
-                        <p className="font-semibold text-white">
-                          {booking.startDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  <div ref={calendarRef} className="relative mt-2">
+                    {/* Pill trigger */}
+                    <button
+                      type="button"
+                      onClick={() => setCalendarOpen((o) => !o)}
+                      className="flex w-full items-center justify-between gap-3 rounded-2xl border border-lime-100/18 bg-[#142018]/78 px-4 py-3 text-left transition hover:bg-[#142018]"
+                    >
+                      <div className="flex items-center gap-3">
+                        <CalendarDaysIcon className="h-5 w-5 shrink-0 text-lime-200" />
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#98a791]">Check-in</p>
+                          <p className="text-sm font-semibold text-[#f5f0dd]">
+                            {booking.startDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="h-px flex-1 bg-lime-100/10" />
+                      <div className="text-right">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#98a791]">Check-out</p>
+                        <p className="text-sm font-semibold text-[#f5f0dd]">
+                          {booking.endDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
                         </p>
                       </div>
-                      <div>
-                        <p className="text-xs uppercase tracking-wide text-slate-500">Check-out</p>
-                        <p className="font-semibold text-white">
-                          {booking.endDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        </p>
-                      </div>
-                    </div>
+                    </button>
+
+                    {/* Floating calendar — dropdown on desktop, bottom sheet on mobile */}
+                    {calendarOpen && (
+                      <>
+                        {/* Mobile: full-screen overlay */}
+                        <div className="fixed inset-0 z-40 bg-black/60 sm:hidden" />
+                        <div className="fixed bottom-0 left-0 right-0 z-50 overflow-hidden rounded-t-3xl border-t border-lime-100/14 bg-[#090f0b] sm:absolute sm:bottom-auto sm:top-[calc(100%+0.5rem)] sm:rounded-2xl sm:border sm:shadow-[0_24px_80px_rgba(0,0,0,0.6)]">
+                          <div className="flex items-center justify-between border-b border-lime-100/10 px-4 py-3 sm:hidden">
+                            <p className="text-sm font-semibold text-[#f5f0dd]">Select dates</p>
+                            <button
+                              type="button"
+                              onClick={() => setCalendarOpen(false)}
+                              className="text-xs font-semibold text-lime-300"
+                            >
+                              Done
+                            </button>
+                          </div>
+                          <div className="max-h-[80vh] overflow-y-auto p-4 sm:max-h-none">
+                            <RoomCalendar
+                              listingId={listing._id}
+                              startDate={booking.startDate}
+                              endDate={booking.endDate}
+                              onStartDate={updateStartDate}
+                              onEndDate={(d) => { updateEndDate(d); setCalendarOpen(false); }}
+                            />
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               ) : (
