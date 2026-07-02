@@ -30,6 +30,7 @@ export const createRoomBooking = async ({
   specialRequests = '',
   payInFullRequested = false,
   user = null,
+  deferSideEffects = false,
 }) => {
   const guests = adultGuests + childGuests;
 
@@ -91,6 +92,23 @@ export const createRoomBooking = async ({
     });
   }
 
+  const populatedBooking = await Booking.findById(booking._id)
+    .populate('listing')
+    .populate('user', 'name email phone');
+
+  if (!deferSideEffects) {
+    await runBookingSideEffects(populatedBooking, contactName);
+  }
+
+  return populatedBooking;
+};
+
+// Admin emails + Google Sheet writes are slow (several seconds combined).
+// Callers on a tight budget (the WhatsApp webhook runs inside Vercel's 10s
+// limit) pass deferSideEffects and invoke this after replying to the guest.
+export const runBookingSideEffects = async (booking, contactName) => {
+  const listing = booking.listing;
+
   await notifyAdmins({
     title: 'New booking received',
     message: `${contactName} placed a booking for ${listing.name} via WhatsApp.`,
@@ -101,11 +119,5 @@ export const createRoomBooking = async ({
     type: 'booking',
   });
 
-  const populatedBooking = await Booking.findById(booking._id)
-    .populate('listing')
-    .populate('user', 'name email phone');
-
-  await syncToSheet(populatedBooking);
-
-  return populatedBooking;
+  await syncToSheet(booking);
 };

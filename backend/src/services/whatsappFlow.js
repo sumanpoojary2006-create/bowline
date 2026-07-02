@@ -12,7 +12,7 @@ import {
   isWindowAvailable,
 } from '../utils/availability.js';
 import { calculateBookingPrice } from '../utils/pricing.js';
-import { createRoomBooking } from './bookingService.js';
+import { createRoomBooking, runBookingSideEffects } from './bookingService.js';
 import { createPaymentLink, isRazorpayConfigured } from '../utils/razorpay.js';
 
 const RESET_WORDS = ['menu', 'hi', 'hello', 'hey', 'start', 'restart'];
@@ -712,15 +712,42 @@ const sendSummary = async (session, phone) => {
     lines.push(``, `*Grand Total: Rs ${grandTotal}*`);
   }
 
-  session.step = 'PAYMENT_TYPE';
+  session.step = 'SUMMARY_CONFIRM';
   await session.save();
 
   await sendText(phone, lines.join('\n'));
-  await sendButtons(phone, 'How would you like to pay?', [
-    { id: 'pay_50', title: 'Pay 50% Now' },
-    { id: 'pay_full', title: 'Pay Full Amount' },
+  await sendButtons(phone, 'Would you like to add another room or continue with this booking?', [
+    { id: 'add_room', title: 'Book Another Room' },
+    { id: 'proceed_payment', title: 'Proceed to Payment' },
     { id: 'cancel_booking', title: 'Cancel' },
   ]);
+};
+
+const handleSummaryConfirm = async (session, phone, buttonId) => {
+  if (buttonId === 'add_room') {
+    session.cart = [...(session.cart || []), session.data];
+    await session.save();
+    return startRoomSelect(session, phone, { resetCart: false });
+  }
+
+  if (buttonId === 'proceed_payment') {
+    session.step = 'PAYMENT_TYPE';
+    await session.save();
+    await sendButtons(phone, 'How would you like to pay?', [
+      { id: 'pay_50', title: 'Pay 50% Now' },
+      { id: 'pay_full', title: 'Pay Full Amount' },
+      { id: 'cancel_booking', title: 'Cancel' },
+    ]);
+    return;
+  }
+
+  if (buttonId === 'cancel_booking') {
+    await resetSession(session);
+    await sendText(phone, 'No problem, your booking has been cancelled. Type "menu" to start over.');
+    return;
+  }
+
+  await sendText(phone, 'Please use the buttons above to continue.');
 };
 
 const handleNonVeg = async (session, phone, text, buttonId) => {
@@ -803,6 +830,7 @@ const finalizeBookings = async (session, phone, profileName, payInFull = false) 
         contactPhone,
         specialRequests: '',
         payInFullRequested: payInFull,
+        deferSideEffects: true,
       });
       bookings.push(booking);
     } catch (error) {
@@ -835,6 +863,13 @@ const finalizeBookings = async (session, phone, profileName, payInFull = false) 
       phone,
       `Your booking${bookings.length > 1 ? 's have' : ' has'} been received!\n\n${roomsList}\n\n*Total: Rs ${grandTotal}*\n${idsLabel}: ${bookingIds.join(', ')}\n\nOur team will contact you shortly to arrange payment.`
     );
+    for (const booking of bookings) {
+      try {
+        await runBookingSideEffects(booking, contactName);
+      } catch (error) {
+        console.error('[WA] booking side effects failed:', error?.message);
+      }
+    }
     return;
   }
 
@@ -881,6 +916,16 @@ const finalizeBookings = async (session, phone, profileName, payInFull = false) 
       'Know More About The Stay',
       'https://bowlinestays.com/'
     );
+  }
+
+  // Guest has their reply — now run the slow parts (admin emails, sheet sync).
+  // If Vercel kills the function mid-way, the payment webhook re-syncs later.
+  for (const booking of bookings) {
+    try {
+      await runBookingSideEffects(booking, contactName);
+    } catch (error) {
+      console.error('[WA] booking side effects failed:', error?.message);
+    }
   }
 };
 
@@ -939,6 +984,8 @@ export const handleIncomingMessage = async (phone, message, profileName) => {
       return handlePets(session, phone, buttonId, text);
     case 'NONVEG':
       return handleNonVeg(session, phone, text, buttonId);
+    case 'SUMMARY_CONFIRM':
+      return handleSummaryConfirm(session, phone, buttonId);
     case 'PAYMENT_TYPE':
       return handlePaymentType(session, phone, buttonId, profileName);
     case 'MY_BOOKINGS_SELECT':
