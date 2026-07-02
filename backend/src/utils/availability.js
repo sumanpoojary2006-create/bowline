@@ -135,11 +135,25 @@ export const getExistingBookingsForRange = async ({
 }) => {
   const query = {
     listing: listingId,
-    status: { $in: statuses },
     paymentStatus: { $ne: 'failed' },
     startDate: { $lt: new Date(endDate) },
     endDate: { $gt: new Date(startDate) },
   };
+
+  // An unpaid pending booking only holds the room for 24 hours — long enough
+  // to complete payment, short enough that abandoned checkouts and stale
+  // admin entries don't ghost-block dates forever. Paid/deposit pendings and
+  // all other requested statuses block regardless of age.
+  if (statuses.includes('pending')) {
+    const pendingCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    query.$or = [
+      { status: { $in: statuses.filter((s) => s !== 'pending') } },
+      { status: 'pending', paymentStatus: { $in: ['paid', 'partially_paid'] } },
+      { status: 'pending', createdAt: { $gte: pendingCutoff } },
+    ];
+  } else {
+    query.status = { $in: statuses };
+  }
 
   if (excludeBookingId) {
     query._id = { $ne: excludeBookingId };
