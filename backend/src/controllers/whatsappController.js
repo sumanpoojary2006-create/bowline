@@ -29,12 +29,13 @@ export const receiveWebhook = async (req, res) => {
 
   console.log(`[WA] incoming from=${from} type=${message.type}`);
 
+  // Acknowledge immediately so Meta doesn't retry
+  res.sendStatus(200);
+
   try {
     await handleIncomingMessage(from, message, profileName);
     console.log(`[WA] done from=${from}`);
   } catch (error) {
     console.error('[WA] error:', error);
   }
-
-  res.sendStatus(200);
 };
