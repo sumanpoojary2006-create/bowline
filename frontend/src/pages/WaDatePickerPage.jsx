@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import FloatingDateRangePicker from '../components/FloatingDateRangePicker';
+import FloatingDateRangePicker from '../components/FloatingDateRangePicker.jsx';
 
 function fmt(date) {
   if (!date) return '';
