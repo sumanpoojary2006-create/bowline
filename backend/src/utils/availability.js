@@ -4,6 +4,7 @@ export const getBookedDateRanges = async (listingId, fromDate, toDate) => {
   const bookings = await Booking.find({
     listing: listingId,
     status: { $in: ['confirmed', 'pending', 'blocked'] },
+    paymentStatus: { $ne: 'failed' },
     startDate: { $lt: new Date(toDate) },
     endDate: { $gt: new Date(fromDate) },
   }).select('startDate endDate status blockNote');
@@ -135,6 +136,7 @@ export const getExistingBookingsForRange = async ({
   const query = {
     listing: listingId,
     status: { $in: statuses },
+    paymentStatus: { $ne: 'failed' },
     startDate: { $lt: new Date(endDate) },
     endDate: { $gt: new Date(startDate) },
   };

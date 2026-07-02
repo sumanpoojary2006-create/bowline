@@ -33,6 +33,28 @@ export const handleRazorpayWebhook = async (req, res, next) => {
 
     const event = req.body;
 
+    // Auto-cancel bookings when payment link expires or payment fails
+    if (event.event === 'payment_link.expired' || event.event === 'payment.failed') {
+      const paymentLinkId = event.payload?.payment_link?.entity?.id || event.payload?.payment?.entity?.notes?.payment_link_id;
+      if (paymentLinkId) {
+        const bookings = await Booking.find({ razorpayPaymentLinkId: paymentLinkId, status: 'pending' }).populate('listing');
+        for (const booking of bookings) {
+          booking.status = 'cancelled';
+          booking.paymentStatus = 'failed';
+          await booking.save();
+          syncToSheet(booking);
+        }
+        if (bookings.length) {
+          notifyAdmins({
+            title: 'Booking auto-cancelled',
+            message: `Payment link expired/failed — ${bookings.map(b => b.listing?.name).join(', ')} auto-cancelled.`,
+            type: 'booking',
+          }).catch(() => {});
+        }
+      }
+      return;
+    }
+
     if (event.event !== 'payment.captured' && event.event !== 'payment_link.paid') {
       return;
     }
