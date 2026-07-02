@@ -800,9 +800,11 @@ const finalizeBookings = async (session, phone, profileName, payInFull = false) 
 
     await Booking.updateMany({ _id: { $in: bookingIds } }, { razorpayPaymentLinkId: paymentLink.id });
 
-    await sendText(
+    await sendCtaUrl(
       phone,
-      `*Booking Request Received!* ✅\n\n${roomsList}\n\n*Total: Rs ${grandTotal}*\nAmount to pay now: *${depositLabel}*${remainingLabel}\n\n👇 Complete your payment to confirm the booking:\n${paymentLink.short_url}\n\nYou'll receive a confirmation message here once payment is done.`
+      `*Booking Request Received!* ✅\n\n${roomsList}\n\n*Total: Rs ${grandTotal}*\nAmount to pay now: *${depositLabel}*${remainingLabel}\n\n👇 Complete your payment to confirm the booking:\n${paymentLink.short_url}\n\nYou'll receive a confirmation message here once payment is done.`,
+      'Know More About The Stay',
+      'https://bowlinestays.com/'
     );
   } catch (error) {
     await sendText(
