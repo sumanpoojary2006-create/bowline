@@ -84,10 +84,15 @@ const handleMenu = async (session, phone, buttonId, profileName) => {
     session.cart = [];
     session.flow = 'group';
     await session.save();
-    await sendText(
-      phone,
-      "Let's set up your group booking! 🎉\n\nGroup bookings are available for 10 to 20 guests, and we'll allocate the right rooms for you.\n\nHow many guests in total?"
-    );
+    await sendList(phone, {
+      header: 'Group Booking',
+      bodyText: "Let's set up your group booking! 🎉\n\nGroup bookings are for 10–20 guests. How many guests in total?",
+      buttonText: 'Select guests',
+      sections: [
+        { title: '10 – 14 guests', rows: [10,11,12,13,14].map(n => ({ id: `group_${n}`, title: `${n} guests` })) },
+        { title: '15 – 20 guests', rows: [15,16,17,18,19,20].map(n => ({ id: `group_${n}`, title: `${n} guests` })) },
+      ],
+    });
     return;
   }
 
@@ -213,20 +218,22 @@ const handleRoomSelect = async (session, phone, buttonId) => {
   );
 };
 
-const handleGroupGuests = async (session, phone, text) => {
-  const guests = parsePositiveInt(text);
-
-  if (guests === null || guests < 1) {
-    await sendText(phone, 'Please enter a valid number of guests.');
+const handleGroupGuests = async (session, phone, buttonId) => {
+  if (!buttonId?.startsWith('group_')) {
+    await sendList(phone, {
+      header: 'Group Booking',
+      bodyText: 'Please select the number of guests:',
+      buttonText: 'Select guests',
+      sections: [
+        { title: '10 – 14 guests', rows: [10,11,12,13,14].map(n => ({ id: `group_${n}`, title: `${n} guests` })) },
+        { title: '15 – 20 guests', rows: [15,16,17,18,19,20].map(n => ({ id: `group_${n}`, title: `${n} guests` })) },
+      ],
+    });
     return;
   }
-
+  const guests = parseInt(buttonId.replace('group_', ''), 10);
   if (guests < 10 || guests > 20) {
-    await sendText(
-      phone,
-      'Group booking is available for 10 to 20 guests. For smaller groups, please use "Book a Room". Type "menu" to go back to the main menu.'
-    );
-    await resetSession(session);
+    await sendText(phone, 'Please select a valid option from the list.');
     return;
   }
 
@@ -375,10 +382,7 @@ const handleCheckin = async (session, phone, text) => {
       session.data = { ...session.data, startDate: range.startDate.toISOString(), endDate: range.endDate.toISOString() };
       session.step = 'ADULTS';
       await session.save();
-      await sendText(
-        phone,
-        `Dates: *${formatDate(range.startDate)} → ${formatDate(range.endDate)}* ✅\n\nHow many adults will be staying? (max ${session.data.listingCapacity})`
-      );
+      await sendAdultsPicker(phone, `Dates: *${formatDate(range.startDate)} → ${formatDate(range.endDate)}* ✅\n\nHow many adults will be staying?`, session.data.listingCapacity, session.data.listingMinOccupancy || 1);
       return;
     }
   }
@@ -465,42 +469,64 @@ const handleCheckout = async (session, phone, text) => {
   session.step = 'ADULTS';
   await session.save();
 
-  await sendText(
-    phone,
-    `Check-out: *${formatDate(endDate)}* ✅\nDates: ${formatDate(startDate)} → ${formatDate(endDate)}\n\nHow many adults will be staying? (max ${session.data.listingCapacity})`
-  );
+  await sendAdultsPicker(phone, `Check-out: *${formatDate(endDate)}* ✅\nDates: ${formatDate(startDate)} → ${formatDate(endDate)}\n\nHow many adults will be staying?`, session.data.listingCapacity, session.data.listingMinOccupancy || 1);
 };
 
-const parsePositiveInt = (text) => {
-  const value = Number(text.trim());
-
-  if (!Number.isFinite(value) || !Number.isInteger(value) || value < 0) {
-    return null;
+const sendAdultsPicker = async (phone, bodyText, capacity, minOccupancy) => {
+  const rows = [];
+  for (let n = minOccupancy; n <= Math.min(capacity, 10); n++) {
+    rows.push({ id: `adults_${n}`, title: `${n} adult${n > 1 ? 's' : ''}` });
   }
-
-  return value;
+  await sendList(phone, {
+    header: 'Number of Adults',
+    bodyText,
+    buttonText: 'Select',
+    sections: [{ title: 'Adults (age 13+)', rows }],
+  });
 };
 
-const handleAdults = async (session, phone, text) => {
-  const adults = parsePositiveInt(text);
+const sendChildrenPicker = async (phone, adults, capacity) => {
+  const maxChildren = Math.min(capacity - adults, 10);
+  const rows = [];
+  for (let n = 0; n <= maxChildren; n++) {
+    rows.push({ id: `children_${n}`, title: n === 0 ? 'No children' : `${n} child${n > 1 ? 'ren' : ''}` });
+  }
+  await sendList(phone, {
+    header: 'Children',
+    bodyText: 'How many children (age 6–12) will be staying?',
+    buttonText: 'Select',
+    sections: [{ title: 'Children (age 6–12)', rows }],
+  });
+};
+
+const sendPetsPicker = async (phone) => {
+  await sendList(phone, {
+    header: 'Pets',
+    bodyText: 'Are you bringing any pets? A flat fee of Rs 400 applies per pet for the stay.',
+    buttonText: 'Select',
+    sections: [{
+      title: 'Number of pets',
+      rows: [
+        { id: 'pets_0', title: 'No pets' },
+        { id: 'pets_1', title: '1 pet' },
+        { id: 'pets_2', title: '2 pets' },
+        { id: 'pets_3', title: '3 pets' },
+      ],
+    }],
+  });
+};
+
+const handleAdults = async (session, phone, buttonId) => {
+  if (!buttonId?.startsWith('adults_')) {
+    await sendAdultsPicker(phone, 'Please select the number of adults:', session.data.listingCapacity, session.data.listingMinOccupancy || 1);
+    return;
+  }
+  const adults = parseInt(buttonId.replace('adults_', ''), 10);
   const capacity = session.data.listingCapacity;
   const minOccupancy = session.data.listingMinOccupancy || 1;
 
-  if (adults === null || adults < 1) {
-    await sendText(phone, `Please enter a valid number of adults (${minOccupancy} to ${capacity}).`);
-    return;
-  }
-
-  if (adults > capacity) {
-    await sendText(phone, `This room sleeps up to ${capacity} guests. Please enter a smaller number of adults.`);
-    return;
-  }
-
-  if (adults < minOccupancy) {
-    await sendText(
-      phone,
-      `*${session.data.listingName}* requires a minimum of ${minOccupancy} guests. Please enter at least ${minOccupancy} adult${minOccupancy > 1 ? 's' : ''}.`
-    );
+  if (adults < minOccupancy || adults > capacity) {
+    await sendAdultsPicker(phone, `Please select between ${minOccupancy} and ${capacity} adults:`, capacity, minOccupancy);
     return;
   }
 
@@ -508,22 +534,18 @@ const handleAdults = async (session, phone, text) => {
   session.step = 'CHILDREN';
   await session.save();
 
-  await sendText(phone, 'How many children (age 6-12) will be staying? Reply 0 if none.');
+  await sendChildrenPicker(phone, adults, capacity);
 };
 
-const handleChildren = async (session, phone, text) => {
-  const children = parsePositiveInt(text);
-
-  if (children === null) {
-    await sendText(phone, 'Please enter a valid number (0 or more).');
+const handleChildren = async (session, phone, buttonId) => {
+  if (!buttonId?.startsWith('children_')) {
+    await sendChildrenPicker(phone, session.data.adultGuests, session.data.listingCapacity);
     return;
   }
+  const children = parseInt(buttonId.replace('children_', ''), 10);
 
   if (session.data.adultGuests + children > session.data.listingCapacity) {
-    await sendText(
-      phone,
-      `Total guests can't exceed ${session.data.listingCapacity}. Please enter a smaller number of children.`
-    );
+    await sendChildrenPicker(phone, session.data.adultGuests, session.data.listingCapacity);
     return;
   }
 
@@ -531,7 +553,7 @@ const handleChildren = async (session, phone, text) => {
   session.step = 'PETS';
   await session.save();
 
-  await sendText(phone, 'Are you bringing any pets? Reply with the number of pets (0 if none). A flat fee of Rs 400 applies per pet for the stay.');
+  await sendPetsPicker(phone);
 };
 
 const sendMealQuestion = async (phone, totalGuests) => {
@@ -548,14 +570,12 @@ const sendMealQuestion = async (phone, totalGuests) => {
   });
 };
 
-const handlePets = async (session, phone, text) => {
-  const pets = parsePositiveInt(text);
-
-  if (pets === null) {
-    await sendText(phone, 'Please enter a valid number (0 or more).');
+const handlePets = async (session, phone, buttonId) => {
+  if (!buttonId?.startsWith('pets_')) {
+    await sendPetsPicker(phone);
     return;
   }
-
+  const pets = parseInt(buttonId.replace('pets_', ''), 10);
   const totalGuests = (session.data.adultGuests || 0) + (session.data.childGuests || 0);
 
   session.data = { ...session.data, pets };
@@ -854,7 +874,7 @@ export const handleIncomingMessage = async (phone, message, profileName) => {
     case 'ROOM_SELECT':
       return handleRoomSelect(session, phone, buttonId);
     case 'GROUP_GUESTS':
-      return handleGroupGuests(session, phone, text);
+      return handleGroupGuests(session, phone, buttonId);
     case 'GROUP_DATES':
       return handleGroupDates(session, phone, text);
     case 'CHECKIN':
@@ -862,11 +882,11 @@ export const handleIncomingMessage = async (phone, message, profileName) => {
     case 'CHECKOUT':
       return handleCheckout(session, phone, text);
     case 'ADULTS':
-      return handleAdults(session, phone, text);
+      return handleAdults(session, phone, buttonId);
     case 'CHILDREN':
-      return handleChildren(session, phone, text);
+      return handleChildren(session, phone, buttonId);
     case 'PETS':
-      return handlePets(session, phone, text);
+      return handlePets(session, phone, buttonId);
     case 'NONVEG':
       return handleNonVeg(session, phone, text, buttonId);
     case 'PAYMENT_TYPE':
