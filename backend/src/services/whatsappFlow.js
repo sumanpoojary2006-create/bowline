@@ -13,7 +13,10 @@ import {
 } from '../utils/availability.js';
 import { calculateBookingPrice } from '../utils/pricing.js';
 import { createRoomBooking, runBookingSideEffects } from './bookingService.js';
-import { createPaymentLink, isRazorpayConfigured } from '../utils/razorpay.js';
+import { createPaymentLink, createRazorpayRefund, isRazorpayConfigured } from '../utils/razorpay.js';
+import { getCancellationRefundPercent } from '../utils/bookingPolicy.js';
+import { clearBookingFromSheet, writeFullBookingToSheet } from '../utils/googleSheets.js';
+import { notifyAdmins } from '../utils/notifications.js';
 
 const RESET_WORDS = ['menu', 'hi', 'hello', 'hey', 'start', 'restart'];
 
@@ -174,8 +177,142 @@ const handleMyBookingsSelect = async (session, phone, buttonId, profileName) => 
   lines.push(``, `Status: ${booking.status}`);
   lines.push(`Payment: ${booking.paymentStatus}`);
 
+  session.data = { ...session.data, myBookingId: booking._id.toString() };
+  session.step = 'MY_BOOKING_ACTION';
+  await session.save();
+
   await sendText(phone, lines.join('\n'));
-  await sendText(phone, 'Type "menu" to go back to the main menu.');
+  await sendButtons(phone, 'What would you like to do?', [
+    { id: 'cancel_mybooking', title: 'Cancel Booking' },
+    { id: 'back_menu', title: 'Back to Menu' },
+  ]);
+};
+
+const handleMyBookingAction = async (session, phone, buttonId, profileName) => {
+  if (buttonId === 'back_menu') {
+    await resetSession(session);
+    return sendMenu(phone, profileName);
+  }
+
+  if (buttonId === 'cancel_mybooking') {
+    const booking = await Booking.findById(session.data.myBookingId).populate('listing');
+
+    if (!booking || booking.status === 'cancelled') {
+      await sendText(phone, 'This booking is already cancelled. Type "menu" to go back.');
+      await resetSession(session);
+      return;
+    }
+
+    if (booking.rescheduled) {
+      await sendText(phone, 'This booking has been rescheduled and can no longer be cancelled. Please contact us for help. Type "menu" to go back.');
+      await resetSession(session);
+      return;
+    }
+
+    const refundPercent = getCancellationRefundPercent(booking.startDate);
+    const refundLine =
+      refundPercent === 100
+        ? 'You will receive a *full refund* of the amount paid.'
+        : refundPercent === 50
+          ? 'You will receive a *50% refund* of the amount paid (as check-in is less than 14 days away).'
+          : '*No refund* is available as check-in is less than 7 days away.';
+
+    session.step = 'MY_BOOKING_CANCEL';
+    await session.save();
+
+    await sendButtons(
+      phone,
+      `Cancel booking for *${booking.listing?.name}* (${formatDate(booking.startDate)} to ${formatDate(booking.endDate)})?\n\n${refundLine}`,
+      [
+        { id: 'cancel_yes', title: 'Yes, Cancel It' },
+        { id: 'cancel_no', title: 'No, Keep Booking' },
+      ]
+    );
+    return;
+  }
+
+  await sendText(phone, 'Please use the buttons above, or type "menu" to go back.');
+};
+
+const handleMyBookingCancel = async (session, phone, buttonId, profileName) => {
+  if (buttonId === 'cancel_no') {
+    await resetSession(session);
+    await sendText(phone, 'No problem, your booking is unchanged. Type "menu" for the main menu.');
+    return;
+  }
+
+  if (buttonId !== 'cancel_yes') {
+    await sendText(phone, 'Please use the buttons above, or type "menu" to go back.');
+    return;
+  }
+
+  const booking = await Booking.findById(session.data.myBookingId).populate('listing');
+
+  if (!booking || booking.status === 'cancelled') {
+    await sendText(phone, 'This booking is already cancelled. Type "menu" to go back.');
+    await resetSession(session);
+    return;
+  }
+
+  const refundPercent = getCancellationRefundPercent(booking.startDate);
+  const isPaid = booking.paymentStatus === 'paid';
+  const isPartiallyPaid = booking.paymentStatus === 'partially_paid';
+
+  try {
+    if ((isPaid || isPartiallyPaid) && refundPercent > 0) {
+      if (!booking.razorpayPaymentId || !isRazorpayConfigured()) {
+        await sendText(phone, "We couldn't process the refund automatically. Please contact us and our team will cancel this booking for you.");
+        await resetSession(session);
+        return;
+      }
+
+      // For a 50% deposit booking, only the deposited amount is refundable
+      const amountPaid = isPaid ? booking.totalPrice : Math.round(booking.totalPrice / 2);
+      const refundAmount = Math.round(amountPaid * (refundPercent / 100) * 100);
+      const refund = await createRazorpayRefund({
+        paymentId: booking.razorpayPaymentId,
+        amount: refundAmount,
+        notes: { bookingId: String(booking._id), reason: 'whatsapp_cancellation' },
+      });
+
+      booking.razorpayRefundId = refund.id;
+      booking.refundAmount = refundAmount / 100;
+      booking.refundPercentage = refundPercent;
+      booking.paymentStatus = refundPercent === 100 ? 'refunded' : 'partially_refunded';
+    }
+
+    booking.status = 'cancelled';
+    await booking.save();
+  } catch (error) {
+    console.error('[WA] cancellation failed:', error?.message);
+    await sendText(phone, "Sorry, something went wrong while cancelling. Please contact us and our team will sort it out.");
+    await resetSession(session);
+    return;
+  }
+
+  await resetSession(session);
+
+  const refundNote = booking.refundAmount > 0
+    ? `\n\nA refund of Rs ${booking.refundAmount} has been initiated and will reflect in your account in 5-7 business days.`
+    : '';
+
+  await sendText(
+    phone,
+    `Your booking for *${booking.listing?.name}* (${formatDate(booking.startDate)} to ${formatDate(booking.endDate)}) has been cancelled. ✅${refundNote}\n\nType "menu" to book another stay.`
+  );
+
+  // Slow side effects after the guest has their confirmation
+  clearBookingFromSheet(booking).catch(() => {});
+  writeFullBookingToSheet(booking).catch(() => {});
+  try {
+    await notifyAdmins({
+      title: 'Booking cancelled by guest (WhatsApp)',
+      message: `${booking.contactName} cancelled their booking for ${booking.listing?.name} via WhatsApp.`,
+      type: 'booking',
+    });
+  } catch (error) {
+    console.error('[WA] cancel notify failed:', error?.message);
+  }
 };
 
 const handleRoomSelect = async (session, phone, buttonId) => {
@@ -990,6 +1127,10 @@ export const handleIncomingMessage = async (phone, message, profileName) => {
       return handlePaymentType(session, phone, buttonId, profileName);
     case 'MY_BOOKINGS_SELECT':
       return handleMyBookingsSelect(session, phone, buttonId, profileName);
+    case 'MY_BOOKING_ACTION':
+      return handleMyBookingAction(session, phone, buttonId, profileName);
+    case 'MY_BOOKING_CANCEL':
+      return handleMyBookingCancel(session, phone, buttonId, profileName);
     case 'MENU':
     default:
       return handleMenu(session, phone, buttonId, profileName);
