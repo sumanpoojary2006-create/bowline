@@ -705,8 +705,38 @@ function HomePage() {
                         : 'text-amber-300';
 
                     return (
-                      <div key={room._id} className="rounded-2xl border border-lime-100/10 bg-black/15 p-4">
-                        {/* Row 1: status + Book Now */}
+                      <div key={room._id} className="overflow-hidden rounded-2xl border border-lime-100/10 bg-black/15">
+                        {/* Room image */}
+                        {room.images?.[0] && (
+                          <div className="relative h-44 w-full sm:h-52">
+                            <img
+                              src={room.images[0]}
+                              alt={room.name}
+                              className="h-full w-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                            <div className="absolute bottom-3 left-4 right-4 flex items-end justify-between gap-3">
+                              <div>
+                                <h3 className="text-lg font-semibold text-white drop-shadow">{room.name}</h3>
+                                <p className={`text-sm font-semibold ${statusColor}`}>{statusLabel}</p>
+                              </div>
+                              <button
+                                type="button"
+                                className="btn-primary shrink-0 rounded-xl px-4 py-2 text-sm disabled:opacity-40"
+                                disabled={!isAvailable}
+                                onClick={() =>
+                                  openBookingPrompt(room, { startDate: dateSearch.startDate, endDate: dateSearch.endDate })
+                                }
+                              >
+                                Book Now
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="p-4">
+                        {/* Row 1: status + Book Now (fallback when no image) */}
+                        {!room.images?.[0] && (
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div>
                             <h3 className="text-lg font-semibold text-[#f5f0dd]">{room.name}</h3>
@@ -723,6 +753,7 @@ function HomePage() {
                             Book Now
                           </button>
                         </div>
+                        )}
 
                         {/* Row 2: slidable day-by-day availability */}
                         <div className="mt-3 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -803,6 +834,7 @@ function HomePage() {
                             );
                           })}
                         </div>
+                        </div>{/* end p-4 */}
                       </div>
                     );
                   })}
