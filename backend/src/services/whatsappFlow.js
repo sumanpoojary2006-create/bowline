@@ -498,6 +498,20 @@ const handleChildren = async (session, phone, text) => {
   await sendText(phone, 'Are you bringing any pets? Reply with the number of pets (0 if none). A flat fee of Rs 400 applies per pet for the stay.');
 };
 
+const sendMealQuestion = async (phone, totalGuests) => {
+  const rows = Array.from({ length: totalGuests + 1 }, (_, i) => ({
+    id: `nonveg_${i}`,
+    title: i === 0 ? '0 – All vegetarian' : i === totalGuests ? `${i} – All non-veg` : `${i} non-veg, ${totalGuests - i} veg`,
+  }));
+
+  await sendList(phone, {
+    header: 'Meal Preference',
+    bodyText: `How many of your *${totalGuests} guest${totalGuests > 1 ? 's' : ''}* prefer *non-vegetarian* meals?`,
+    buttonText: 'Select',
+    sections: [{ title: 'Non-veg count', rows }],
+  });
+};
+
 const handlePets = async (session, phone, text) => {
   const pets = parsePositiveInt(text);
 
@@ -506,26 +520,13 @@ const handlePets = async (session, phone, text) => {
     return;
   }
 
+  const totalGuests = (session.data.adultGuests || 0) + (session.data.childGuests || 0);
+
   session.data = { ...session.data, pets };
-  session.step = 'VEG';
-  await session.save();
-
-  await sendText(phone, 'How many guests would prefer vegetarian meals? Reply 0 if none.');
-};
-
-const handleVeg = async (session, phone, text) => {
-  const veg = parsePositiveInt(text);
-
-  if (veg === null) {
-    await sendText(phone, 'Please enter a valid number (0 or more).');
-    return;
-  }
-
-  session.data = { ...session.data, vegCount: veg };
   session.step = 'NONVEG';
   await session.save();
 
-  await sendText(phone, 'And how many guests would prefer non-vegetarian meals? Reply 0 if none.');
+  await sendMealQuestion(phone, totalGuests);
 };
 
 const sendSummary = async (session, phone) => {
@@ -625,15 +626,23 @@ const sendSummary = async (session, phone) => {
   ]);
 };
 
-const handleNonVeg = async (session, phone, text) => {
-  const nonVeg = parsePositiveInt(text);
+const handleNonVeg = async (session, phone, text, buttonId) => {
+  let nonVeg = null;
 
-  if (nonVeg === null) {
-    await sendText(phone, 'Please enter a valid number (0 or more).');
+  if (buttonId?.startsWith('nonveg_')) {
+    nonVeg = parseInt(buttonId.replace('nonveg_', ''), 10);
+  } else {
+    nonVeg = parsePositiveInt(text);
+  }
+
+  const totalGuests = (session.data.adultGuests || 0) + (session.data.childGuests || 0);
+
+  if (nonVeg === null || nonVeg < 0 || nonVeg > totalGuests) {
+    await sendMealQuestion(phone, totalGuests);
     return;
   }
 
-  session.data = { ...session.data, nonVegCount: nonVeg };
+  session.data = { ...session.data, nonVegCount: nonVeg, vegCount: totalGuests - nonVeg };
   await session.save();
 
   await sendSummary(session, phone);
@@ -820,10 +829,8 @@ export const handleIncomingMessage = async (phone, message, profileName) => {
       return handleChildren(session, phone, text);
     case 'PETS':
       return handlePets(session, phone, text);
-    case 'VEG':
-      return handleVeg(session, phone, text);
     case 'NONVEG':
-      return handleNonVeg(session, phone, text);
+      return handleNonVeg(session, phone, text, buttonId);
     case 'PAYMENT_TYPE':
       return handlePaymentType(session, phone, buttonId, profileName);
     case 'MY_BOOKINGS_SELECT':
