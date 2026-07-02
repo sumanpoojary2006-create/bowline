@@ -78,14 +78,17 @@ export default function WaDatePickerPage() {
   const [viewMonth, setViewMonth] = useState(today.getMonth());
 
   const handleDay = (date) => {
-    if (step === 'start') {
+    if (step === 'start' || step === 'done') {
       setStart(date);
       setEnd(null);
+      setHovered(null);
       setStep('end');
     } else {
       if (date <= start) {
+        // tapped same or earlier date — restart from this date as new check-in
         setStart(date);
         setEnd(null);
+        setHovered(null);
         setStep('end');
       } else {
         setEnd(date);
@@ -119,7 +122,7 @@ export default function WaDatePickerPage() {
 
       {/* Step hint */}
       <p className="text-amber-300 text-sm mb-4">
-        {step === 'start' ? '📅 Tap your check-in date' : step === 'end' ? '📅 Tap your check-out date' : '✅ Dates selected'}
+        {step === 'start' ? '📅 Tap your check-in date' : step === 'end' ? '📅 Tap your check-out date' : '✅ Dates selected — tap any date to change'}
       </p>
 
       {/* Calendar nav */}
