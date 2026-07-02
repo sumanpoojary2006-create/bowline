@@ -868,13 +868,13 @@ const handleSummaryConfirm = async (session, phone, buttonId) => {
   }
 
   if (buttonId === 'proceed_payment') {
-    session.step = 'PAYMENT_TYPE';
+    session.step = 'EMAIL';
     await session.save();
-    await sendButtons(phone, 'How would you like to pay?', [
-      { id: 'pay_50', title: 'Pay 50% Now' },
-      { id: 'pay_full', title: 'Pay Full Amount' },
-      { id: 'cancel_booking', title: 'Cancel' },
-    ]);
+    await sendButtons(
+      phone,
+      'Please type your *email address* — we will send your booking receipt there after payment.',
+      [{ id: 'skip_email', title: 'Skip' }]
+    );
     return;
   }
 
@@ -885,6 +885,39 @@ const handleSummaryConfirm = async (session, phone, buttonId) => {
   }
 
   await sendText(phone, 'Please use the buttons above to continue.');
+};
+
+const sendPaymentOptions = (phone) =>
+  sendButtons(phone, 'How would you like to pay?', [
+    { id: 'pay_50', title: 'Pay 50% Now' },
+    { id: 'pay_full', title: 'Pay Full Amount' },
+    { id: 'cancel_booking', title: 'Cancel' },
+  ]);
+
+const handleEmail = async (session, phone, buttonId, text) => {
+  if (buttonId === 'skip_email') {
+    session.step = 'PAYMENT_TYPE';
+    await session.save();
+    await sendPaymentOptions(phone);
+    return;
+  }
+
+  const email = (text || '').trim();
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+    await sendButtons(
+      phone,
+      "That doesn't look like a valid email address. Please type it again (example: name@gmail.com), or skip.",
+      [{ id: 'skip_email', title: 'Skip' }]
+    );
+    return;
+  }
+
+  session.data = { ...session.data, contactEmail: email.toLowerCase() };
+  session.step = 'PAYMENT_TYPE';
+  await session.save();
+
+  await sendPaymentOptions(phone);
 };
 
 const handleNonVeg = async (session, phone, text, buttonId) => {
@@ -921,7 +954,7 @@ const finalizeBookings = async (session, phone, profileName, payInFull = false) 
   const items = [...(session.cart || []), session.data];
 
   const contactName = profileName || 'WhatsApp Guest';
-  const contactEmail = `whatsapp.${phone}@bowline.guest`;
+  const contactEmail = session.data.contactEmail || `whatsapp.${phone}@bowline.guest`;
   const contactPhone = `+${phone}`;
 
   const bookings = [];
@@ -1123,6 +1156,8 @@ export const handleIncomingMessage = async (phone, message, profileName) => {
       return handleNonVeg(session, phone, text, buttonId);
     case 'SUMMARY_CONFIRM':
       return handleSummaryConfirm(session, phone, buttonId);
+    case 'EMAIL':
+      return handleEmail(session, phone, buttonId, text);
     case 'PAYMENT_TYPE':
       return handlePaymentType(session, phone, buttonId, profileName);
     case 'MY_BOOKINGS_SELECT':

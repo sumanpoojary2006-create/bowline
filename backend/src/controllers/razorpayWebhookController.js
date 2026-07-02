@@ -7,9 +7,11 @@ import { writeBookingToSheet, writeFullBookingToSheet, isSheetsConfigured } from
 import { sendBookingConfirmationEmail } from '../utils/bookingConfirmationEmail.js';
 
 function syncToSheet(booking) {
-  if (!isSheetsConfigured()) return;
-  writeBookingToSheet(booking).catch(() => {});
-  writeFullBookingToSheet(booking).catch(() => {});
+  if (!isSheetsConfigured()) return Promise.resolve();
+  return Promise.all([
+    writeBookingToSheet(booking).catch(() => {}),
+    writeFullBookingToSheet(booking).catch(() => {}),
+  ]);
 }
 
 export const handleRazorpayWebhook = async (req, res, next) => {
@@ -29,8 +31,10 @@ export const handleRazorpayWebhook = async (req, res, next) => {
       return;
     }
 
-    res.sendStatus(200);
-
+    // NOTE: do NOT respond before processing — on Vercel the function can be
+    // frozen the moment the response is sent, killing everything after it.
+    // Razorpay retries on timeout and the paymentStatus guard below makes
+    // retries idempotent, so it's safe to reply at the end.
     const event = req.body;
 
     // Auto-cancel bookings when payment link expires or payment fails
@@ -42,20 +46,22 @@ export const handleRazorpayWebhook = async (req, res, next) => {
           booking.status = 'cancelled';
           booking.paymentStatus = 'failed';
           await booking.save();
-          syncToSheet(booking);
+          await syncToSheet(booking);
         }
         if (bookings.length) {
-          notifyAdmins({
+          await notifyAdmins({
             title: 'Booking auto-cancelled',
             message: `Payment link expired/failed — ${bookings.map(b => b.listing?.name).join(', ')} auto-cancelled.`,
             type: 'booking',
           }).catch(() => {});
         }
       }
+      res.sendStatus(200);
       return;
     }
 
     if (event.event !== 'payment.captured' && event.event !== 'payment_link.paid') {
+      res.sendStatus(200);
       return;
     }
 
@@ -75,12 +81,14 @@ export const handleRazorpayWebhook = async (req, res, next) => {
     } else if (paymentLinkId) {
       query = { razorpayPaymentLinkId: paymentLinkId };
     } else {
+      res.sendStatus(200);
       return;
     }
 
     const matching = await Booking.find({ ...query, paymentStatus: { $ne: 'paid' } });
 
     if (!matching.length) {
+      res.sendStatus(200);
       return;
     }
 
@@ -94,19 +102,6 @@ export const handleRazorpayWebhook = async (req, res, next) => {
     const updated = await Booking.find(query)
       .populate('listing')
       .populate('user', 'name email phone');
-
-    for (const booking of updated) {
-      syncToSheet(booking);
-
-      if (booking.user) {
-        createNotification({
-          userId: booking.user._id,
-          title: 'Booking confirmed',
-          message: `Your booking for ${booking.listing.name} has been confirmed.`,
-          type: 'booking',
-        }).catch(() => {});
-      }
-    }
 
     const first = updated[0];
 
@@ -151,18 +146,36 @@ export const handleRazorpayWebhook = async (req, res, next) => {
         `See you soon at Bowline Nature Stay! 🌿`
       );
 
-      sendText(phone, lines.join('\n')).catch(() => {});
+      // Guest-facing receipt goes out first — everything below is secondary
+      await sendText(phone, lines.join('\n')).catch((error) => {
+        console.error('[Razorpay webhook] WhatsApp receipt failed:', error?.message);
+      });
     }
 
-    notifyAdmins({
+    await sendBookingConfirmationEmail(updated).catch((error) => {
+      console.error('[Razorpay webhook] confirmation email failed:', error?.message);
+    });
+
+    for (const booking of updated) {
+      await syncToSheet(booking);
+
+      if (booking.user) {
+        await createNotification({
+          userId: booking.user._id,
+          title: 'Booking confirmed',
+          message: `Your booking for ${booking.listing.name} has been confirmed.`,
+          type: 'booking',
+        }).catch(() => {});
+      }
+    }
+
+    await notifyAdmins({
       title: 'Booking confirmed via payment',
       message: `${first?.contactName} paid via WhatsApp for ${updated.map((b) => b.listing.name).join(', ')}.`,
       type: 'booking',
     }).catch(() => {});
 
-    sendBookingConfirmationEmail(updated).catch((error) => {
-      console.error('Failed to send booking confirmation email', error);
-    });
+    res.sendStatus(200);
   } catch (error) {
     next(error);
   }
