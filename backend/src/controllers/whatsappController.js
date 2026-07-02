@@ -1,3 +1,4 @@
+import { waitUntil } from '@vercel/functions';
 import { handleIncomingMessage } from '../services/whatsappFlow.js';
 
 export const verifyWebhook = (req, res) => {
@@ -27,7 +28,9 @@ export const receiveWebhook = (req, res) => {
   const from = message.from;
   const profileName = value?.contacts?.[0]?.profile?.name;
 
-  handleIncomingMessage(from, message, profileName).catch((error) => {
-    console.error('Error handling WhatsApp webhook:', error);
-  });
+  waitUntil(
+    handleIncomingMessage(from, message, profileName).catch((error) => {
+      console.error('Error handling WhatsApp webhook:', error);
+    })
+  );
 };
