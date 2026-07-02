@@ -58,7 +58,7 @@ function LoginPage() {
       <div className="mx-auto max-w-lg glass rounded-[2rem] p-5 sm:p-8">
         <p className="text-xs uppercase tracking-[0.3em] text-amber-300">Welcome back</p>
         <h1 className="mt-3 font-display text-3xl text-white sm:text-5xl">Log in to Bowline</h1>
-        <p className="mt-2 text-sm text-slate-300">Use the seeded admin or user account, or create a new profile.</p>
+        <p className="mt-2 text-sm text-slate-300">Log in to manage your bookings.</p>
 
         <form className="mt-8 space-y-4" onSubmit={submit}>
           <div>
@@ -102,10 +102,6 @@ function LoginPage() {
             </div>
           </div>
         ) : null}
-
-        <div className="mt-6 rounded-[1.5rem] bg-slate-900/70 p-4 text-sm text-slate-300">
-          <p>Admin: `bowlinestays@gmail.com` / `Admin@123`</p>
-        </div>
       </div>
     </section>
   );
