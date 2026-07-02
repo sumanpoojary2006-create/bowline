@@ -204,7 +204,7 @@ const handleRoomSelect = async (session, phone, buttonId) => {
     listingId: listing._id.toString(),
     listingName: listing.name,
     listingCapacity: listing.capacity,
-    listingMinOccupancy: listing.minOccupancy || 1,
+    listingMinOccupancy: listing.minOccupancy || 2,
   };
   session.step = 'CHECKIN';
   await session.save();
@@ -325,7 +325,7 @@ const handleGroupDates = async (session, phone, text) => {
       listingId: listing._id.toString(),
       listingName: listing.name,
       listingCapacity: listing.capacity,
-      listingMinOccupancy: listing.minOccupancy || 1,
+      listingMinOccupancy: listing.minOccupancy || 2,
       startDate: range.startDate.toISOString(),
       endDate: range.endDate.toISOString(),
       adultGuests,
@@ -382,7 +382,7 @@ const handleCheckin = async (session, phone, text) => {
       session.data = { ...session.data, startDate: range.startDate.toISOString(), endDate: range.endDate.toISOString() };
       session.step = 'ADULTS';
       await session.save();
-      await sendAdultsPicker(phone, `Dates: *${formatDate(range.startDate)} → ${formatDate(range.endDate)}* ✅\n\nHow many adults will be staying?`, session.data.listingCapacity, session.data.listingMinOccupancy || 1);
+      await sendAdultsPicker(phone, `Dates: *${formatDate(range.startDate)} → ${formatDate(range.endDate)}* ✅\n\nHow many adults will be staying?`, session.data.listingCapacity, session.data.listingMinOccupancy || 2);
       return;
     }
   }
@@ -469,7 +469,7 @@ const handleCheckout = async (session, phone, text) => {
   session.step = 'ADULTS';
   await session.save();
 
-  await sendAdultsPicker(phone, `Check-out: *${formatDate(endDate)}* ✅\nDates: ${formatDate(startDate)} → ${formatDate(endDate)}\n\nHow many adults will be staying?`, session.data.listingCapacity, session.data.listingMinOccupancy || 1);
+  await sendAdultsPicker(phone, `Check-out: *${formatDate(endDate)}* ✅\nDates: ${formatDate(startDate)} → ${formatDate(endDate)}\n\nHow many adults will be staying?`, session.data.listingCapacity, session.data.listingMinOccupancy || 2);
 };
 
 const sendAdultsPicker = async (phone, bodyText, capacity, minOccupancy) => {
@@ -518,12 +518,12 @@ const sendPetsPicker = async (phone) => {
 
 const handleAdults = async (session, phone, buttonId) => {
   if (!buttonId?.startsWith('adults_')) {
-    await sendAdultsPicker(phone, 'Please select the number of adults:', session.data.listingCapacity, session.data.listingMinOccupancy || 1);
+    await sendAdultsPicker(phone, 'Please select the number of adults:', session.data.listingCapacity, session.data.listingMinOccupancy || 2);
     return;
   }
   const adults = parseInt(buttonId.replace('adults_', ''), 10);
   const capacity = session.data.listingCapacity;
-  const minOccupancy = session.data.listingMinOccupancy || 1;
+  const minOccupancy = session.data.listingMinOccupancy || 2;
 
   if (adults < minOccupancy || adults > capacity) {
     await sendAdultsPicker(phone, `Please select between ${minOccupancy} and ${capacity} adults:`, capacity, minOccupancy);
@@ -827,9 +827,12 @@ const finalizeBookings = async (session, phone, profileName, payInFull = false) 
       'https://bowlinestays.com/'
     );
   } catch (error) {
-    await sendText(
+    console.error('[WA] Razorpay payment link failed:', error?.message, JSON.stringify(error));
+    await sendCtaUrl(
       phone,
-      `Your booking${bookings.length > 1 ? 's have' : ' has'} been received (${idsLabel}: ${bookingIds.join(', ')}), but we couldn't generate a payment link. Our team will contact you shortly to arrange payment.`
+      `*Booking Request Received!* ✅\n\n${roomsList}\n\n*Total: Rs ${grandTotal}*\n${idsLabel}: ${bookingIds.join(', ')}\n\nOur team will contact you shortly to share the payment link.`,
+      'Know More About The Stay',
+      'https://bowlinestays.com/'
     );
   }
 };
