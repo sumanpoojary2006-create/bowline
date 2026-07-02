@@ -68,7 +68,7 @@ function CalendarGrid({ year, month, start, end, hovered, onDay, onHover }) {
 export default function WaDatePickerPage() {
   const params = new URLSearchParams(window.location.search);
   const room = params.get('room') || 'your room';
-  const phone = params.get('phone') || '';
+  const BOWLINE_WA = '916360718604';
 
   const today = startOfDay(new Date());
   const [start, setStart]     = useState(null);
@@ -110,13 +110,7 @@ export default function WaDatePickerPage() {
   const handleConfirm = () => {
     if (!start || !end) return;
     const text = `DATES: ${fmtShort(start)} - ${fmtShort(end)}`;
-    if (phone) {
-      window.location.href = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
-    } else {
-      // fallback: copy to clipboard
-      navigator.clipboard?.writeText(text).catch(() => {});
-      setStep('copied');
-    }
+    window.location.href = `https://wa.me/${BOWLINE_WA}?text=${encodeURIComponent(text)}`;
   };
 
   const nights = start && end ? Math.round((end - start) / 86400000) : 0;
