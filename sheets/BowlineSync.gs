@@ -238,7 +238,43 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('Bowline')
     .addItem('Sync All to App', 'syncAllRooms')
+    .addItem('Fix Red Cells', 'fixRedCells')
     .addToUi();
+}
+
+// ── One-time cleanup: turn every red cell white across all month sheets ────
+// Red (#ea9999) was the old "pending" colour — pending is now colourless.
+function fixRedCells() {
+  var REDS = ['#ea9999', '#e06666', '#f4cccc', '#cc0000', '#ff0000'];
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheets = ss.getSheets();
+  var fixed = 0;
+
+  for (var s = 0; s < sheets.length; s++) {
+    var sheet = sheets[s];
+    if (!sheet.getName().match(/^[A-Za-z]{3} \d{2}$/)) continue;
+
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) continue;
+
+    var range = sheet.getRange(2, 2, lastRow - 1, 5); // columns B–F
+    var colors = range.getBackgrounds();
+    var changed = false;
+
+    for (var r = 0; r < colors.length; r++) {
+      for (var c = 0; c < colors[r].length; c++) {
+        if (REDS.indexOf((colors[r][c] || '').toLowerCase()) !== -1) {
+          colors[r][c] = '#ffffff';
+          changed = true;
+          fixed++;
+        }
+      }
+    }
+
+    if (changed) range.setBackgrounds(colors);
+  }
+
+  SpreadsheetApp.getUi().alert('Done! Cleared ' + fixed + ' red cell(s). Red is no longer used — green = paid, yellow = 50% deposit, no colour = pending.');
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
