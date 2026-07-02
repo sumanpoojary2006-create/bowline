@@ -21,10 +21,10 @@ export const ROOM_COLUMN_INDEX = {
 };
 
 export const STATUS_COLORS = {
-  confirmed:      '#b6d7a8',
-  partially_paid: '#ffe599',
-  pending:        '#ea9999',
-  cancelled:      '#ffffff',
+  confirmed:      '#b6d7a8', // green  – fully paid
+  partially_paid: '#ffe599', // yellow – 50% deposit paid
+  pending:        '#ffffff', // no color – not yet confirmed
+  cancelled:      '#ffffff', // no color – cleared
 };
 
 // The Sheet's cell color is keyed on this calendar status, which is a step
