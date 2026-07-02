@@ -30,7 +30,7 @@ const sendMenu = async (phone, profileName) => {
     phone,
     `${greeting}Welcome to *Bowline Nature Stay* 🌿\n\nNestled in the forests of Chikkamagaluru, we offer peaceful stays with nature all around.\n\nBrowse our rooms and book directly on our website, or use the chat below to check availability and book.`,
     'Book Now',
-    'https://bowline-omega.vercel.app/browse'
+    'https://bowline-omega.vercel.app'
   );
   await sendButtons(
     phone,
