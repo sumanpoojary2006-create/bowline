@@ -757,7 +757,7 @@ const finalizeBookings = async (session, phone, profileName, payInFull = false) 
 
     await sendText(
       phone,
-      `*Booking Confirmed!* 🎉\n\n${roomsList}\n\n*Total: Rs ${grandTotal}*\nAmount to pay now: *${depositLabel}*${remainingLabel}\n\nComplete your payment here:\n${paymentLink.short_url}\n\nYou'll receive a confirmation once payment is received.`
+      `*Booking Request Received!* ✅\n\n${roomsList}\n\n*Total: Rs ${grandTotal}*\nAmount to pay now: *${depositLabel}*${remainingLabel}\n\n👇 Complete your payment to confirm the booking:\n${paymentLink.short_url}\n\nYou'll receive a confirmation message here once payment is done.`
     );
   } catch (error) {
     await sendText(
