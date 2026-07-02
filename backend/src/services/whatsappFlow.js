@@ -2,7 +2,7 @@ import dayjs from 'dayjs';
 import WhatsAppSession from '../models/WhatsAppSession.js';
 import Listing from '../models/Listing.js';
 import Booking from '../models/Booking.js';
-import { sendText, sendButtons, sendList } from '../utils/whatsapp.js';
+import { sendText, sendButtons, sendList, sendImage } from '../utils/whatsapp.js';
 import { parseDateRange } from '../utils/dateParser.js';
 import {
   validateListingAvailability,
@@ -200,12 +200,16 @@ const handleRoomSelect = async (session, phone, buttonId) => {
     listingCapacity: listing.capacity,
     listingMinOccupancy: listing.minOccupancy || 1,
   };
-  session.step = 'DATES';
+  session.step = 'CHECKIN';
   await session.save();
+
+  if (listing.images?.length) {
+    await sendImage(phone, listing.images[0], listing.name);
+  }
 
   await sendText(
     phone,
-    `Great choice - *${listing.name}*!\n\nPlease enter your check-in and check-out dates.\nFormat: DD Mon - DD Mon\nExample: 12 Jul - 14 Jul`
+    `Great choice - *${listing.name}*! 🌿\n\nWhat is your *check-in date*?\nExample: 12 Jul`
   );
 };
 
@@ -335,42 +339,74 @@ const handleGroupDates = async (session, phone, text) => {
   await sendSummary(session, phone);
 };
 
-const handleDates = async (session, phone, text) => {
-  const range = parseDateRange(text);
+const parseSingleDateText = (text) => {
+  // "12 Jul - 14 Jul" entered at check-in step → use start date only
+  const asRange = parseDateRange(text);
+  if (asRange) return asRange.startDate;
 
-  if (!range) {
-    await sendText(
-      phone,
-      'Sorry, I could not understand those dates. Please reply in the format: 12 Jul - 14 Jul'
-    );
+  const range = parseDateRange(`${text} - ${text}`);
+  return range ? range.startDate : null;
+};
+
+const handleCheckin = async (session, phone, text) => {
+  const date = parseSingleDateText(text);
+
+  if (!date) {
+    await sendText(phone, 'Sorry, I could not understand that date. Please reply like: *12 Jul*');
     return;
   }
 
-  if (range.endDate <= range.startDate) {
-    await sendText(phone, 'Check-out date must be after the check-in date. Please re-enter your dates.');
+  if (dayjs(date).isBefore(dayjs(), 'day')) {
+    await sendText(phone, 'Check-in date cannot be in the past. Please enter a future date.');
     return;
   }
+
+  session.data = { ...session.data, startDate: date.toISOString() };
+  session.step = 'CHECKOUT';
+  await session.save();
+
+  await sendText(
+    phone,
+    `Check-in: *${formatDate(date)}* ✅\n\nWhat is your *check-out date*?\nExample: 14 Jul`
+  );
+};
+
+const handleCheckout = async (session, phone, text) => {
+  const date = parseSingleDateText(text);
+
+  if (!date) {
+    await sendText(phone, 'Sorry, I could not understand that date. Please reply like: *14 Jul*');
+    return;
+  }
+
+  const startDate = new Date(session.data.startDate);
+
+  if (date <= startDate) {
+    await sendText(phone, `Check-out must be after check-in (${formatDate(startDate)}). Please enter a later date.`);
+    return;
+  }
+
+  const endDate = date;
 
   const overlapping = await getExistingBookingsForRange({
     listingId: session.data.listingId,
-    startDate: range.startDate,
-    endDate: range.endDate,
+    startDate,
+    endDate,
   });
 
   if (overlapping.length) {
-    const nights = dayjs(range.endDate).diff(dayjs(range.startDate), 'day');
+    const nights = dayjs(endDate).diff(dayjs(startDate), 'day');
 
     const [prevWindow, nextWindow] = await Promise.all([
-      getPreviousAvailableWindow(session.data.listingId, nights, range.startDate),
-      getNextAvailableWindow(session.data.listingId, nights, range.startDate),
+      getPreviousAvailableWindow(session.data.listingId, nights, startDate),
+      getNextAvailableWindow(session.data.listingId, nights, startDate),
     ]);
 
-    const weekLaterStart = dayjs(range.startDate).add(7, 'day').toDate();
-    const weekLaterEnd = dayjs(range.endDate).add(7, 'day').toDate();
+    const weekLaterStart = dayjs(startDate).add(7, 'day').toDate();
+    const weekLaterEnd = dayjs(endDate).add(7, 'day').toDate();
     const weekLaterFree = await isWindowAvailable(session.data.listingId, weekLaterStart, weekLaterEnd);
 
-    let message = `Sorry, *${session.data.listingName}* is already booked for this day. Please enter different dates.\nFormat: DD Mon - DD Mon`;
-    message += `\n\n*Other available dates:*`;
+    let message = `Sorry, *${session.data.listingName}* is already booked for those dates.\n\n*Other available dates:*`;
 
     if (prevWindow) {
       message += `\n📅 Before: ${formatDate(prevWindow.startDate)} to ${formatDate(prevWindow.endDate)}`;
@@ -384,21 +420,21 @@ const handleDates = async (session, phone, text) => {
       message += `\n📅 Next week: ${formatDate(weekLaterStart)} to ${formatDate(weekLaterEnd)}`;
     }
 
+    message += `\n\nPlease enter a new *check-in date*:`;
+    session.step = 'CHECKIN';
+    session.data = { ...session.data, startDate: undefined };
+    await session.save();
     await sendText(phone, message);
     return;
   }
 
-  session.data = {
-    ...session.data,
-    startDate: range.startDate.toISOString(),
-    endDate: range.endDate.toISOString(),
-  };
+  session.data = { ...session.data, endDate: endDate.toISOString() };
   session.step = 'ADULTS';
   await session.save();
 
   await sendText(
     phone,
-    `Dates: ${formatDate(range.startDate)} to ${formatDate(range.endDate)}\n\nHow many adults will be staying? (max ${session.data.listingCapacity})`
+    `Check-out: *${formatDate(endDate)}* ✅\nDates: ${formatDate(startDate)} → ${formatDate(endDate)}\n\nHow many adults will be staying? (max ${session.data.listingCapacity})`
   );
 };
 
@@ -581,10 +617,13 @@ const sendSummary = async (session, phone) => {
     lines.push(``, `*Grand Total: Rs ${grandTotal}*`);
   }
 
+  session.step = 'PAYMENT_TYPE';
+  await session.save();
+
   await sendText(phone, lines.join('\n'));
-  await sendButtons(phone, 'What would you like to do next?', [
-    { id: 'add_room', title: 'Add Another Room' },
-    { id: 'confirm_all', title: cart.length ? 'Confirm & Pay All' : 'Confirm & Pay' },
+  await sendButtons(phone, 'How would you like to pay?', [
+    { id: 'pay_50', title: 'Pay 50% Now' },
+    { id: 'pay_full', title: 'Pay Full Amount' },
     { id: 'cancel_booking', title: 'Cancel' },
   ]);
 };
@@ -611,7 +650,7 @@ const resetSession = async (session) => {
   await session.save();
 };
 
-const finalizeBookings = async (session, phone, profileName) => {
+const finalizeBookings = async (session, phone, profileName, payInFull = false) => {
   const items = [...(session.cart || []), session.data];
 
   const contactName = profileName || 'WhatsApp Guest';
@@ -660,6 +699,7 @@ const finalizeBookings = async (session, phone, profileName) => {
         contactEmail,
         contactPhone,
         specialRequests: '',
+        payInFullRequested: payInFull,
       });
       bookings.push(booking);
     } catch (error) {
@@ -695,9 +735,13 @@ const finalizeBookings = async (session, phone, profileName) => {
     return;
   }
 
+  const depositAmount = payInFull ? grandTotal : Math.round(grandTotal * 0.5);
+  const depositLabel = payInFull ? `Rs ${grandTotal}` : `Rs ${depositAmount} (50% deposit)`;
+  const remainingLabel = payInFull ? '' : `\nRemaining Rs ${grandTotal - depositAmount} due at check-in.`;
+
   try {
     const paymentLink = await createPaymentLink({
-      amount: Math.round(grandTotal * 100),
+      amount: Math.round(depositAmount * 100),
       currency: 'INR',
       description:
         bookings.length > 1
@@ -716,7 +760,7 @@ const finalizeBookings = async (session, phone, profileName) => {
 
     await sendText(
       phone,
-      `*Booking Summary*\n\n${roomsList}\n\n*Total: Rs ${grandTotal}*\n\nPlease complete your payment using the link below:\n${paymentLink.short_url}\n\nYou'll receive a confirmation message here once payment is received.`
+      `*Booking Confirmed!* 🎉\n\n${roomsList}\n\n*Total: Rs ${grandTotal}*\nAmount to pay now: *${depositLabel}*${remainingLabel}\n\nComplete your payment here:\n${paymentLink.short_url}\n\nYou'll receive a confirmation once payment is received.`
     );
   } catch (error) {
     await sendText(
@@ -726,16 +770,13 @@ const finalizeBookings = async (session, phone, profileName) => {
   }
 };
 
-const handleSummary = async (session, phone, buttonId, profileName) => {
-  if (buttonId === 'confirm_all') {
-    return finalizeBookings(session, phone, profileName);
+const handlePaymentType = async (session, phone, buttonId, profileName) => {
+  if (buttonId === 'pay_50') {
+    return finalizeBookings(session, phone, profileName, false);
   }
 
-  if (buttonId === 'add_room') {
-    session.cart = [...(session.cart || []), session.data];
-    session.flow = 'group';
-    await sendText(phone, `*${session.data.listingName}* added to your booking. Let's add another room.`);
-    return startRoomSelect(session, phone, { resetCart: false });
+  if (buttonId === 'pay_full') {
+    return finalizeBookings(session, phone, profileName, true);
   }
 
   if (buttonId === 'cancel_booking') {
@@ -744,7 +785,7 @@ const handleSummary = async (session, phone, buttonId, profileName) => {
     return;
   }
 
-  await sendText(phone, 'Please use the buttons above: Add Another Room, Confirm & Pay, or Cancel.');
+  await sendText(phone, 'Please use the buttons above to choose your payment option or cancel.');
 };
 
 export const handleIncomingMessage = async (phone, message, profileName) => {
@@ -772,8 +813,10 @@ export const handleIncomingMessage = async (phone, message, profileName) => {
       return handleGroupGuests(session, phone, text);
     case 'GROUP_DATES':
       return handleGroupDates(session, phone, text);
-    case 'DATES':
-      return handleDates(session, phone, text);
+    case 'CHECKIN':
+      return handleCheckin(session, phone, text);
+    case 'CHECKOUT':
+      return handleCheckout(session, phone, text);
     case 'ADULTS':
       return handleAdults(session, phone, text);
     case 'CHILDREN':
@@ -784,8 +827,8 @@ export const handleIncomingMessage = async (phone, message, profileName) => {
       return handleVeg(session, phone, text);
     case 'NONVEG':
       return handleNonVeg(session, phone, text);
-    case 'SUMMARY':
-      return handleSummary(session, phone, buttonId, profileName);
+    case 'PAYMENT_TYPE':
+      return handlePaymentType(session, phone, buttonId, profileName);
     case 'MY_BOOKINGS_SELECT':
       return handleMyBookingsSelect(session, phone, buttonId, profileName);
     case 'MENU':

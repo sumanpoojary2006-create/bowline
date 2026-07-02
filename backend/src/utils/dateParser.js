@@ -13,8 +13,13 @@ const DATE_FORMATS = [
   'YYYY-MM-DD',
 ];
 
+const normalizeDateString = (value) => {
+  // Capitalize first letter of month abbreviation so "12 jul" -> "12 Jul"
+  return value.replace(/([a-zA-Z]+)/g, (m) => m.charAt(0).toUpperCase() + m.slice(1).toLowerCase());
+};
+
 const parseSingleDate = (value) => {
-  const trimmed = value.trim();
+  const trimmed = normalizeDateString(value.trim());
 
   for (const format of DATE_FORMATS) {
     const parsed = dayjs(trimmed, format, true);

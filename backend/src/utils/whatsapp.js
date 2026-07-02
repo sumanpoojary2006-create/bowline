@@ -57,6 +57,14 @@ export function sendButtons(to, bodyText, buttons) {
   });
 }
 
+export function sendImage(to, imageUrl, caption = '') {
+  return sendMessage({
+    to,
+    type: 'image',
+    image: { link: imageUrl, ...(caption ? { caption } : {}) },
+  });
+}
+
 export function sendList(to, { header, bodyText, buttonText, sections }) {
   return sendMessage({
     to,

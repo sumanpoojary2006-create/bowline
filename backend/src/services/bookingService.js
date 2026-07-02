@@ -28,6 +28,7 @@ export const createRoomBooking = async ({
   contactEmail,
   contactPhone,
   specialRequests = '',
+  payInFullRequested = false,
   user = null,
 }) => {
   const guests = adultGuests + childGuests;
@@ -74,6 +75,7 @@ export const createRoomBooking = async ({
     paymentMethod: 'manual',
     status: 'pending',
     paymentStatus: 'pending',
+    payInFullRequested,
     contactName,
     contactEmail,
     contactPhone,
