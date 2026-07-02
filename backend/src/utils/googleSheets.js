@@ -91,13 +91,15 @@ export async function writeBookingToSheet(booking) {
   const roomName = booking.listing?.name ?? booking.listing;
   if (!roomName || !ROOM_COLUMN_INDEX[roomName]) return;
 
+  const calStatus = getCalendarStatus(booking);
   await callAppsScript({
     action:    'upsert',
     roomName,
     guestName: booking.contactName || booking.user?.name || '',
     startDate: toDateStr(booking.startDate),
     endDate:   toDateStr(booking.endDate),
-    status:    getCalendarStatus(booking),
+    status:    calStatus,
+    color:     STATUS_COLORS[calStatus] ?? '#ffffff',
   });
 }
 

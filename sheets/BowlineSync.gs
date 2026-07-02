@@ -23,10 +23,9 @@
 //
 // STATUS COLOURS
 // ──────────────
-// #b6d7a8  Confirmed, paid in full (dates blocked on OTAs)
-// #ffe599  Confirmed with a 50% deposit — balance still due
-// #ea9999  Pending / unpaid / not yet blocked on OTAs
-// #ffffff  Empty / Cancelled
+// #b6d7a8  Confirmed, paid in full (green)
+// #ffe599  Confirmed with a 50% deposit — balance still due (yellow)
+// #ffffff  Pending / unconfirmed / cancelled — name only, no colour
 // ───────────────────────────────────────────────────────────────────────────
 
 var WEBHOOK_URL    = 'https://bowline-omega.vercel.app/api/sync/inbound';
@@ -44,7 +43,7 @@ var ROOM_COLUMNS = {
 var STATUS_COLORS = {
   confirmed:      '#b6d7a8',
   partially_paid: '#ffe599',
-  pending:        '#ea9999'
+  pending:        '#ffffff'
 };
 
 // ── App → Sheet: doPost handler ─────────────────────────────────────────────
@@ -63,7 +62,7 @@ function doPost(e) {
     var result = { ok: true };
 
     if (data.action === 'upsert') {
-      upsertBookingCells(data.roomName, data.startDate, data.endDate, data.guestName, data.status);
+      upsertBookingCells(data.roomName, data.startDate, data.endDate, data.guestName, data.status, data.color);
       result.action = 'upsert';
 
     } else if (data.action === 'clear') {
@@ -96,13 +95,13 @@ function doPost(e) {
 }
 
 // ── Write booking cells into the sheet ──────────────────────────────────────
-function upsertBookingCells(roomName, startDateStr, endDateStr, guestName, status) {
+function upsertBookingCells(roomName, startDateStr, endDateStr, guestName, status, colorOverride) {
   var col = getRoomColumn(roomName);
   if (!col) return;
 
   var start = new Date(startDateStr);
   var end   = new Date(endDateStr);
-  var color = STATUS_COLORS[status] || STATUS_COLORS['pending'];
+  var color = colorOverride || STATUS_COLORS[status] || '#ffffff';
 
   // Iterate over each day in [start, end)
   var d = new Date(start);
