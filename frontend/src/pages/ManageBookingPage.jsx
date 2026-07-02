@@ -147,12 +147,18 @@ function BookingCard({ booking, onUpdated }) {
   };
 
   const handleCancel = async () => {
-    const refundNote =
-      booking.cancellationRefundPercent === 100
-        ? 'You will receive a full refund.'
-        : booking.cancellationRefundPercent === 50
-          ? 'You will receive a 50% refund.'
-          : 'This booking is not eligible for a refund.';
+    const policyPct = booking.cancellationRefundPercent;
+    let refundNote;
+    if (policyPct > 0) {
+      const amountPaid =
+        booking.paymentStatus === 'partially_paid'
+          ? Math.round(booking.totalPrice / 2)
+          : booking.totalPrice;
+      const refundRs = Math.round(amountPaid * (policyPct / 100));
+      refundNote = `You will receive a refund of ${formatCurrency(refundRs)}.`;
+    } else {
+      refundNote = 'This booking is not eligible for a refund.';
+    }
 
     if (!window.confirm(`Cancel this booking? ${refundNote}`)) {
       return;

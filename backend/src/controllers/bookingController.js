@@ -812,7 +812,10 @@ export const adminCancelWithRefund = async (req, res, next) => {
 
     const refundPercent = Math.min(100, Math.max(0, Number(req.body.refundPercent ?? 0)));
 
-    if (booking.paymentStatus === 'paid' && refundPercent > 0) {
+    const isPaid = booking.paymentStatus === 'paid';
+    const isPartiallyPaid = booking.paymentStatus === 'partially_paid';
+
+    if ((isPaid || isPartiallyPaid) && refundPercent > 0) {
       if (!booking.razorpayPaymentId) {
         res.status(400);
         throw new Error('No Razorpay payment ID on record — cannot process refund');
@@ -822,7 +825,9 @@ export const adminCancelWithRefund = async (req, res, next) => {
         throw new Error('Razorpay is not configured');
       }
 
-      const refundAmount = Math.round(booking.totalPrice * (refundPercent / 100) * 100);
+      // For a 50% deposit booking, only the deposited amount is refundable
+      const amountPaid = isPaid ? booking.totalPrice : Math.round(booking.totalPrice / 2);
+      const refundAmount = Math.round(amountPaid * (refundPercent / 100) * 100);
       const refund = await createRazorpayRefund({
         paymentId: booking.razorpayPaymentId,
         amount: refundAmount,
@@ -1084,13 +1089,18 @@ export const cancelGuestBooking = async (req, res, next) => {
 
     const refundPercent = getCancellationRefundPercent(booking.startDate);
 
-    if (booking.paymentStatus === 'paid' && refundPercent > 0) {
+    const isPaid = booking.paymentStatus === 'paid';
+    const isPartiallyPaid = booking.paymentStatus === 'partially_paid';
+
+    if ((isPaid || isPartiallyPaid) && refundPercent > 0) {
       if (!booking.razorpayPaymentId || !isRazorpayConfigured()) {
         res.status(503);
         throw new Error('Refunds are not available right now. Please contact us to process your cancellation.');
       }
 
-      const refundAmount = Math.round(booking.totalPrice * (refundPercent / 100) * 100);
+      // For a 50% deposit booking, only the deposited amount is refundable
+      const amountPaid = isPaid ? booking.totalPrice : Math.round(booking.totalPrice / 2);
+      const refundAmount = Math.round(amountPaid * (refundPercent / 100) * 100);
       const refund = await createRazorpayRefund({
         paymentId: booking.razorpayPaymentId,
         amount: refundAmount,
@@ -1121,7 +1131,7 @@ export const cancelGuestBooking = async (req, res, next) => {
         subject: `Booking Cancelled - ${booking.listing.name}`,
         text: `Hi ${booking.contactName},\n\nYour booking for ${booking.listing.name} has been cancelled.${
           booking.refundAmount > 0
-            ? ` A refund of Rs ${booking.refundAmount} (${booking.refundPercentage}%) has been initiated and will reflect in your account shortly.`
+            ? ` A refund of Rs ${booking.refundAmount} has been initiated and will reflect in your account shortly.`
             : ' Based on our cancellation policy, this booking is not eligible for a refund.'
         }\n\nBowline Nature Stay`,
         kind: 'booking',
