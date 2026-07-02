@@ -84,15 +84,7 @@ const handleMenu = async (session, phone, buttonId, profileName) => {
     session.cart = [];
     session.flow = 'group';
     await session.save();
-    await sendList(phone, {
-      header: 'Group Booking',
-      bodyText: "Let's set up your group booking! 🎉\n\nGroup bookings are for 10–20 guests. How many guests in total?",
-      buttonText: 'Select guests',
-      sections: [
-        { title: '10 – 14 guests', rows: [10,11,12,13,14].map(n => ({ id: `group_${n}`, title: `${n} guests` })) },
-        { title: '15 – 20 guests', rows: [15,16,17,18,19,20].map(n => ({ id: `group_${n}`, title: `${n} guests` })) },
-      ],
-    });
+    await sendGroupGuestsPicker(phone);
     return;
   }
 
@@ -218,22 +210,37 @@ const handleRoomSelect = async (session, phone, buttonId) => {
   );
 };
 
-const handleGroupGuests = async (session, phone, buttonId) => {
-  if (!buttonId?.startsWith('group_')) {
-    await sendList(phone, {
-      header: 'Group Booking',
-      bodyText: 'Please select the number of guests:',
-      buttonText: 'Select guests',
-      sections: [
-        { title: '10 – 14 guests', rows: [10,11,12,13,14].map(n => ({ id: `group_${n}`, title: `${n} guests` })) },
-        { title: '15 – 20 guests', rows: [15,16,17,18,19,20].map(n => ({ id: `group_${n}`, title: `${n} guests` })) },
-      ],
-    });
+const sendGroupGuestsPicker = async (phone, bodyText) => {
+  await sendList(phone, {
+    header: 'Group Booking',
+    bodyText: bodyText || "Let's set up your group booking! 🎉\n\nGroup bookings are for 10–20 guests. How many guests in total?",
+    buttonText: 'Select guests',
+    sections: [
+      { title: 'Common sizes', rows: [
+        { id: 'group_10', title: '10' },
+        { id: 'group_12', title: '12' },
+        { id: 'group_15', title: '15' },
+        { id: 'group_custom', title: 'Custom (10–20)' },
+      ]},
+    ],
+  });
+};
+
+const handleGroupGuests = async (session, phone, buttonId, text) => {
+  if (buttonId === 'group_custom') {
+    await sendText(phone, 'Please type the exact number of guests (10–20):');
     return;
   }
-  const guests = parseInt(buttonId.replace('group_', ''), 10);
-  if (guests < 10 || guests > 20) {
-    await sendText(phone, 'Please select a valid option from the list.');
+
+  let guests;
+  if (buttonId?.startsWith('group_')) {
+    guests = parseInt(buttonId.replace('group_', ''), 10);
+  } else if (text) {
+    guests = parseInt(text, 10);
+  }
+
+  if (!guests || isNaN(guests) || guests < 10 || guests > 20) {
+    await sendGroupGuestsPicker(phone, 'Please select or type a number between 10 and 20:');
     return;
   }
 
@@ -473,10 +480,9 @@ const handleCheckout = async (session, phone, text) => {
 };
 
 const sendAdultsPicker = async (phone, bodyText, capacity, minOccupancy) => {
-  const rows = [];
-  for (let n = minOccupancy; n <= Math.min(capacity, 10); n++) {
-    rows.push({ id: `adults_${n}`, title: `${n} adult${n > 1 ? 's' : ''}` });
-  }
+  const fixed = [minOccupancy, minOccupancy + 1, minOccupancy + 2].filter(n => n <= capacity);
+  const rows = fixed.map(n => ({ id: `adults_${n}`, title: `${n} adults` }));
+  if (capacity > minOccupancy + 2) rows.push({ id: 'adults_custom', title: 'Custom' });
   await sendList(phone, {
     header: 'Number of Adults',
     bodyText,
@@ -485,17 +491,20 @@ const sendAdultsPicker = async (phone, bodyText, capacity, minOccupancy) => {
   });
 };
 
-const sendChildrenPicker = async (phone, adults, capacity) => {
-  const maxChildren = Math.min(capacity - adults, 10);
-  const rows = [];
-  for (let n = 0; n <= maxChildren; n++) {
-    rows.push({ id: `children_${n}`, title: n === 0 ? 'No children' : `${n} child${n > 1 ? 'ren' : ''}` });
-  }
+const sendChildrenPicker = async (phone) => {
   await sendList(phone, {
     header: 'Children',
     bodyText: 'How many children (age 6–12) will be staying?',
     buttonText: 'Select',
-    sections: [{ title: 'Children (age 6–12)', rows }],
+    sections: [{
+      title: 'Children (age 6–12)',
+      rows: [
+        { id: 'children_0', title: 'No children' },
+        { id: 'children_1', title: '1' },
+        { id: 'children_2', title: '2' },
+        { id: 'children_custom', title: 'Custom' },
+      ],
+    }],
   });
 };
 
@@ -508,25 +517,32 @@ const sendPetsPicker = async (phone) => {
       title: 'Number of pets',
       rows: [
         { id: 'pets_0', title: 'No pets' },
-        { id: 'pets_1', title: '1 pet' },
-        { id: 'pets_2', title: '2 pets' },
-        { id: 'pets_3', title: '3 pets' },
+        { id: 'pets_1', title: '1' },
+        { id: 'pets_2', title: '2' },
+        { id: 'pets_custom', title: 'Custom' },
       ],
     }],
   });
 };
 
-const handleAdults = async (session, phone, buttonId) => {
-  if (!buttonId?.startsWith('adults_')) {
-    await sendAdultsPicker(phone, 'Please select the number of adults:', session.data.listingCapacity, session.data.listingMinOccupancy || 2);
-    return;
-  }
-  const adults = parseInt(buttonId.replace('adults_', ''), 10);
+const handleAdults = async (session, phone, buttonId, text) => {
   const capacity = session.data.listingCapacity;
   const minOccupancy = session.data.listingMinOccupancy || 2;
 
-  if (adults < minOccupancy || adults > capacity) {
-    await sendAdultsPicker(phone, `Please select between ${minOccupancy} and ${capacity} adults:`, capacity, minOccupancy);
+  if (buttonId === 'adults_custom') {
+    await sendText(phone, `Please type the number of adults (${minOccupancy}–${capacity}):`);
+    return;
+  }
+
+  let adults;
+  if (buttonId?.startsWith('adults_')) {
+    adults = parseInt(buttonId.replace('adults_', ''), 10);
+  } else if (text) {
+    adults = parseInt(text, 10);
+  }
+
+  if (!adults || adults < minOccupancy || adults > capacity || isNaN(adults)) {
+    await sendAdultsPicker(phone, 'Please select the number of adults:', capacity, minOccupancy);
     return;
   }
 
@@ -534,18 +550,32 @@ const handleAdults = async (session, phone, buttonId) => {
   session.step = 'CHILDREN';
   await session.save();
 
-  await sendChildrenPicker(phone, adults, capacity);
+  await sendChildrenPicker(phone);
 };
 
-const handleChildren = async (session, phone, buttonId) => {
-  if (!buttonId?.startsWith('children_')) {
-    await sendChildrenPicker(phone, session.data.adultGuests, session.data.listingCapacity);
+const handleChildren = async (session, phone, buttonId, text) => {
+  const capacity = session.data.listingCapacity;
+
+  if (buttonId === 'children_custom') {
+    await sendText(phone, 'Please type the number of children (age 6–12):');
     return;
   }
-  const children = parseInt(buttonId.replace('children_', ''), 10);
 
-  if (session.data.adultGuests + children > session.data.listingCapacity) {
-    await sendChildrenPicker(phone, session.data.adultGuests, session.data.listingCapacity);
+  let children;
+  if (buttonId?.startsWith('children_')) {
+    children = parseInt(buttonId.replace('children_', ''), 10);
+  } else if (text) {
+    children = parseInt(text, 10);
+  }
+
+  if (children === undefined || children === null || isNaN(children) || children < 0) {
+    await sendChildrenPicker(phone);
+    return;
+  }
+
+  if (session.data.adultGuests + children > capacity) {
+    await sendText(phone, `Total guests can't exceed ${capacity}. Please enter a smaller number.`);
+    await sendChildrenPicker(phone);
     return;
   }
 
@@ -570,14 +600,25 @@ const sendMealQuestion = async (phone, totalGuests) => {
   });
 };
 
-const handlePets = async (session, phone, buttonId) => {
-  if (!buttonId?.startsWith('pets_')) {
+const handlePets = async (session, phone, buttonId, text) => {
+  if (buttonId === 'pets_custom') {
+    await sendText(phone, 'Please type the number of pets:');
+    return;
+  }
+
+  let pets;
+  if (buttonId?.startsWith('pets_')) {
+    pets = parseInt(buttonId.replace('pets_', ''), 10);
+  } else if (text) {
+    pets = parseInt(text, 10);
+  }
+
+  if (pets === undefined || pets === null || isNaN(pets) || pets < 0) {
     await sendPetsPicker(phone);
     return;
   }
-  const pets = parseInt(buttonId.replace('pets_', ''), 10);
-  const totalGuests = (session.data.adultGuests || 0) + (session.data.childGuests || 0);
 
+  const totalGuests = (session.data.adultGuests || 0) + (session.data.childGuests || 0);
   session.data = { ...session.data, pets };
   session.step = 'NONVEG';
   await session.save();
@@ -877,7 +918,7 @@ export const handleIncomingMessage = async (phone, message, profileName) => {
     case 'ROOM_SELECT':
       return handleRoomSelect(session, phone, buttonId);
     case 'GROUP_GUESTS':
-      return handleGroupGuests(session, phone, buttonId);
+      return handleGroupGuests(session, phone, buttonId, text);
     case 'GROUP_DATES':
       return handleGroupDates(session, phone, text);
     case 'CHECKIN':
@@ -885,11 +926,11 @@ export const handleIncomingMessage = async (phone, message, profileName) => {
     case 'CHECKOUT':
       return handleCheckout(session, phone, text);
     case 'ADULTS':
-      return handleAdults(session, phone, buttonId);
+      return handleAdults(session, phone, buttonId, text);
     case 'CHILDREN':
-      return handleChildren(session, phone, buttonId);
+      return handleChildren(session, phone, buttonId, text);
     case 'PETS':
-      return handlePets(session, phone, buttonId);
+      return handlePets(session, phone, buttonId, text);
     case 'NONVEG':
       return handleNonVeg(session, phone, text, buttonId);
     case 'PAYMENT_TYPE':
