@@ -1,4 +1,3 @@
-import { waitUntil } from '@vercel/functions';
 import { handleIncomingMessage } from '../services/whatsappFlow.js';
 
 export const verifyWebhook = (req, res) => {
