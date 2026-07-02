@@ -73,7 +73,7 @@ export default function WaDatePickerPage() {
   const [start, setStart]     = useState(null);
   const [end, setEnd]         = useState(null);
   const [hovered, setHovered] = useState(null);
-  const [step, setStep]       = useState('start'); // 'start' | 'end'
+  const [step, setStep]       = useState('start'); // 'start' | 'end' | 'done' | 'copied'
   const [viewYear, setViewYear]   = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
 
@@ -106,10 +106,21 @@ export default function WaDatePickerPage() {
     else setViewMonth(m => m+1);
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!start || !end) return;
     const text = `DATES: ${fmtShort(start)} - ${fmtShort(end)}`;
-    window.location.href = `whatsapp://send?text=${encodeURIComponent(text)}`;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (_) {
+      // fallback: select from a temp input
+      const el = document.createElement('input');
+      el.value = text;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+    }
+    setStep('copied');
   };
 
   const nights = start && end ? Math.round((end - start) / 86400000) : 0;
@@ -168,13 +179,27 @@ export default function WaDatePickerPage() {
         </div>
       )}
 
-      <button
-        onClick={handleConfirm}
-        disabled={!start || !end}
-        className="mt-4 w-full rounded-2xl bg-amber-400 disabled:opacity-30 text-slate-900 font-semibold py-4 text-base"
-      >
-        Confirm Dates →
-      </button>
+      {step === 'copied' ? (
+        <div className="mt-6 rounded-2xl bg-green-900/50 border border-green-500/40 p-5 text-center">
+          <p className="text-green-400 text-2xl mb-2">✅</p>
+          <p className="text-white font-semibold text-lg mb-1">Dates copied!</p>
+          <p className="text-slate-300 text-sm mb-4">
+            Tap the <span className="font-bold text-white">← Back</span> button to return to the chat,
+            then <span className="font-bold text-white">paste</span> the message and send it.
+          </p>
+          <div className="bg-slate-800 rounded-xl px-4 py-3 text-amber-300 font-mono text-sm">
+            DATES: {fmtShort(start)} - {fmtShort(end)}
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={handleConfirm}
+          disabled={!start || !end}
+          className="mt-4 w-full rounded-2xl bg-amber-400 disabled:opacity-30 text-slate-900 font-semibold py-4 text-base"
+        >
+          Confirm Dates →
+        </button>
+      )}
     </div>
   );
 }
