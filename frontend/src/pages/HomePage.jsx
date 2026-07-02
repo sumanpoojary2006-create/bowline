@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ArrowRightIcon,
+  CalendarDaysIcon,
   ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  MagnifyingGlassIcon,
   MinusIcon,
   PlusIcon,
   ShoppingBagIcon,
@@ -18,8 +21,9 @@ import ListingCard from '../components/ListingCard';
 import PageLoader from '../components/PageLoader';
 import EmptyState from '../components/EmptyState';
 import RoomCalendar from '../components/RoomCalendar';
+import FloatingDateRangePicker from '../components/FloatingDateRangePicker';
 import { formatCurrency } from '../lib/formatters';
-import { addDays, ensureCheckoutDate, formatDateParam, parseDateParam } from '../lib/dateUtils';
+import { addDays, ensureCheckoutDate, formatDateParam } from '../lib/dateUtils';
 import { useAuth } from '../context/AuthContext';
 import { getGroupBundleRooms, getRoomRate, getRoomDisplayOrder, groupBookingTiers, isWeekendStayDate, petFee } from '../lib/roomRates';
 
@@ -33,6 +37,7 @@ const today = () => {
 };
 const tomorrow = () => addDays(today(), 1);
 const increment = (value, amount, min = 0, max = 20) => Math.max(min, Math.min(max, Number(value || 0) + amount));
+const formatStayDate = (date) => date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
 
 // Sum a per-night rate (weekday vs weekend) across the stay, mirroring the
 // backend's night-by-night pricing so multi-night stays spanning a weekend
@@ -149,6 +154,7 @@ function HomePage() {
   const [bookingDraft, setBookingDraft] = useState({
     startDate: tomorrow(),
     endDate: addDays(tomorrow(), 1),
+    datesLocked: false,
     adults: 2,
     children: 0,
     pets: 0,
@@ -171,6 +177,10 @@ function HomePage() {
     startDate: tomorrow(),
     endDate: addDays(tomorrow(), 1),
   });
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [datePickerStep, setDatePickerStep] = useState('start');
+  const [bookingCalOpen, setBookingCalOpen] = useState(false);
+  const bookingCalRef = useRef(null);
   const [searchResults, setSearchResults] = useState(null);
   const [searching, setSearching] = useState(false);
 
@@ -225,6 +235,21 @@ function HomePage() {
     });
   }, [bundleRooms]);
 
+  useEffect(() => {
+    if (!bookingCalOpen) return;
+    const handler = (e) => {
+      if (bookingCalRef.current && !bookingCalRef.current.contains(e.target)) {
+        setBookingCalOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    document.addEventListener('touchstart', handler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('touchstart', handler);
+    };
+  }, [bookingCalOpen]);
+
   const openBookingPrompt = (listing, overrideDates = null) => {
     setActiveBooking(listing);
     setBookingStep('details');
@@ -242,6 +267,7 @@ function HomePage() {
     setBookingDraft({
       startDate: overrideDates?.startDate || filters.startDate,
       endDate: overrideDates?.endDate || filters.endDate,
+      datesLocked: Boolean(overrideDates),
       adults,
       children: 0,
       pets: 0,
@@ -261,14 +287,19 @@ function HomePage() {
     }));
   };
 
-  const runDateSearch = async () => {
-    if (!rooms.length) return;
+  const runDateSearch = async (selectedRange = dateSearch) => {
+    if (!rooms.length || searching) return;
 
+    const startDate = selectedRange.startDate;
+    const endDate = selectedRange.endDate;
+    if (!startDate || !endDate) return;
+
+    setDateSearch({ startDate, endDate });
     setSearching(true);
     try {
-      const startParam = formatDateParam(dateSearch.startDate);
-      const endParam = formatDateParam(dateSearch.endDate);
-      const nights = Math.max(1, Math.round((dateSearch.endDate - dateSearch.startDate) / 86400000));
+      const startParam = formatDateParam(startDate);
+      const endParam = formatDateParam(endDate);
+      const nights = Math.max(1, Math.round((endDate - startDate) / 86400000));
 
       const { data: overallData } = await api.get('/listings/availability/rooms', {
         params: { startDate: startParam, endDate: endParam },
@@ -276,19 +307,19 @@ function HomePage() {
 
       const monthsSpan = Math.min(
         12,
-        Math.max(1, Math.ceil((dateSearch.endDate - new Date()) / (1000 * 60 * 60 * 24 * 30)) + 1)
+        Math.max(1, Math.ceil((endDate - new Date()) / (1000 * 60 * 60 * 24 * 30)) + 1)
       );
 
       const days = [];
-      let cursor = new Date(dateSearch.startDate);
-      while (cursor < dateSearch.endDate) {
+      let cursor = new Date(startDate);
+      while (cursor < endDate) {
         days.push(new Date(cursor));
         cursor = addDays(cursor, 1);
       }
 
       const timelineDays = [];
       for (let offset = -7; offset <= 14; offset++) {
-        timelineDays.push(addDays(dateSearch.startDate, offset));
+        timelineDays.push(addDays(startDate, offset));
       }
 
       const results = await Promise.all(
@@ -342,6 +373,19 @@ function HomePage() {
     } finally {
       setSearching(false);
     }
+  };
+
+  const openDatePicker = (step) => {
+    setDatePickerStep(step);
+    setDatePickerOpen(true);
+  };
+
+  const handleDateRangeChange = (nextRange) => {
+    setDateSearch(nextRange);
+  };
+
+  const handleDateRangeComplete = (nextRange) => {
+    runDateSearch(nextRange);
   };
 
   const [placingBooking, setPlacingBooking] = useState(false);
@@ -572,29 +616,78 @@ function HomePage() {
                 </button>
               </div>
 
-              <div className="rounded-2xl border border-lime-100/10 bg-black/20 p-4">
-                <p className="text-sm font-semibold text-[#f5f0dd]">Check availability for your dates</p>
+              <div className="relative z-30 rounded-2xl border border-lime-100/10 bg-black/20 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-[#f5f0dd]">Check availability for your dates</p>
+                  {searchResults ? (
+                    <p className="text-xs font-medium text-[#aab5a5]">
+                      Showing {formatStayDate(dateSearch.startDate)} to {formatStayDate(dateSearch.endDate)}
+                    </p>
+                  ) : null}
+                </div>
 
-                <div className="mt-3 rounded-[1.25rem] border border-lime-100/10 bg-[#0d1710]/80 p-3 sm:p-4">
-                  <RoomCalendar
+                <div className="relative mx-auto mt-3 max-w-5xl">
+                  <div className="flex flex-col items-center justify-center gap-3 lg:flex-row">
+                    <div className="grid w-full max-w-3xl grid-cols-1 gap-2 rounded-2xl border border-lime-100/18 bg-[#142018]/78 p-1.5 sm:grid-cols-[1fr_auto_1fr] sm:items-stretch sm:gap-0">
+                      <button
+                        type="button"
+                        aria-expanded={datePickerOpen}
+                        onClick={() => openDatePicker('start')}
+                        className="flex min-h-[50px] items-center gap-3 rounded-xl px-3 text-left transition hover:bg-white/[0.06] focus:outline-none focus:ring-2 focus:ring-lime-200/50 sm:min-h-[56px] sm:px-4"
+                      >
+                        <CalendarDaysIcon className="h-5 w-5 shrink-0 text-lime-200" />
+                        <span className="min-w-0">
+                          <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#98a791] sm:tracking-[0.22em]">
+                            Check-in
+                          </span>
+                          <span className="block truncate text-sm font-semibold !text-[#f5f0dd] sm:text-base">
+                            {formatStayDate(dateSearch.startDate)}
+                          </span>
+                        </span>
+                      </button>
+
+                      <div className="hidden items-center justify-center px-1 text-[#879581] sm:flex">
+                        <ArrowRightIcon className="h-5 w-5" />
+                      </div>
+
+                      <button
+                        type="button"
+                        aria-expanded={datePickerOpen}
+                        onClick={() => openDatePicker('end')}
+                        className="flex min-h-[50px] items-center gap-3 rounded-xl px-3 text-left transition hover:bg-white/[0.06] focus:outline-none focus:ring-2 focus:ring-lime-200/50 sm:min-h-[56px] sm:px-4"
+                      >
+                        <CalendarDaysIcon className="h-5 w-5 shrink-0 text-lime-200" />
+                        <span className="min-w-0">
+                          <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#98a791] sm:tracking-[0.22em]">
+                            Check-out
+                          </span>
+                          <span className="block truncate text-sm font-semibold !text-[#f5f0dd] sm:text-base">
+                            {formatStayDate(dateSearch.endDate)}
+                          </span>
+                        </span>
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="btn-primary h-14 gap-2 rounded-2xl px-5 py-2.5 disabled:opacity-60"
+                      onClick={() => runDateSearch()}
+                      disabled={searching || loading}
+                    >
+                      <MagnifyingGlassIcon className="h-5 w-5" />
+                      <span>{searching ? 'Checking...' : 'Check availability'}</span>
+                    </button>
+                  </div>
+
+                  <FloatingDateRangePicker
+                    open={datePickerOpen}
                     startDate={dateSearch.startDate}
                     endDate={dateSearch.endDate}
-                    onStartDate={(date) =>
-                      setDateSearch((prev) => ({
-                        startDate: date,
-                        endDate: ensureCheckoutDate(date, prev.endDate, 1),
-                      }))
-                    }
-                    onEndDate={(date) => setDateSearch((prev) => ({ ...prev, endDate: date }))}
+                    initialStep={datePickerStep}
+                    onChange={handleDateRangeChange}
+                    onComplete={handleDateRangeComplete}
+                    onClose={() => setDatePickerOpen(false)}
                   />
-                  <button
-                    type="button"
-                    className="btn-primary mt-4 w-full rounded-xl px-5 py-2.5 disabled:opacity-60 sm:w-auto"
-                    onClick={runDateSearch}
-                    disabled={searching}
-                  >
-                    {searching ? 'Checking...' : 'Check availability'}
-                  </button>
                 </div>
               </div>
 
@@ -679,21 +772,23 @@ function HomePage() {
                           <p className="mt-3 text-xs text-[#cdd6c9]">No availability found in the next 90 days.</p>
                         ) : null}
 
-                        <p className="mt-3 text-xs text-[#aab5a5]">1 week before &amp; 2 weeks after your selected check-in</p>
+                        <p className="mt-3 text-xs text-[#aab5a5]">Available dates near your check-in dates</p>
                         <div className="mt-1.5 flex gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                           {searchResults.timelineDays.map((day) => {
                             const key = formatDateParam(day);
                             const booked = timelineBookedDays.has(key);
-                            const isSelectedDay = key === formatDateParam(dateSearch.startDate);
+                            const isSelectedStayDate = day >= dateSearch.startDate && day <= dateSearch.endDate;
                             const isPast = day < today();
                             return (
                               <span
                                 key={key}
                                 title={day.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                                 className={`flex shrink-0 flex-col items-center justify-center rounded-md px-2 py-1 text-[10px] font-medium ${
-                                  isSelectedDay ? 'ring-1 ring-lime-300' : ''
+                                  isSelectedStayDate ? 'ring-1 ring-lime-300' : ''
                                 } ${
-                                  isPast
+                                  isSelectedStayDate
+                                    ? 'bg-lime-300 text-slate-950'
+                                    : isPast
                                     ? 'bg-white/5 text-[#5b6457]'
                                     : booked
                                       ? 'bg-rose-500/15 text-rose-300'
@@ -701,7 +796,7 @@ function HomePage() {
                                 }`}
                               >
                                 <span>{day.getDate()}</span>
-                                <span className="text-[8px] uppercase text-[#8a9485]">
+                                <span className={`text-[8px] uppercase ${isSelectedStayDate ? 'text-slate-800' : 'text-[#8a9485]'}`}>
                                   {day.toLocaleDateString('en-IN', { month: 'short' })}
                                 </span>
                               </span>
@@ -793,22 +888,78 @@ function HomePage() {
 
             {bookingStep === 'details' ? (
             <>
-            <div className="mt-5 rounded-[1.5rem] border border-lime-100/10 bg-[#0d1710]/80 p-4">
-              <RoomCalendar
-                listingId={activeBooking.isGroupBundle ? undefined : activeBooking._id}
-                listingIds={activeBooking.isGroupBundle ? getGroupBundleRooms(bundleRooms, activeBooking.bundle).map((room) => room._id) : undefined}
-                listingType="room"
-                startDate={bookingDraft.startDate}
-                endDate={bookingDraft.endDate}
-                onStartDate={updateDraftStartDate}
-                onEndDate={(date) =>
-                  setBookingDraft((prev) => ({
-                    ...prev,
-                    endDate: ensureCheckoutDate(prev.startDate, date, 1),
-                  }))
-                }
-              />
-            </div>
+            {bookingDraft.datesLocked ? (
+              <div className="mt-5 rounded-[1.25rem] border border-lime-100/10 bg-[#0d1710]/80 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-lime-200/80">Selected stay dates</p>
+                <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center rounded-2xl border border-lime-200/25 bg-[#050c07]/70 p-3 shadow-inner shadow-black/20">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-lime-100/65">Check-in</p>
+                    <p className="mt-1 text-lg font-bold !text-[#f5f0dd]" style={{ color: '#f5f0dd' }}>
+                      {formatStayDate(bookingDraft.startDate)}
+                    </p>
+                  </div>
+                  <ArrowRightIcon className="h-5 w-5 text-lime-100/55" />
+                  <div className="text-right">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-lime-100/65">Check-out</p>
+                    <p className="mt-1 text-lg font-bold !text-[#f5f0dd]" style={{ color: '#f5f0dd' }}>
+                      {formatStayDate(bookingDraft.endDate)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div ref={bookingCalRef} className="relative mt-5">
+                {/* Pill trigger */}
+                <button
+                  type="button"
+                  onClick={() => setBookingCalOpen((o) => !o)}
+                  className="flex w-full items-center justify-between gap-3 rounded-2xl border border-lime-100/18 bg-[#142018]/78 px-4 py-3 text-left transition hover:bg-[#142018]"
+                >
+                  <div className="flex items-center gap-3">
+                    <CalendarDaysIcon className="h-5 w-5 shrink-0 text-lime-200" />
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#98a791]">Check-in</p>
+                      <p className="text-sm font-semibold text-[#f5f0dd]">
+                        {bookingDraft.startDate?.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="h-px flex-1 bg-lime-100/10" />
+                  <div className="text-right">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#98a791]">Check-out</p>
+                    <p className="text-sm font-semibold text-[#f5f0dd]">
+                      {bookingDraft.endDate?.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                    </p>
+                  </div>
+                </button>
+
+                {/* Floating calendar — bottom sheet on mobile, dropdown on desktop */}
+                {bookingCalOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40 bg-black/60 sm:hidden" />
+                    <div className="fixed bottom-0 left-0 right-0 z-50 overflow-hidden rounded-t-3xl border-t border-lime-100/14 bg-[#090f0b] sm:absolute sm:bottom-auto sm:top-[calc(100%+0.5rem)] sm:rounded-2xl sm:border sm:shadow-[0_24px_80px_rgba(0,0,0,0.6)]">
+                      <div className="flex items-center justify-between border-b border-lime-100/10 px-4 py-3 sm:hidden">
+                        <p className="text-sm font-semibold text-[#f5f0dd]">Select dates</p>
+                        <button type="button" onClick={() => setBookingCalOpen(false)} className="text-xs font-semibold text-lime-300">Done</button>
+                      </div>
+                      <div className="max-h-[80vh] overflow-y-auto p-4 sm:max-h-none">
+                        <RoomCalendar
+                          listingId={activeBooking.isGroupBundle ? undefined : activeBooking._id}
+                          listingIds={activeBooking.isGroupBundle ? getGroupBundleRooms(bundleRooms, activeBooking.bundle).map((room) => room._id) : undefined}
+                          startDate={bookingDraft.startDate}
+                          endDate={bookingDraft.endDate}
+                          onStartDate={updateDraftStartDate}
+                          onEndDate={(date) => {
+                            setBookingDraft((prev) => ({ ...prev, endDate: ensureCheckoutDate(prev.startDate, date, 1) }));
+                            setBookingCalOpen(false);
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
 
             <div className="mt-5 space-y-3">
               <div className="rounded-[1.25rem] border border-lime-100/10 bg-black/20 px-4 py-3 text-xs text-[#cdd6c9]">
