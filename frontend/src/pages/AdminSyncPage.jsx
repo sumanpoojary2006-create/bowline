@@ -60,7 +60,7 @@ const APPS_SCRIPT_CODE = `// ── Bowline × Google Sheets — bidirectional b
 // #b6d7a8  Confirmed (paid in full)    #ffe599  Confirmed (50% deposit)
 // #ea9999  Pending / unpaid    #ffffff  Empty / Cancelled
 
-var WEBHOOK_URL    = 'https://YOUR_DOMAIN.vercel.app/api/sync/inbound';
+var WEBHOOK_URL    = 'https://bowline-omega.vercel.app/api/sync/inbound';
 var WEBHOOK_SECRET = 'YOUR_SHEETS_WEBHOOK_SECRET';
 
 var ROOM_COLUMNS = {

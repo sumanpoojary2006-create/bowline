@@ -29,7 +29,7 @@
 // #ffffff  Empty / Cancelled
 // ───────────────────────────────────────────────────────────────────────────
 
-var WEBHOOK_URL    = 'https://YOUR_DOMAIN.vercel.app/api/sync/inbound';
+var WEBHOOK_URL    = 'https://bowline-omega.vercel.app/api/sync/inbound';
 var WEBHOOK_SECRET = 'YOUR_SHEETS_WEBHOOK_SECRET'; // must match SHEETS_WEBHOOK_SECRET env var
 
 // Column index → room name (must match Listing names in Bowline database exactly)

@@ -31,6 +31,9 @@ export const formatBookingNotificationDetails = (bookings) => {
       `Guest name: ${booking.contactName || 'N/A'}`,
       `Phone: ${booking.contactPhone || 'N/A'}`,
       `Email: ${booking.contactEmail || 'N/A'}`,
+      ...(booking.vegCount || booking.nonVegCount
+        ? [`Meals: ${booking.vegCount || 0} veg, ${booking.nonVegCount || 0} non-veg`]
+        : []),
       `Amount: Rs ${booking.totalPrice}`,
       `Booking ID: ${booking._id}`,
       ''
