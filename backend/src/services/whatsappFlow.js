@@ -204,9 +204,12 @@ const handleRoomSelect = async (session, phone, buttonId) => {
   session.step = 'CHECKIN';
   await session.save();
 
-  await sendText(
+  const calUrl = `https://bowline-omega.vercel.app/wa-dates?room=${encodeURIComponent(listing.name)}`;
+  await sendCtaUrl(
     phone,
-    `Great choice - *${listing.name}*! 🌿\n\nWhat is your *check-in date*?\nExample: 12 Jul`
+    `Great choice - *${listing.name}*! 🌿\n\nTap below to pick your check-in and check-out dates from a calendar.`,
+    'Pick Dates 📅',
+    calUrl
   );
 };
 
@@ -346,10 +349,46 @@ const parseSingleDateText = (text) => {
 };
 
 const handleCheckin = async (session, phone, text) => {
+  // Handle calendar response: "DATES: 12 Jul 2026 - 14 Jul 2026"
+  const calMatch = text.match(/^dates?:\s*(.+)/i);
+  if (calMatch) {
+    const range = parseDateRange(calMatch[1].trim());
+    if (range && range.endDate > range.startDate) {
+      // Both dates provided from calendar — skip CHECKOUT step
+      const overlapping = await getExistingBookingsForRange({
+        listingId: session.data.listingId,
+        startDate: range.startDate,
+        endDate: range.endDate,
+      });
+
+      if (overlapping.length) {
+        const calUrl = `https://bowline-omega.vercel.app/wa-dates?room=${encodeURIComponent(session.data.listingName)}`;
+        await sendCtaUrl(
+          phone,
+          `Sorry, *${session.data.listingName}* is already booked for those dates. Please pick different dates.`,
+          'Pick Dates 📅',
+          calUrl
+        );
+        return;
+      }
+
+      session.data = { ...session.data, startDate: range.startDate.toISOString(), endDate: range.endDate.toISOString() };
+      session.step = 'ADULTS';
+      await session.save();
+      await sendText(
+        phone,
+        `Dates: *${formatDate(range.startDate)} → ${formatDate(range.endDate)}* ✅\n\nHow many adults will be staying? (max ${session.data.listingCapacity})`
+      );
+      return;
+    }
+  }
+
+  // Fallback: manual single-date entry
   const date = parseSingleDateText(text);
 
   if (!date) {
-    await sendText(phone, 'Sorry, I could not understand that date. Please reply like: *12 Jul*');
+    const calUrl = `https://bowline-omega.vercel.app/wa-dates?room=${encodeURIComponent(session.data.listingName)}`;
+    await sendCtaUrl(phone, 'Please use the calendar to pick your dates:', 'Pick Dates 📅', calUrl);
     return;
   }
 
@@ -362,10 +401,7 @@ const handleCheckin = async (session, phone, text) => {
   session.step = 'CHECKOUT';
   await session.save();
 
-  await sendText(
-    phone,
-    `Check-in: *${formatDate(date)}* ✅\n\nWhat is your *check-out date*?\nExample: 14 Jul`
-  );
+  await sendText(phone, `Check-in: *${formatDate(date)}* ✅\n\nWhat is your *check-out date*?\nExample: 14 Jul`);
 };
 
 const handleCheckout = async (session, phone, text) => {
