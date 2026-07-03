@@ -1,6 +1,7 @@
 import dayjs from 'dayjs';
 import { isEmailConfigured, sendMail } from './email.js';
 import { generateBookingReceiptPdf } from './receiptPdf.js';
+import { getAmountPaid, getAmountDue } from '../controllers/paymentController.js';
 
 const isRealEmail = (email) => Boolean(email) && !/@bowline\.guest$/i.test(email);
 
@@ -15,7 +16,10 @@ export const sendBookingConfirmationEmail = async (bookings) => {
     return;
   }
 
-  const grandTotal = list.reduce((sum, booking) => sum + booking.totalPrice, 0);
+  const grandTotal = list.reduce((sum, booking) => sum + getAmountPaid(booking), 0);
+  const balanceDue = list.reduce((sum, booking) => sum + getAmountDue(booking), 0);
+  const isFullyPaid = balanceDue === 0;
+  const paidLabel = isFullyPaid ? 'Total Paid' : 'Deposit Paid';
 
   const lines = [`Hi ${first.contactName},`, '', 'Your booking with Bowline Nature Stay is confirmed!', ''];
 
@@ -32,7 +36,9 @@ export const sendBookingConfirmationEmail = async (bookings) => {
     );
   });
 
-  lines.push(`Total Paid: Rs ${grandTotal}`, '', 'A detailed receipt is attached as a PDF.', '', 'See you soon!', 'Bowline Nature Stay');
+  lines.push(`${paidLabel}: Rs ${grandTotal}`);
+  if (!isFullyPaid) lines.push(`Balance Due at Check-in: Rs ${balanceDue}`);
+  lines.push('', 'A detailed receipt is attached as a PDF.', '', 'See you soon!', 'Bowline Nature Stay');
 
   const html = `
     <div style="font-family: Arial, sans-serif; color: #1a1a1a; max-width: 560px; margin: 0 auto;">
@@ -53,7 +59,8 @@ export const sendBookingConfirmationEmail = async (bookings) => {
           `;
         })
         .join('')}
-      <p style="font-size: 18px; font-weight: bold;">Total Paid: Rs ${grandTotal}</p>
+      <p style="font-size: 18px; font-weight: bold;">${paidLabel}: Rs ${grandTotal}</p>
+      ${isFullyPaid ? '' : `<p style="font-size: 15px; color: #555;">Balance Due at Check-in: Rs ${balanceDue}</p>`}
       <p>A detailed receipt is attached to this email as a PDF.</p>
       <p>See you soon at Bowline Nature Stay! 🌿</p>
     </div>
