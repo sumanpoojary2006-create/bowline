@@ -38,7 +38,14 @@ export const createRoomBooking = async ({
     throw new Error('Meal preference is required for every guest');
   }
 
-  const availability = await validateListingAvailability({ listing, startDate, endDate, guests });
+  const availability = await validateListingAvailability({
+    listing,
+    startDate,
+    endDate,
+    guests,
+    contactEmail,
+    userId: user?._id,
+  });
 
   if (!availability.available) {
     throw new Error(availability.reason);
