@@ -78,6 +78,10 @@ function doPost(e) {
       result.action = 'bulkUpsert';
       result.count = items.length;
 
+    } else if (data.action === 'upsertContact') {
+      upsertWhatsAppContact(data.phone, data.profileName, data.firstSeenAt, data.lastSeenAt, data.messageCount);
+      result.action = 'upsertContact';
+
     } else {
       result.ok = false;
       result.error = 'Unknown action: ' + data.action;
@@ -139,6 +143,47 @@ function clearBookingCells(roomName, startDateStr, endDateStr) {
       }
     }
     d.setDate(d.getDate() + 1);
+  }
+}
+
+// ── Write / update a WhatsApp lead row in the "WhatsApp Leads" tab ──────────
+var WHATSAPP_LEADS_SHEET = 'WhatsApp Leads';
+var WHATSAPP_LEADS_HEADERS = ['Phone', 'Name', 'First Seen', 'Last Seen', 'Messages'];
+
+function upsertWhatsAppContact(phone, profileName, firstSeenAt, lastSeenAt, messageCount) {
+  if (!phone) return;
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(WHATSAPP_LEADS_SHEET);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(WHATSAPP_LEADS_SHEET);
+    sheet.getRange(1, 1, 1, WHATSAPP_LEADS_HEADERS.length).setValues([WHATSAPP_LEADS_HEADERS]);
+    sheet.setFrozenRows(1);
+  }
+
+  var lastRow = sheet.getLastRow();
+  var row = -1;
+
+  if (lastRow >= 2) {
+    var phones = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    for (var i = 0; i < phones.length; i++) {
+      if (String(phones[i][0]) === String(phone)) {
+        row = i + 2;
+        break;
+      }
+    }
+  }
+
+  var firstSeen = firstSeenAt ? new Date(firstSeenAt) : new Date();
+  var lastSeen = lastSeenAt ? new Date(lastSeenAt) : new Date();
+
+  if (row === -1) {
+    sheet.appendRow([phone, profileName || '', firstSeen, lastSeen, messageCount || 1]);
+  } else {
+    sheet.getRange(row, 2).setValue(profileName || sheet.getRange(row, 2).getValue());
+    sheet.getRange(row, 4).setValue(lastSeen);
+    sheet.getRange(row, 5).setValue(messageCount || 1);
   }
 }
 

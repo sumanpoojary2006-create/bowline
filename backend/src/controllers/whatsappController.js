@@ -1,5 +1,8 @@
 import { handleIncomingMessage } from '../services/whatsappFlow.js';
 import WhatsAppContact from '../models/WhatsAppContact.js';
+import { writeWhatsAppContactToSheet, isSheetsConfigured } from '../utils/googleSheets.js';
+
+const SHEET_SYNC_THROTTLE_MS = 30 * 60 * 1000; // avoid hammering Apps Script on chatty conversations
 
 export const verifyWebhook = (req, res) => {
   const mode = req.query['hub.mode'];
@@ -32,15 +35,26 @@ export const receiveWebhook = async (req, res) => {
 
   // Fire-and-forget: log every unique contact permanently. Never let a
   // logging failure block the actual bot reply.
-  WhatsAppContact.updateOne(
+  WhatsAppContact.findOneAndUpdate(
     { phone: from },
     {
       $set: { lastSeenAt: new Date(), ...(profileName ? { profileName } : {}) },
       $setOnInsert: { firstSeenAt: new Date() },
       $inc: { messageCount: 1 },
     },
-    { upsert: true }
-  ).catch((error) => console.error('[WA] contact log failed:', error?.message));
+    { upsert: true, new: false }
+  )
+    .then((previous) => {
+      if (!isSheetsConfigured()) return;
+      const isNewContact = !previous;
+      const staleSync = previous && Date.now() - new Date(previous.lastSeenAt).getTime() > SHEET_SYNC_THROTTLE_MS;
+      if (!isNewContact && !staleSync) return;
+
+      return WhatsAppContact.findOne({ phone: from }).then((contact) => {
+        if (contact) return writeWhatsAppContactToSheet(contact);
+      });
+    })
+    .catch((error) => console.error('[WA] contact log failed:', error?.message));
 
   try {
     await handleIncomingMessage(from, message, profileName);

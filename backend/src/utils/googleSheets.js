@@ -217,6 +217,20 @@ export async function pushAllFullBookingsToSheet(bookings) {
   return { pushed: items.length };
 }
 
+// ── Push a WhatsApp contact into the "WhatsApp Leads" tab ─────────────────
+export async function writeWhatsAppContactToSheet(contact) {
+  if (!isSheetsConfigured()) return;
+
+  await callAppsScript({
+    action: 'upsertContact',
+    phone: contact.phone,
+    profileName: contact.profileName || '',
+    firstSeenAt: new Date(contact.firstSeenAt).toISOString(),
+    lastSeenAt: new Date(contact.lastSeenAt).toISOString(),
+    messageCount: contact.messageCount,
+  });
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 function toDateStr(value) {
   return new Date(value).toISOString().slice(0, 10);
