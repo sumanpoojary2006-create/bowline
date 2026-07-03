@@ -114,12 +114,12 @@ function RoomCalendar({ listingId, listingIds, startDate, endDate, onStartDate, 
   const ids = listingIds?.length ? listingIds : listingId ? [listingId] : [];
   const idsKey = ids.join(',');
 
-  const [viewMonth, setViewMonth] = useState(today.getMonth());
-  const [viewYear, setViewYear] = useState(today.getFullYear());
+  const [viewMonth, setViewMonth] = useState((startDate || today).getMonth());
+  const [viewYear, setViewYear] = useState((startDate || today).getFullYear());
   const [bookedRanges, setBookedRanges] = useState([]);
   const [nextAvailable, setNextAvailable] = useState(null);
   const [selecting, setSelecting] = useState('start');
-  const [hasEndSelected, setHasEndSelected] = useState(false);
+  const [hasEndSelected, setHasEndSelected] = useState(Boolean(startDate && endDate));
 
   useEffect(() => {
     if (!ids.length) return;
