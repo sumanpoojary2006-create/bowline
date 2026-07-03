@@ -140,16 +140,13 @@ export const getExistingBookingsForRange = async ({
     endDate: { $gt: new Date(startDate) },
   };
 
-  // An unpaid pending booking only holds the room for 24 hours — long enough
-  // to complete payment, short enough that abandoned checkouts and stale
-  // admin entries don't ghost-block dates forever. Paid/deposit pendings and
-  // all other requested statuses block regardless of age.
+  // A pending booking only blocks other guests once it's actually been paid
+  // (deposit or full). An unpaid pending booking (payment never completed)
+  // must never hold the date, no matter how recently it was created.
   if (statuses.includes('pending')) {
-    const pendingCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
     query.$or = [
       { status: { $in: statuses.filter((s) => s !== 'pending') } },
       { status: 'pending', paymentStatus: { $in: ['paid', 'partially_paid'] } },
-      { status: 'pending', createdAt: { $gte: pendingCutoff } },
     ];
   } else {
     query.status = { $in: statuses };
@@ -162,11 +159,51 @@ export const getExistingBookingsForRange = async ({
   return Booking.find(query);
 };
 
+// A room-type booking sits in `pending`+unpaid state from creation until the
+// guest completes payment (or the payment link expires/fails and it's
+// auto-cancelled). During that window it intentionally doesn't block other
+// guests, but it must block the SAME guest from creating a duplicate booking
+// for the same room and dates — otherwise a customer who starts checkout
+// twice (two tabs, retrying after a declined card, re-adding the same room
+// to a group cart) ends up with two pending bookings that can both get paid
+// later, double-booking the room.
+export const getOwnPendingHold = async ({
+  listingId,
+  startDate,
+  endDate,
+  contactEmail,
+  userId,
+  excludeBookingId = null,
+}) => {
+  const normalizedEmail = contactEmail ? String(contactEmail).trim().toLowerCase() : null;
+  if (!normalizedEmail && !userId) return null;
+
+  const query = {
+    listing: listingId,
+    status: 'pending',
+    startDate: { $lt: new Date(endDate) },
+    endDate: { $gt: new Date(startDate) },
+  };
+  if (excludeBookingId) query._id = { $ne: excludeBookingId };
+
+  const candidates = await Booking.find(query).select('user contactEmail');
+
+  return (
+    candidates.find(
+      (b) =>
+        (userId && b.user && String(b.user) === String(userId)) ||
+        (normalizedEmail && b.contactEmail && b.contactEmail.trim().toLowerCase() === normalizedEmail)
+    ) || null
+  );
+};
+
 export const validateListingAvailability = async ({
   listing,
   startDate,
   endDate,
   guests,
+  contactEmail,
+  userId,
 }) => {
   const normalizedStart = new Date(startDate);
   const normalizedEnd = new Date(endDate);
@@ -207,6 +244,20 @@ export const validateListingAvailability = async ({
       return {
         available: false,
         reason: 'Room is fully booked for the selected dates',
+      };
+    }
+
+    const ownHold = await getOwnPendingHold({
+      listingId: listing._id,
+      startDate: normalizedStart,
+      endDate: normalizedEnd,
+      contactEmail,
+      userId,
+    });
+    if (ownHold) {
+      return {
+        available: false,
+        reason: 'You already have a booking in progress for this room on these dates. Complete or cancel that payment before booking it again.',
       };
     }
   } else {

@@ -89,6 +89,8 @@ export const createBooking = async (req, res, next) => {
       startDate: normalizedStartDate,
       endDate: normalizedEndDate,
       guests: normalizedGuests,
+      contactEmail,
+      userId: req.user?._id,
     });
 
     if (!availability.available) {
@@ -201,6 +203,10 @@ export const createMultiBooking = async (req, res, next) => {
 
     const validationErrors = [];
     const preparedItems = [];
+    // Items in this same submission aren't in the DB yet when each is
+    // validated below, so a duplicate room+dates within one cart wouldn't be
+    // caught by the DB-backed availability check — track it here instead.
+    const seenRoomWindows = new Set();
 
     for (const item of items) {
       const { listingId, startDate, endDate, guests, adultGuests, childGuests = 0, pets = 0, vegCount = 0, nonVegCount = 0, groupRate } = item;
@@ -228,11 +234,22 @@ export const createMultiBooking = async (req, res, next) => {
         continue;
       }
 
+      if (listing.type === 'room') {
+        const windowKey = `${listing._id}:${normalizedStart.toISOString()}:${normalizedEnd.toISOString()}`;
+        if (seenRoomWindows.has(windowKey)) {
+          validationErrors.push(`${listing.name}: This room is already selected in this booking for these dates`);
+          continue;
+        }
+        seenRoomWindows.add(windowKey);
+      }
+
       const availability = await validateListingAvailability({
         listing,
         startDate: normalizedStart,
         endDate: normalizedEnd,
         guests: normalizedGuests,
+        contactEmail,
+        userId: req.user?._id,
       });
 
       if (!availability.available) {
