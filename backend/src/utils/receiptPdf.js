@@ -2,6 +2,7 @@ import PDFDocument from 'pdfkit';
 import dayjs from 'dayjs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { getAmountPaid, getAmountDue } from '../controllers/paymentController.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const LOGO_PATH = join(__dirname, '../../../frontend/src/assets/bowline-logo.jpg');
@@ -67,6 +68,9 @@ export const generateBookingReceiptPdf = (bookings) =>
 
     const first = bookings[0];
     const grandTotal = bookings.reduce((sum, b) => sum + b.totalPrice, 0);
+    const totalPaid = bookings.reduce((sum, b) => sum + getAmountPaid(b), 0);
+    const totalDue = bookings.reduce((sum, b) => sum + getAmountDue(b), 0);
+    const isFullyPaid = totalDue === 0;
 
     // ── Header ──────────────────────────────────────────────────────────────
     drawHeader(doc);
@@ -133,9 +137,9 @@ export const generateBookingReceiptPdf = (bookings) =>
     // ── Total paid ───────────────────────────────────────────────────────────
     doc.rect(MARGIN, y, CONTENT_WIDTH, 48).fill('#f0f7ea');
     doc.font('Helvetica').fontSize(10).fillColor('#555')
-      .text('TOTAL PAID', MARGIN + 12, y + 10);
+      .text(isFullyPaid ? 'TOTAL PAID' : 'DEPOSIT PAID', MARGIN + 12, y + 10);
     doc.font('Helvetica-Bold').fontSize(22).fillColor(GREEN)
-      .text(`Rs. ${grandTotal.toLocaleString('en-IN')}`, MARGIN + 12, y + 22);
+      .text(`Rs. ${totalPaid.toLocaleString('en-IN')}`, MARGIN + 12, y + 22);
     doc.font('Helvetica').fontSize(9).fillColor('#777')
       .text(`Payment via ${first.paymentMethod === 'razorpay' ? 'Razorpay' : first.paymentMethod || 'Online'}`, PAGE_WIDTH - MARGIN - 180, y + 10, { align: 'right', width: 180 });
     if (first.razorpayPaymentId) {
@@ -143,6 +147,14 @@ export const generateBookingReceiptPdf = (bookings) =>
         .text(`Txn: ${first.razorpayPaymentId}`, PAGE_WIDTH - MARGIN - 180, y + 26, { align: 'right', width: 180 });
     }
     y += 62;
+
+    if (!isFullyPaid && totalDue > 0) {
+      doc.font('Helvetica').fontSize(10).fillColor('#555')
+        .text('BALANCE DUE AT CHECK-OUT', MARGIN + 12, y);
+      doc.font('Helvetica-Bold').fontSize(14).fillColor('#c0392b')
+        .text(`Rs. ${totalDue.toLocaleString('en-IN')}`, MARGIN + 12, y + 14);
+      y += 30;
+    }
 
     // ── Policies ─────────────────────────────────────────────────────────────
     y = drawSectionLabel(doc, 'Important Information', y);
