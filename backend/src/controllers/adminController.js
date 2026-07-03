@@ -4,6 +4,7 @@ import Listing from '../models/Listing.js';
 import PricingRule from '../models/PricingRule.js';
 import User from '../models/User.js';
 import Notification from '../models/Notification.js';
+import WhatsAppContact from '../models/WhatsAppContact.js';
 import { buildDailyReport } from '../utils/guestReport.js';
 import { generateDailyReportPdf } from '../utils/pdf.js';
 import { sendTomorrowGuestReportEmail } from '../jobs/dailyGuestEmailJob.js';
@@ -52,6 +53,19 @@ export const getDashboardOverview = async (req, res, next) => {
       listings,
       notifications,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getWhatsAppContacts = async (req, res, next) => {
+  try {
+    const [totalContacts, contacts] = await Promise.all([
+      WhatsAppContact.countDocuments(),
+      WhatsAppContact.find().sort({ lastSeenAt: -1 }).limit(200),
+    ]);
+
+    res.json({ totalContacts, contacts });
   } catch (error) {
     next(error);
   }

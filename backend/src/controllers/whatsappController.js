@@ -1,4 +1,5 @@
 import { handleIncomingMessage } from '../services/whatsappFlow.js';
+import WhatsAppContact from '../models/WhatsAppContact.js';
 
 export const verifyWebhook = (req, res) => {
   const mode = req.query['hub.mode'];
@@ -28,6 +29,18 @@ export const receiveWebhook = async (req, res) => {
   const profileName = value?.contacts?.[0]?.profile?.name;
 
   console.log(`[WA] incoming from=${from} type=${message.type}`);
+
+  // Fire-and-forget: log every unique contact permanently. Never let a
+  // logging failure block the actual bot reply.
+  WhatsAppContact.updateOne(
+    { phone: from },
+    {
+      $set: { lastSeenAt: new Date(), ...(profileName ? { profileName } : {}) },
+      $setOnInsert: { firstSeenAt: new Date() },
+      $inc: { messageCount: 1 },
+    },
+    { upsert: true }
+  ).catch((error) => console.error('[WA] contact log failed:', error?.message));
 
   try {
     await handleIncomingMessage(from, message, profileName);

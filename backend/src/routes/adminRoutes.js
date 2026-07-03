@@ -13,6 +13,7 @@ import {
   getPricingRules,
   getUserBookingHistory,
   getUsers,
+  getWhatsAppContacts,
   sendDailyGuestReportEmailNow,
   updatePricingRule,
   updateCoupon,
@@ -43,6 +44,7 @@ router.get('/analytics/monthly', getMonthlyAnalytics);
 router.get('/analytics/monthly/csv', downloadMonthlyBookingsCsv);
 router.get('/users', getUsers);
 router.get('/users/:id/bookings', getUserBookingHistory);
+router.get('/whatsapp-contacts', getWhatsAppContacts);
 router.get('/pricing-rules', getPricingRules);
 router.post('/pricing-rules', createPricingRule);
 router.put('/pricing-rules/:id', updatePricingRule);

@@ -4,6 +4,7 @@ import {
   BellAlertIcon,
   BuildingOffice2Icon,
   CalendarDaysIcon,
+  ChatBubbleLeftRightIcon,
   UsersIcon,
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
@@ -65,6 +66,7 @@ function AdminDashboardPage() {
   const [analytics, setAnalytics] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
+  const [whatsappContactCount, setWhatsappContactCount] = useState(null);
 
   useEffect(() => {
     document.title = 'Bowline Admin | Overview';
@@ -78,6 +80,11 @@ function AdminDashboardPage() {
     };
 
     fetchOverview();
+
+    api
+      .get('/admin/whatsapp-contacts')
+      .then(({ data }) => setWhatsappContactCount(data.totalContacts))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -193,11 +200,16 @@ function AdminDashboardPage() {
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="grid flex-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid flex-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <StatCard icon={CalendarDaysIcon} label="Total bookings" value={overview.totalBookings} />
           <StatCard icon={BanknotesIcon} label="Estimated booking value" value={formatCurrency(overview.revenue)} />
           <StatCard icon={BuildingOffice2Icon} label="Active listings" value={overview.activeListings} />
           <StatCard icon={UsersIcon} label="Active users" value={overview.activeUsers} />
+          <StatCard
+            icon={ChatBubbleLeftRightIcon}
+            label="WhatsApp contacts"
+            value={whatsappContactCount === null ? '—' : whatsappContactCount}
+          />
         </div>
         <button
           className="btn-secondary flex shrink-0 items-center gap-2 self-start"
