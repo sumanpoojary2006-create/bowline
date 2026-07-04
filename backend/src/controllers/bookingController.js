@@ -12,6 +12,7 @@ import { sendBookingConfirmationEmail } from '../utils/bookingConfirmationEmail.
 import { isEmailConfigured, sendMail } from '../utils/email.js';
 import { createRazorpayOrder, createRazorpayRefund, isRazorpayConfigured } from '../utils/razorpay.js';
 import { daysUntil, getCancellationRefundPercent, getRescheduleFeePercent } from '../utils/bookingPolicy.js';
+import { calculateRefundPaise } from './paymentController.js';
 
 // Awaited at booking-creation call sites so the initial (pending) sheet write
 // is guaranteed to land before the client can reach the payment step — Sheets
@@ -844,17 +845,20 @@ export const adminCancelWithRefund = async (req, res, next) => {
 
       // For a 50% deposit booking, only the deposited amount is refundable
       const amountPaid = isPaid ? booking.totalPrice : Math.round(booking.totalPrice / 2);
-      const refundAmount = Math.round(amountPaid * (refundPercent / 100) * 100);
-      const refund = await createRazorpayRefund({
-        paymentId: booking.razorpayPaymentId,
-        amount: refundAmount,
-        notes: { bookingId: String(booking._id), reason: 'admin_cancellation', refundPercent: String(refundPercent) },
-      });
+      const refundAmount = calculateRefundPaise(amountPaid, refundPercent);
 
-      booking.razorpayRefundId = refund.id;
-      booking.refundAmount = refundAmount / 100;
-      booking.refundPercentage = refundPercent;
-      booking.paymentStatus = refundPercent === 100 ? 'refunded' : 'partially_refunded';
+      if (refundAmount > 0) {
+        const refund = await createRazorpayRefund({
+          paymentId: booking.razorpayPaymentId,
+          amount: refundAmount,
+          notes: { bookingId: String(booking._id), reason: 'admin_cancellation', refundPercent: String(refundPercent) },
+        });
+
+        booking.razorpayRefundId = refund.id;
+        booking.refundAmount = refundAmount / 100;
+        booking.refundPercentage = refundPercent;
+        booking.paymentStatus = refundPercent === 100 ? 'refunded' : 'partially_refunded';
+      }
     }
 
     booking.status = 'cancelled';
@@ -1117,17 +1121,20 @@ export const cancelGuestBooking = async (req, res, next) => {
 
       // For a 50% deposit booking, only the deposited amount is refundable
       const amountPaid = isPaid ? booking.totalPrice : Math.round(booking.totalPrice / 2);
-      const refundAmount = Math.round(amountPaid * (refundPercent / 100) * 100);
-      const refund = await createRazorpayRefund({
-        paymentId: booking.razorpayPaymentId,
-        amount: refundAmount,
-        notes: { bookingId: String(booking._id), reason: 'cancellation' },
-      });
+      const refundAmount = calculateRefundPaise(amountPaid, refundPercent);
 
-      booking.razorpayRefundId = refund.id;
-      booking.refundAmount = refundAmount / 100;
-      booking.refundPercentage = refundPercent;
-      booking.paymentStatus = refundPercent === 100 ? 'refunded' : 'partially_refunded';
+      if (refundAmount > 0) {
+        const refund = await createRazorpayRefund({
+          paymentId: booking.razorpayPaymentId,
+          amount: refundAmount,
+          notes: { bookingId: String(booking._id), reason: 'cancellation' },
+        });
+
+        booking.razorpayRefundId = refund.id;
+        booking.refundAmount = refundAmount / 100;
+        booking.refundPercentage = refundPercent;
+        booking.paymentStatus = refundPercent === 100 ? 'refunded' : 'partially_refunded';
+      }
     }
 
     booking.status = 'cancelled';

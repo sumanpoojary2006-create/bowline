@@ -39,6 +39,17 @@ export const getAmountPaid = (booking) => {
   return rescheduleFee; // 'pending' or 'failed' — only the reschedule fee if any
 };
 
+// Razorpay rejects any refund request under 100 paise (₹1) — this only ever
+// bites on our sub-rupee test bookings, but without a floor the refund call
+// throws and the whole cancellation fails, even though the booking should
+// still be cancellable. Clamp to the ₹1 minimum whenever there's anything to
+// refund at all so cancellation never gets blocked by an unrefundable amount.
+export const calculateRefundPaise = (amountPaidRupees, refundPercent) => {
+  const rawPaise = Math.round(amountPaidRupees * (refundPercent / 100) * 100);
+  if (rawPaise <= 0) return 0;
+  return Math.max(rawPaise, 100);
+};
+
 export const createPaymentOrder = async (req, res, next) => {
   try {
     if (!isRazorpayConfigured()) {
