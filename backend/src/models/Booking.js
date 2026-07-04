@@ -171,6 +171,18 @@ const bookingSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    // Set when a cancellation goes through but the automatic Razorpay refund
+    // couldn't be issued (e.g. insufficient account balance) — the booking is
+    // still cancelled so the room frees up, but the refund itself needs to be
+    // completed by hand once the payment gateway issue is resolved.
+    manualRefundRequired: {
+      type: Boolean,
+      default: false,
+    },
+    manualRefundReason: {
+      type: String,
+      default: null,
+    },
     rescheduleFeeAmount: {
       type: Number,
       default: 0,
