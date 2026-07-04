@@ -258,37 +258,48 @@ const handleMyBookingCancel = async (session, phone, buttonId, profileName) => {
   const refundPercent = getCancellationRefundPercent(booking.startDate);
   const isPaid = booking.paymentStatus === 'paid';
   const isPartiallyPaid = booking.paymentStatus === 'partially_paid';
+  let refundFailedManually = false;
 
-  try {
-    if ((isPaid || isPartiallyPaid) && refundPercent > 0) {
-      if (!booking.razorpayPaymentId || !isRazorpayConfigured()) {
-        await sendText(phone, "We couldn't process the refund automatically. Please contact us and our team will cancel this booking for you.");
-        await resetSession(session);
-        return;
-      }
-
+  if ((isPaid || isPartiallyPaid) && refundPercent > 0) {
+    if (!booking.razorpayPaymentId || !isRazorpayConfigured()) {
+      booking.manualRefundRequired = true;
+      booking.manualRefundReason = 'No Razorpay payment ID on record';
+      refundFailedManually = true;
+    } else {
       // For a 50% deposit booking, only the deposited amount is refundable
       const amountPaid = isPaid ? booking.totalPrice : Math.round(booking.totalPrice / 2);
       const refundAmount = calculateRefundPaise(amountPaid, refundPercent);
 
       if (refundAmount > 0) {
-        const refund = await createRazorpayRefund({
-          paymentId: booking.razorpayPaymentId,
-          amount: refundAmount,
-          notes: { bookingId: String(booking._id), reason: 'whatsapp_cancellation' },
-        });
+        try {
+          const refund = await createRazorpayRefund({
+            paymentId: booking.razorpayPaymentId,
+            amount: refundAmount,
+            notes: { bookingId: String(booking._id), reason: 'whatsapp_cancellation' },
+          });
 
-        booking.razorpayRefundId = refund.id;
-        booking.refundAmount = refundAmount / 100;
-        booking.refundPercentage = refundPercent;
-        booking.paymentStatus = refundPercent === 100 ? 'refunded' : 'partially_refunded';
+          booking.razorpayRefundId = refund.id;
+          booking.refundAmount = refundAmount / 100;
+          booking.refundPercentage = refundPercent;
+          booking.paymentStatus = refundPercent === 100 ? 'refunded' : 'partially_refunded';
+        } catch (error) {
+          // The automatic refund failed (e.g. Razorpay account balance too
+          // low) — still cancel the booking so the room frees up, but flag
+          // it for a manual refund instead of blocking cancellation entirely.
+          console.error('[WA] refund failed, cancelling anyway:', error?.message);
+          booking.manualRefundRequired = true;
+          booking.manualRefundReason = error?.message || 'Refund request failed';
+          refundFailedManually = true;
+        }
       }
     }
+  }
 
+  try {
     booking.status = 'cancelled';
     await booking.save();
   } catch (error) {
-    console.error('[WA] cancellation failed:', error?.message);
+    console.error('[WA] cancellation save failed:', error?.message);
     await sendText(phone, "Sorry, something went wrong while cancelling. Please contact us and our team will sort it out.");
     await notifyAdmins({
       title: 'WhatsApp cancellation failed',
@@ -299,11 +310,21 @@ const handleMyBookingCancel = async (session, phone, buttonId, profileName) => {
     return;
   }
 
+  if (refundFailedManually) {
+    await notifyAdmins({
+      title: 'Manual refund needed',
+      message: `${booking.contactName || phone} cancelled booking ${booking._id} (${booking.listing?.name}) via WhatsApp, but the automatic refund failed: ${booking.manualRefundReason}. Please process this refund manually.`,
+      type: 'booking',
+    }).catch(() => {});
+  }
+
   await resetSession(session);
 
-  const refundNote = booking.refundAmount > 0
-    ? `\n\nA refund of Rs ${booking.refundAmount} has been initiated and will reflect in your account in 5-7 business days.`
-    : '';
+  const refundNote = refundFailedManually
+    ? `\n\nWe're arranging your refund manually due to a temporary issue with our payment provider — our team has been notified and will process it shortly.`
+    : booking.refundAmount > 0
+      ? `\n\nA refund of Rs ${booking.refundAmount} has been initiated and will reflect in your account in 5-7 business days.`
+      : '';
 
   await sendText(
     phone,

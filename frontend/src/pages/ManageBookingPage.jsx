@@ -287,6 +287,12 @@ function BookingCard({ booking, onUpdated }) {
         </p>
       ) : null}
 
+      {booking.status === 'cancelled' && booking.manualRefundRequired ? (
+        <p className="mt-4 text-sm text-amber-300">
+          Your refund is being arranged manually due to a temporary issue with our payment provider. Our team will process it shortly.
+        </p>
+      ) : null}
+
       {booking.paymentStatus === 'partially_paid' && booking.status !== 'cancelled' ? (
         <div className="mt-4 rounded-[1.25rem] border border-sky-400/20 bg-sky-400/5 p-4">
           <p className="text-sm text-sky-200">

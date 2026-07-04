@@ -1020,6 +1020,7 @@ const serializeGuestBooking = (booking) => {
     rescheduled: booking.rescheduled,
     refundAmount: booking.refundAmount,
     refundPercentage: booking.refundPercentage,
+    manualRefundRequired: booking.manualRefundRequired,
     createdAt: booking.createdAt,
     daysUntilCheckIn: daysUntil(booking.startDate),
     cancellationRefundPercent,
@@ -1112,28 +1113,40 @@ export const cancelGuestBooking = async (req, res, next) => {
 
     const isPaid = booking.paymentStatus === 'paid';
     const isPartiallyPaid = booking.paymentStatus === 'partially_paid';
+    let refundFailedManually = false;
 
     if ((isPaid || isPartiallyPaid) && refundPercent > 0) {
       if (!booking.razorpayPaymentId || !isRazorpayConfigured()) {
-        res.status(503);
-        throw new Error('Refunds are not available right now. Please contact us to process your cancellation.');
-      }
+        booking.manualRefundRequired = true;
+        booking.manualRefundReason = 'No Razorpay payment ID on record';
+        refundFailedManually = true;
+      } else {
+        // For a 50% deposit booking, only the deposited amount is refundable
+        const amountPaid = isPaid ? booking.totalPrice : Math.round(booking.totalPrice / 2);
+        const refundAmount = calculateRefundPaise(amountPaid, refundPercent);
 
-      // For a 50% deposit booking, only the deposited amount is refundable
-      const amountPaid = isPaid ? booking.totalPrice : Math.round(booking.totalPrice / 2);
-      const refundAmount = calculateRefundPaise(amountPaid, refundPercent);
+        if (refundAmount > 0) {
+          try {
+            const refund = await createRazorpayRefund({
+              paymentId: booking.razorpayPaymentId,
+              amount: refundAmount,
+              notes: { bookingId: String(booking._id), reason: 'cancellation' },
+            });
 
-      if (refundAmount > 0) {
-        const refund = await createRazorpayRefund({
-          paymentId: booking.razorpayPaymentId,
-          amount: refundAmount,
-          notes: { bookingId: String(booking._id), reason: 'cancellation' },
-        });
-
-        booking.razorpayRefundId = refund.id;
-        booking.refundAmount = refundAmount / 100;
-        booking.refundPercentage = refundPercent;
-        booking.paymentStatus = refundPercent === 100 ? 'refunded' : 'partially_refunded';
+            booking.razorpayRefundId = refund.id;
+            booking.refundAmount = refundAmount / 100;
+            booking.refundPercentage = refundPercent;
+            booking.paymentStatus = refundPercent === 100 ? 'refunded' : 'partially_refunded';
+          } catch (error) {
+            // Don't block the cancellation just because the instant refund
+            // failed (e.g. Razorpay account balance too low) — cancel the
+            // booking so the room frees up and flag the refund for manual
+            // follow-up instead.
+            booking.manualRefundRequired = true;
+            booking.manualRefundReason = error?.message || 'Refund request failed';
+            refundFailedManually = true;
+          }
+        }
       }
     }
 
@@ -1144,8 +1157,10 @@ export const cancelGuestBooking = async (req, res, next) => {
     writeFullBookingToSheet(booking).catch(() => {});
 
     await notifyAdmins({
-      title: 'Booking cancelled by guest',
-      message: `${booking.contactName} cancelled their booking for ${booking.listing.name}.`,
+      title: refundFailedManually ? 'Booking cancelled by guest — manual refund needed' : 'Booking cancelled by guest',
+      message: refundFailedManually
+        ? `${booking.contactName} cancelled their booking for ${booking.listing.name}, but the automatic refund failed: ${booking.manualRefundReason}. Please process this refund manually.`
+        : `${booking.contactName} cancelled their booking for ${booking.listing.name}.`,
       type: 'booking',
     });
 
@@ -1154,9 +1169,11 @@ export const cancelGuestBooking = async (req, res, next) => {
         to: booking.contactEmail,
         subject: `Booking Cancelled - ${booking.listing.name}`,
         text: `Hi ${booking.contactName},\n\nYour booking for ${booking.listing.name} has been cancelled.${
-          booking.refundAmount > 0
-            ? ` A refund of Rs ${booking.refundAmount} has been initiated and will reflect in your account shortly.`
-            : ' Based on our cancellation policy, this booking is not eligible for a refund.'
+          refundFailedManually
+            ? " We're arranging your refund manually due to a temporary issue with our payment provider — our team will process it shortly."
+            : booking.refundAmount > 0
+              ? ` A refund of Rs ${booking.refundAmount} has been initiated and will reflect in your account shortly.`
+              : ' Based on our cancellation policy, this booking is not eligible for a refund.'
         }\n\nBowline Nature Stay`,
         kind: 'booking',
       }).catch(() => {});
