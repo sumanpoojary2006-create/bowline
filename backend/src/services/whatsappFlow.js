@@ -15,6 +15,7 @@ import { calculateBookingPrice } from '../utils/pricing.js';
 import { createRoomBooking, runBookingSideEffects } from './bookingService.js';
 import { createPaymentLink, createRazorpayRefund, isRazorpayConfigured } from '../utils/razorpay.js';
 import { getCancellationRefundPercent } from '../utils/bookingPolicy.js';
+import { calculateRefundPaise } from '../controllers/paymentController.js';
 import { clearBookingFromSheet, writeFullBookingToSheet } from '../utils/googleSheets.js';
 import { notifyAdmins } from '../utils/notifications.js';
 
@@ -268,17 +269,20 @@ const handleMyBookingCancel = async (session, phone, buttonId, profileName) => {
 
       // For a 50% deposit booking, only the deposited amount is refundable
       const amountPaid = isPaid ? booking.totalPrice : Math.round(booking.totalPrice / 2);
-      const refundAmount = Math.round(amountPaid * (refundPercent / 100) * 100);
-      const refund = await createRazorpayRefund({
-        paymentId: booking.razorpayPaymentId,
-        amount: refundAmount,
-        notes: { bookingId: String(booking._id), reason: 'whatsapp_cancellation' },
-      });
+      const refundAmount = calculateRefundPaise(amountPaid, refundPercent);
 
-      booking.razorpayRefundId = refund.id;
-      booking.refundAmount = refundAmount / 100;
-      booking.refundPercentage = refundPercent;
-      booking.paymentStatus = refundPercent === 100 ? 'refunded' : 'partially_refunded';
+      if (refundAmount > 0) {
+        const refund = await createRazorpayRefund({
+          paymentId: booking.razorpayPaymentId,
+          amount: refundAmount,
+          notes: { bookingId: String(booking._id), reason: 'whatsapp_cancellation' },
+        });
+
+        booking.razorpayRefundId = refund.id;
+        booking.refundAmount = refundAmount / 100;
+        booking.refundPercentage = refundPercent;
+        booking.paymentStatus = refundPercent === 100 ? 'refunded' : 'partially_refunded';
+      }
     }
 
     booking.status = 'cancelled';
@@ -286,6 +290,11 @@ const handleMyBookingCancel = async (session, phone, buttonId, profileName) => {
   } catch (error) {
     console.error('[WA] cancellation failed:', error?.message);
     await sendText(phone, "Sorry, something went wrong while cancelling. Please contact us and our team will sort it out.");
+    await notifyAdmins({
+      title: 'WhatsApp cancellation failed',
+      message: `${booking.contactName || phone} tried to cancel booking ${booking._id} (${booking.listing?.name}) via WhatsApp and it failed: ${error?.message}`,
+      type: 'booking',
+    }).catch(() => {});
     await resetSession(session);
     return;
   }
