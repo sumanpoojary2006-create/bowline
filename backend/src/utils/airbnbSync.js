@@ -71,6 +71,7 @@ export const syncListingFromAirbnb = async (listing) => {
       startDate: event.start,
       endDate: event.end,
       guests: 1,
+      applyGst: false,
     });
 
     await Booking.create({
@@ -184,98 +185,137 @@ export const syncFullHouseFromAirbnb = async () => {
   });
 
   for (const event of events) {
-    // What does our own DB already show for these dates, independent of any
-    // previous full-house gap-fill?
-    const perRoom = await Promise.all(
-      rooms.map(async (room) => ({
-        room,
-        bookings: await getExistingBookingsForRange({
-          listingId: room._id,
-          startDate: event.start,
-          endDate: event.end,
-          statuses: ['pending', 'confirmed'],
-        }).then((list) => list.filter((b) => !String(b.externalId || '').startsWith('fullhouse:'))),
-      }))
-    );
-
-    const nameRoomCounts = new Map();
-    for (const { bookings } of perRoom) {
-      const namesInThisRoom = new Set(
-        bookings.map((b) => String(b.contactName || '').trim()).filter((n) => !isGenericContactName(n))
-      );
-      for (const name of namesInThisRoom) {
-        const key = name.toLowerCase();
-        const entry = nameRoomCounts.get(key) || { name, rooms: 0 };
-        entry.rooms += 1;
-        nameRoomCounts.set(key, entry);
-      }
+    // A multi-night "not available" block can be fully booked out for
+    // entirely different reasons on different nights (e.g. one guest for
+    // night 1, several unrelated single-room guests for night 2). Evaluate
+    // name evidence per night rather than once for the whole event, so a
+    // guest whose real booking only covers part of the block doesn't get
+    // extrapolated onto nights they were never part of.
+    const nights = [];
+    for (const d = new Date(event.start); d < event.end; d.setDate(d.getDate() + 1)) {
+      nights.push(new Date(d));
     }
 
-    const confirmedGuest = [...nameRoomCounts.values()].sort((a, b) => b.rooms - a.rooms)[0];
-    const isConfirmedFullHouse = confirmedGuest && confirmedGuest.rooms >= 2;
+    const nightlyInfo = await Promise.all(
+      nights.map(async (night) => {
+        const nightEnd = new Date(night);
+        nightEnd.setDate(nightEnd.getDate() + 1);
 
-    if (!isConfirmedFullHouse) {
-      result.needsReview.push({
-        startDate: event.start.toISOString().slice(0, 10),
-        endDate: event.end.toISOString().slice(0, 10),
-      });
-      continue;
-    }
+        const nameRoomCounts = new Map();
+        for (const room of rooms) {
+          const bookings = await getExistingBookingsForRange({
+            listingId: room._id,
+            startDate: night,
+            endDate: nightEnd,
+            statuses: ['pending', 'confirmed'],
+          }).then((list) => list.filter((b) => !String(b.externalId || '').startsWith('fullhouse:')));
 
-    for (const { room, bookings } of perRoom) {
-      const fhExternalId = `fullhouse:${event.uid}:${room._id}`;
-      const existing = existingFullHouseBookings.find((b) => b.externalId === fhExternalId);
-
-      if (existing) {
-        if (
-          existing.startDate.getTime() !== event.start.getTime() ||
-          existing.endDate.getTime() !== event.end.getTime()
-        ) {
-          const oldStartDate = existing.startDate;
-          const oldEndDate = existing.endDate;
-          existing.startDate = event.start;
-          existing.endDate = event.end;
-          await existing.save();
-          result.updated++;
-
-          if (isSheetsConfigured()) {
-            await clearBookingFromSheet({ listing: room, startDate: oldStartDate, endDate: oldEndDate }).catch(() => {});
+          const namesInThisRoom = new Set(
+            bookings.map((b) => String(b.contactName || '').trim()).filter((n) => !isGenericContactName(n))
+          );
+          for (const name of namesInThisRoom) {
+            const key = name.toLowerCase();
+            const entry = nameRoomCounts.get(key) || { name, rooms: 0 };
+            entry.rooms += 1;
+            nameRoomCounts.set(key, entry);
           }
         }
-        continue;
+
+        const best = [...nameRoomCounts.values()].sort((a, b) => b.rooms - a.rooms)[0];
+        return { night, guestName: best && best.rooms >= 2 ? best.name : null };
+      })
+    );
+
+    for (const { night, guestName } of nightlyInfo) {
+      if (guestName) continue;
+      const nightEnd = new Date(night);
+      nightEnd.setDate(nightEnd.getDate() + 1);
+      result.needsReview.push({
+        startDate: night.toISOString().slice(0, 10),
+        endDate: nightEnd.toISOString().slice(0, 10),
+      });
+    }
+
+    // Group consecutive nights confirmed under the same guest name into one
+    // span per room, matching how guests actually book — a run that stops
+    // early (or was never confirmed to begin with) doesn't drag other rooms
+    // in beyond the nights that run actually covers.
+    let i = 0;
+    while (i < nightlyInfo.length) {
+      if (!nightlyInfo[i].guestName) { i++; continue; }
+      const guestName = nightlyInfo[i].guestName;
+      let j = i;
+      while (j + 1 < nightlyInfo.length && nightlyInfo[j + 1].guestName === guestName) j++;
+
+      const spanStart = nightlyInfo[i].night;
+      const spanEnd = new Date(nightlyInfo[j].night);
+      spanEnd.setDate(spanEnd.getDate() + 1);
+
+      for (const room of rooms) {
+        const fhExternalId = `fullhouse:${event.uid}:${room._id}`;
+        const existing = existingFullHouseBookings.find((b) => b.externalId === fhExternalId);
+
+        if (existing) {
+          if (
+            existing.startDate.getTime() !== spanStart.getTime() ||
+            existing.endDate.getTime() !== spanEnd.getTime()
+          ) {
+            const oldStartDate = existing.startDate;
+            const oldEndDate = existing.endDate;
+            existing.startDate = spanStart;
+            existing.endDate = spanEnd;
+            await existing.save();
+            result.updated++;
+
+            if (isSheetsConfigured()) {
+              await clearBookingFromSheet({ listing: room, startDate: oldStartDate, endDate: oldEndDate }).catch(() => {});
+            }
+          }
+          continue;
+        }
+
+        const roomBookings = await getExistingBookingsForRange({
+          listingId: room._id,
+          startDate: spanStart,
+          endDate: spanEnd,
+          statuses: ['pending', 'confirmed'],
+        }).then((list) => list.filter((b) => !String(b.externalId || '').startsWith('fullhouse:')));
+
+        if (roomBookings.length) continue; // already independently covered
+
+        const pricing = await calculateBookingPrice({
+          listing: room,
+          bookingType: 'room',
+          startDate: spanStart,
+          endDate: spanEnd,
+          guests: 1,
+          applyGst: false,
+        });
+
+        await Booking.create({
+          bookingType: 'room',
+          listing: room._id,
+          user: null,
+          startDate: spanStart,
+          endDate: spanEnd,
+          guests: 1,
+          unitPrice: pricing.unitPrice,
+          totalPrice: pricing.totalPrice,
+          pricingBreakdown: { basePrice: pricing.basePrice, adjustments: pricing.adjustments },
+          status: 'confirmed',
+          paymentStatus: 'paid',
+          paymentMethod: 'airbnb',
+          contactName: guestName,
+          contactEmail: 'airbnb-sync@bowline.internal',
+          contactPhone: '',
+          specialRequests: 'Synced from Airbnb Full House calendar',
+          source: 'airbnb',
+          externalId: fhExternalId,
+        });
+        result.created++;
       }
 
-      if (bookings.length) continue; // already independently covered
-
-      const pricing = await calculateBookingPrice({
-        listing: room,
-        bookingType: 'room',
-        startDate: event.start,
-        endDate: event.end,
-        guests: 1,
-      });
-
-      await Booking.create({
-        bookingType: 'room',
-        listing: room._id,
-        user: null,
-        startDate: event.start,
-        endDate: event.end,
-        guests: 1,
-        unitPrice: pricing.unitPrice,
-        totalPrice: pricing.totalPrice,
-        pricingBreakdown: { basePrice: pricing.basePrice, adjustments: pricing.adjustments },
-        status: 'confirmed',
-        paymentStatus: 'paid',
-        paymentMethod: 'airbnb',
-        contactName: confirmedGuest.name,
-        contactEmail: 'airbnb-sync@bowline.internal',
-        contactPhone: '',
-        specialRequests: 'Synced from Airbnb Full House calendar',
-        source: 'airbnb',
-        externalId: fhExternalId,
-      });
-      result.created++;
+      i = j + 1;
     }
   }
 

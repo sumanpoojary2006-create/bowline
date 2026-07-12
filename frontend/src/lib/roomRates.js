@@ -11,6 +11,9 @@ export const roomRates = {
 
 export const petFee = 400;
 
+// Must match backend/src/utils/pricing.js GST_RATE.
+export const GST_RATE = 0.05;
+
 const ROOM_DISPLAY_ORDER = ['pent-house', 'cozy-1', 'cozy-2', 'cozy-mini', 'dormitory-open-loft'];
 
 export const getRoomDisplayOrder = (listing) => {

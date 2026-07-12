@@ -9,6 +9,7 @@ import { createNotification, notifyAdmins, formatBookingNotificationDetails } fr
 import { getExistingBookingsForRange, validateListingAvailability } from '../utils/availability.js';
 import { writeBookingToSheet, writeFullBookingToSheet, clearBookingFromSheet, isSheetsConfigured } from '../utils/googleSheets.js';
 import { sendBookingConfirmationEmail } from '../utils/bookingConfirmationEmail.js';
+import { sendBookingInquiryEmail } from '../utils/bookingInquiryEmail.js';
 import { isEmailConfigured, sendMail } from '../utils/email.js';
 import { createRazorpayOrder, createRazorpayRefund, isRazorpayConfigured } from '../utils/razorpay.js';
 import { daysUntil, getCancellationRefundPercent, getRescheduleFeePercent } from '../utils/bookingPolicy.js';
@@ -135,6 +136,8 @@ export const createBooking = async (req, res, next) => {
       pricingBreakdown: {
         basePrice: pricing.basePrice,
         adjustments: couponDiscount > 0 ? [...pricing.adjustments, `Coupon ${coupon.code}: -₹${couponDiscount}`] : pricing.adjustments,
+        subtotal: pricing.subtotal,
+        gstAmount: pricing.gstAmount,
         coupon: coupon
           ? {
               code: coupon.code,
@@ -176,6 +179,9 @@ export const createBooking = async (req, res, next) => {
       .populate('user', 'name email phone');
 
     await syncToSheet(populatedBooking);
+    await sendBookingInquiryEmail(populatedBooking).catch((error) => {
+      console.error('Failed to send booking inquiry email', error);
+    });
     res.status(201).json({ booking: populatedBooking });
   } catch (error) {
     next(error);
@@ -328,6 +334,8 @@ export const createMultiBooking = async (req, res, next) => {
           pricingBreakdown: {
             basePrice: pricing.basePrice,
             adjustments: itemDiscount > 0 ? [...pricing.adjustments, `Coupon ${coupon.code}: -₹${itemDiscount}`] : pricing.adjustments,
+            subtotal: pricing.subtotal,
+            gstAmount: pricing.gstAmount,
             coupon: coupon
               ? {
                   code: coupon.code,
@@ -374,6 +382,9 @@ export const createMultiBooking = async (req, res, next) => {
       .populate('user', 'name email phone');
 
     await Promise.all(populatedBookings.map(syncToSheet));
+    await sendBookingInquiryEmail(populatedBookings).catch((error) => {
+      console.error('Failed to send booking inquiry email', error);
+    });
 
     res.status(201).json({ bookings: populatedBookings, groupId });
   } catch (error) {
@@ -490,6 +501,8 @@ export const createAdminManualRoomBooking = async (req, res, next) => {
       pricingBreakdown: {
         basePrice: pricing.basePrice,
         adjustments: pricing.adjustments,
+        subtotal: pricing.subtotal,
+        gstAmount: pricing.gstAmount,
       },
       paymentMethod: 'manual',
       status: 'confirmed',
@@ -670,6 +683,8 @@ export const createAdminGroupBooking = async (req, res, next) => {
           pricingBreakdown: {
             basePrice: pricing.basePrice,
             adjustments: pricing.adjustments,
+            subtotal: pricing.subtotal,
+            gstAmount: pricing.gstAmount,
           },
           paymentMethod: 'manual',
           status: 'confirmed',
@@ -935,7 +950,11 @@ export const updateBookingStatus = async (req, res, next) => {
       });
     }
 
-    if (nextStatus === 'confirmed' && previousStatus !== 'confirmed') {
+    // Only send the "confirmed" email if payment is actually on record —
+    // an admin flipping status to 'confirmed' without marking it paid isn't
+    // a real confirmation, and must never claim "50%/100% Paid" in the subject.
+    const hasPaymentOnRecord = booking.paymentStatus === 'paid' || booking.paymentStatus === 'partially_paid';
+    if (nextStatus === 'confirmed' && previousStatus !== 'confirmed' && hasPaymentOnRecord) {
       sendBookingConfirmationEmail(booking).catch((error) => {
         console.error('Failed to send booking confirmation email', error);
       });
@@ -1370,6 +1389,8 @@ export const confirmReschedule = async (req, res, next) => {
     const newPricingBreakdown = {
       basePrice: quote.pricing.basePrice,
       adjustments: quote.pricing.adjustments,
+      subtotal: quote.pricing.subtotal,
+      gstAmount: quote.pricing.gstAmount,
     };
     if (booking.pricingBreakdown?.coupon?.code) {
       newPricingBreakdown.coupon = booking.pricingBreakdown.coupon;

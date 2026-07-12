@@ -685,6 +685,11 @@ function ListingDetailPage({ bookingFirst = false }) {
                   </p>
                 ) : null}
                 <p className="text-slate-300">Average nightly tariff: {formatCurrency(availability.pricing.unitPrice)} per person</p>
+                {availability.pricing.gstAmount ? (
+                  <p className="text-slate-300">
+                    Subtotal: {formatCurrency(availability.pricing.subtotal)} + GST (5%): {formatCurrency(availability.pricing.gstAmount)}
+                  </p>
+                ) : null}
                 <p className="text-slate-300">Estimated booking value: {formatCurrency(availability.pricing.totalPrice)}</p>
                 {availability.pricing.adjustments?.length ? (
                   <p className="mt-2 text-slate-400">Applied tariff notes: {availability.pricing.adjustments.join(', ')}</p>
