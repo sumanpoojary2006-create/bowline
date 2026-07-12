@@ -269,6 +269,11 @@ function BookingCard({ booking, onUpdated }) {
         <div className="rounded-[1.25rem] bg-slate-900/70 p-4">
           <p className="text-sm text-slate-400">Total price</p>
           <p className="mt-1 text-lg font-semibold text-lime-200">{formatCurrency(booking.totalPrice)}</p>
+          {booking.pricingBreakdown?.gstAmount ? (
+            <p className="mt-1 text-xs text-slate-400">
+              Subtotal {formatCurrency(booking.pricingBreakdown.subtotal)} + GST (5%) {formatCurrency(booking.pricingBreakdown.gstAmount)}
+            </p>
+          ) : null}
         </div>
         <div className="rounded-[1.25rem] bg-slate-900/70 p-4">
           <p className="text-sm text-slate-400">Guests</p>
