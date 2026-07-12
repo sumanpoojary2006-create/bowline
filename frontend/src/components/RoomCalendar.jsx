@@ -178,15 +178,18 @@ function RoomCalendar({ listingId, listingIds, startDate, endDate, onStartDate, 
   const handleDayClick = (date) => {
     if (selecting === 'start') {
       onStartDate(date);
+      // Default checkout to the next day so the pill has something sensible
+      // to show right away, but don't mark it "selected" in the grid yet —
+      // the guest still has to tap a checkout date themselves.
       onEndDate(addDays(date, 1));
       setSelecting('end');
-      setHasEndSelected(true);
+      setHasEndSelected(false);
     } else {
       if (date <= startDate) {
         onStartDate(date);
         onEndDate(addDays(date, 1));
         setSelecting('end');
-        setHasEndSelected(true);
+        setHasEndSelected(false);
       } else {
         onEndDate(date);
         setSelecting('start');
@@ -229,7 +232,7 @@ function RoomCalendar({ listingId, listingIds, startDate, endDate, onStartDate, 
         <div className="text-sm">
           <p className="text-[10px] uppercase tracking-[0.2em] text-[#aab5a5]">Check-out</p>
           <p className="font-semibold text-white">
-            {hasEndSelected && endDate ? endDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'Select date'}
+            {endDate ? endDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'Select date'}
           </p>
         </div>
         <div className="ml-auto flex items-center gap-1">

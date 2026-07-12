@@ -1030,6 +1030,7 @@ const serializeGuestBooking = (booking) => {
     adultGuests: booking.adultGuests,
     childGuests: booking.childGuests,
     totalPrice: booking.totalPrice,
+    pricingBreakdown: booking.pricingBreakdown,
     status: booking.status,
     paymentStatus: booking.paymentStatus,
     contactName: booking.contactName,

@@ -79,6 +79,11 @@ function BookingConfirmationPage() {
           <div className="rounded-[1.5rem] bg-slate-900/70 p-5">
             <p className="text-sm text-slate-400">Estimated booking value</p>
             <p className="mt-2 text-xl font-semibold text-lime-200">{formatCurrency(booking.totalPrice)}</p>
+            {booking.pricingBreakdown?.gstAmount ? (
+              <p className="mt-1 text-xs text-slate-400">
+                Subtotal {formatCurrency(booking.pricingBreakdown.subtotal)} + GST (5%) {formatCurrency(booking.pricingBreakdown.gstAmount)}
+              </p>
+            ) : null}
             {booking.paymentStatus === 'partially_paid' ? (
               <p className="mt-1 text-xs text-sky-300">
                 {formatCurrency(Math.round(booking.totalPrice / 2))} paid ·{' '}
