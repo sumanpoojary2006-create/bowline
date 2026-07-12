@@ -73,6 +73,14 @@ const bookingSchema = new mongoose.Schema(
         type: [String],
         default: [],
       },
+      subtotal: {
+        type: Number,
+        default: 0,
+      },
+      gstAmount: {
+        type: Number,
+        default: 0,
+      },
       coupon: {
         code: {
           type: String,

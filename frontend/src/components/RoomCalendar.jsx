@@ -1,7 +1,7 @@
 import { ArrowRightIcon, CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { useEffect, useState } from 'react';
 import api from '../lib/api';
-import { addDays } from '../lib/dateUtils';
+import { addDays, formatDateParam } from '../lib/dateUtils';
 import { formatDate } from '../lib/formatters';
 
 const DAY_NAMES = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
@@ -34,7 +34,20 @@ function isBookedDay(date, bookedRanges) {
   );
 }
 
-export function CalendarMonth({ year, month, bookedRanges, startDate, endDate, showEnd, onDayClick }) {
+// Checking out on the same day another guest checks in is a normal turnover,
+// not a conflict — this only blocks a candidate checkout date if it would
+// actually put a booked night somewhere between the chosen check-in and it.
+function wouldCheckoutConflict(date, startDate, bookedRanges) {
+  if (!startDate) return false;
+  return bookedRanges.some(
+    (r) =>
+      (r.status === 'confirmed' || r.status === 'blocked') &&
+      toLocalMidnight(r.startDate) < date &&
+      toLocalMidnight(r.endDate) > startDate
+  );
+}
+
+export function CalendarMonth({ year, month, bookedRanges, startDate, endDate, showEnd, selecting, onDayClick }) {
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
   const today = new Date();
@@ -65,7 +78,14 @@ export function CalendarMonth({ year, month, bookedRanges, startDate, endDate, s
           const isStart = startDate && isSameDay(date, startDate);
           const isEnd = showEnd && endDate && isSameDay(date, endDate);
           const inRange = showEnd && isInRange(date, startDate, endDate);
-          const disabled = booked || isPast;
+          // While picking checkout, a date *after* the chosen check-in is only
+          // a real conflict if a booked night falls somewhere between the two
+          // — landing on another guest's check-in day is a normal turnover,
+          // not a conflict. Dates at/before check-in fall back to the normal
+          // night-booked rule, since clicking one of those restarts check-in
+          // there instead (and that must still respect occupied nights).
+          const useCheckoutRule = selecting === 'end' && startDate && date > startDate;
+          const disabled = isPast || (useCheckoutRule ? wouldCheckoutConflict(date, startDate, bookedRanges) : booked);
           const dayLabel = date.toLocaleDateString('en-IN', {
             day: 'numeric',
             month: 'long',
@@ -134,10 +154,15 @@ function RoomCalendar({ listingId, listingIds, startDate, endDate, onStartDate, 
   useEffect(() => {
     if (!startDate || !endDate || !ids.length) { setNextAvailable(null); return; }
     const nights = Math.max(Math.round((endDate - startDate) / 86400000), 1);
+    // Send a plain calendar-day string, not a full ISO timestamp — startDate
+    // is local midnight, and toISOString() on that converts to UTC, which in
+    // any timezone ahead of UTC (e.g. IST) lands on the *previous* day's
+    // evening, throwing off the backend's day-boundary comparisons.
+    const from = formatDateParam(startDate);
     const request =
       ids.length > 1
-        ? api.get('/listings/availability/next-available', { params: { ids: idsKey, from: startDate.toISOString(), nights } })
-        : api.get(`/listings/${ids[0]}/next-available`, { params: { from: startDate.toISOString(), nights } });
+        ? api.get('/listings/availability/next-available', { params: { ids: idsKey, from, nights } })
+        : api.get(`/listings/${ids[0]}/next-available`, { params: { from, nights } });
 
     request
       .then(({ data }) => {
@@ -155,13 +180,13 @@ function RoomCalendar({ listingId, listingIds, startDate, endDate, onStartDate, 
       onStartDate(date);
       onEndDate(addDays(date, 1));
       setSelecting('end');
-      setHasEndSelected(false);
+      setHasEndSelected(true);
     } else {
       if (date <= startDate) {
         onStartDate(date);
         onEndDate(addDays(date, 1));
         setSelecting('end');
-        setHasEndSelected(false);
+        setHasEndSelected(true);
       } else {
         onEndDate(date);
         setSelecting('start');
@@ -243,6 +268,7 @@ function RoomCalendar({ listingId, listingIds, startDate, endDate, onStartDate, 
             startDate={startDate}
             endDate={endDate}
             showEnd={hasEndSelected}
+            selecting={selecting}
             onDayClick={handleDayClick}
           />
         </div>
@@ -255,6 +281,7 @@ function RoomCalendar({ listingId, listingIds, startDate, endDate, onStartDate, 
             startDate={startDate}
             endDate={endDate}
             showEnd={hasEndSelected}
+            selecting={selecting}
             onDayClick={handleDayClick}
           />
         </div>

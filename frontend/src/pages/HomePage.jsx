@@ -25,7 +25,7 @@ import FloatingDateRangePicker from '../components/FloatingDateRangePicker';
 import { formatCurrency } from '../lib/formatters';
 import { addDays, ensureCheckoutDate, formatDateParam } from '../lib/dateUtils';
 import { useAuth } from '../context/AuthContext';
-import { getGroupBundleRooms, getRoomRate, getRoomDisplayOrder, groupBookingTiers, isWeekendStayDate, petFee } from '../lib/roomRates';
+import { getGroupBundleRooms, getRoomRate, getRoomDisplayOrder, groupBookingTiers, isWeekendStayDate, petFee, GST_RATE } from '../lib/roomRates';
 
 const forestBackdrop =
   'https://images.unsplash.com/photo-1473448912268-2022ce9509d8?auto=format&fit=crop&w=1800&q=80';
@@ -57,8 +57,10 @@ const computeItemTotals = (listing, draft) => {
   }
 
   const petTotal = petFee * Number(draft.pets);
-  const grandTotal = roomTotal + petTotal;
-  return { nights, roomTotal, petTotal, grandTotal };
+  const subtotal = roomTotal + petTotal;
+  const gstAmount = Math.round(subtotal * GST_RATE);
+  const grandTotal = subtotal + gstAmount;
+  return { nights, roomTotal, petTotal, subtotal, gstAmount, grandTotal };
 };
 
 // Spread `total` guests across bundle rooms, respecting each room's
@@ -536,6 +538,11 @@ function HomePage() {
   const modalGrandTotal = activeTotals?.grandTotal || 0;
   const cartSubtotal = roomCart.reduce((sum, item) => sum + item.grandTotal, 0);
   const combinedSubtotal = cartSubtotal + modalGrandTotal;
+  // Pre-tax and GST portions of combinedSubtotal, broken out for display —
+  // combinedSubtotal itself stays tax-inclusive since that's what actually
+  // gets charged (matches each Booking's totalPrice on the backend).
+  const combinedPreTax = roomCart.reduce((sum, item) => sum + (item.subtotal ?? item.grandTotal), 0) + (activeTotals?.subtotal || 0);
+  const combinedGst = roomCart.reduce((sum, item) => sum + (item.gstAmount || 0), 0) + (activeTotals?.gstAmount || 0);
   const modalCouponDiscount = couponOffer?.discount || 0;
   const modalFinalTotal = Math.max(combinedSubtotal - modalCouponDiscount, 0);
   const modalMealSelectionComplete = bookingDraft.vegCount + bookingDraft.nonVegCount === modalTotalGuests;
@@ -1217,9 +1224,13 @@ function HomePage() {
                     {roomCart.length > 0 ? (
                       <div className="flex items-center justify-between">
                         <span>Subtotal (all rooms)</span>
-                        <span className="font-semibold text-white">{formatCurrency(combinedSubtotal)}</span>
+                        <span className="font-semibold text-white">{formatCurrency(combinedPreTax)}</span>
                       </div>
                     ) : null}
+                    <div className="flex items-center justify-between">
+                      <span>GST (5%)</span>
+                      <span className="font-semibold text-white">{formatCurrency(combinedGst)}</span>
+                    </div>
                     <div className="border-t border-white/10 pt-3">
                       <div className="flex items-center gap-2 text-white">
                         <TagIcon className="h-4 w-4 text-lime-200" />

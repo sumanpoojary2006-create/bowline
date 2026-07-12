@@ -16,7 +16,7 @@
 //
 // SHEET STRUCTURE EXPECTED
 // ────────────────────────
-// Row 1  : Headers  → Date | Cozy 1 | Cozy 2 | Cozy Mini | Dormitory (Open Loft) | Pent House
+// Row 1  : Headers  → Date | Cozy 1 | Cozy 2 | Cozy Mini | Dormitory | Pent House
 // Row 2+ : One row per calendar day of the month
 // Cell value = Guest name when booked, empty when free
 // Cell background = booking status colour (see legend below)
@@ -36,7 +36,7 @@ var ROOM_COLUMNS = {
   2: 'Cozy 1',
   3: 'Cozy 2',
   4: 'Cozy Mini',
-  5: 'Dormitory (Open Loft)',
+  5: 'Dormitory',
   6: 'Pent House'
 };
 
@@ -103,8 +103,8 @@ function upsertBookingCells(roomName, startDateStr, endDateStr, guestName, statu
   var col = getRoomColumn(roomName);
   if (!col) return;
 
-  var start = new Date(startDateStr);
-  var end   = new Date(endDateStr);
+  var start = parseDateOnly(startDateStr);
+  var end   = parseDateOnly(endDateStr);
   var color = colorOverride || STATUS_COLORS[status] || '#ffffff';
 
   // Iterate over each day in [start, end)
@@ -128,8 +128,8 @@ function clearBookingCells(roomName, startDateStr, endDateStr) {
   var col = getRoomColumn(roomName);
   if (!col) return;
 
-  var start = new Date(startDateStr);
-  var end   = new Date(endDateStr);
+  var start = parseDateOnly(startDateStr);
+  var end   = parseDateOnly(endDateStr);
 
   var d = new Date(start);
   while (d < end) {
@@ -323,6 +323,17 @@ function fixRedCells() {
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
+
+// Backend sends plain "YYYY-MM-DD" strings. new Date("YYYY-MM-DD") parses as
+// UTC midnight per spec, but the rest of this file (sheetNameForDate,
+// getRowForDate, the date column itself) all work in the script's local
+// timezone — so a UTC-parsed date can read back as the previous day here,
+// shifting every cell this booking touches one row earlier. Parse the Y/M/D
+// components directly instead, so the result is already in local terms.
+function parseDateOnly(str) {
+  var parts = str.split('-');
+  return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+}
 
 function getRoomColumn(roomName) {
   for (var col in ROOM_COLUMNS) {

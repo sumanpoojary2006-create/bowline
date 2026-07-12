@@ -54,6 +54,8 @@ const summarizeAdjustments = (counts) =>
     count > 1 ? `${name} for ${count} nights` : name
   );
 
+export const GST_RATE = 0.05;
+
 export const calculateBookingPrice = async ({
   listing,
   bookingType,
@@ -64,6 +66,10 @@ export const calculateBookingPrice = async ({
   childGuests = 0,
   pets = 0,
   groupRate = null,
+  // Airbnb-synced bookings are priced and taxed by Airbnb before we ever see
+  // the money — GST must not be added on top of those, only on bookings we
+  // actually collect payment for ourselves.
+  applyGst = true,
 }) => {
   const units = calculateDurationUnits(bookingType, startDate, endDate);
   const effectiveBase = listing.manualPriceOverride ?? listing.price;
@@ -112,11 +118,16 @@ export const calculateBookingPrice = async ({
         ? Math.round((totalPrice - petCount * 400) / (units * payableGuestMultiplier))
         : Math.round(effectiveBase);
 
+    const subtotal = totalPrice;
+    const gstAmount = applyGst ? Math.round(subtotal * GST_RATE) : 0;
+
     return {
       unitPrice: averageNightlyTariff,
-      totalPrice,
+      totalPrice: subtotal + gstAmount,
       basePrice: effectiveBase,
       adjustments: summarizeAdjustments(adjustmentCounts),
+      subtotal,
+      gstAmount,
     };
   }
 
@@ -136,10 +147,15 @@ export const calculateBookingPrice = async ({
 
   unitPrice = Math.max(Math.round(unitPrice), 0);
 
+  const subtotal = unitPrice * multiplier;
+  const gstAmount = applyGst ? Math.round(subtotal * GST_RATE) : 0;
+
   return {
     unitPrice,
-    totalPrice: unitPrice * multiplier,
+    totalPrice: subtotal + gstAmount,
     basePrice: effectiveBase,
     adjustments,
+    subtotal,
+    gstAmount,
   };
 };

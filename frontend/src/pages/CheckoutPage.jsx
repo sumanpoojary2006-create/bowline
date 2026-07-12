@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { useBookingCart } from '../context/BookingCartContext';
 import api from '../lib/api';
 import { formatCurrency, formatDate } from '../lib/formatters';
+import { GST_RATE } from '../lib/roomRates';
 
 function CheckoutPage() {
   const { items, removeItem, updateItem, clearCart } = useBookingCart();
@@ -49,7 +50,8 @@ function CheckoutPage() {
 
   const totalGuests = items.reduce((sum, item) => sum + item.guests, 0);
   const couponDiscount = couponOffer?.discount || 0;
-  const finalEstimate = Math.max(totalEstimate - couponDiscount, 0);
+  const gstEstimate = Math.round(totalEstimate * GST_RATE);
+  const finalEstimate = Math.max(totalEstimate + gstEstimate - couponDiscount, 0);
   const mealSelectionComplete = items.every(
     (item) => item.listing.type !== 'room' || Number(item.vegCount || 0) + Number(item.nonVegCount || 0) === Number(item.guests || 0)
   );
@@ -339,6 +341,10 @@ function CheckoutPage() {
               })}
             </div>
             <div className="mt-4 border-t border-white/10 pt-4">
+              <div className="mb-3 flex justify-between text-sm text-slate-300">
+                <span>GST (5%)</span>
+                <span className="font-semibold text-white">{formatCurrency(gstEstimate)}</span>
+              </div>
               {couponDiscount > 0 && (
                 <div className="mb-3 flex justify-between text-sm font-semibold text-lime-200">
                   <span>Coupon {couponOffer.coupon.code}</span>
