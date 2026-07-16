@@ -66,16 +66,22 @@ const computeItemTotals = (listing, draft) => {
 // Spread `total` guests across bundle rooms, respecting each room's
 // min/max occupancy so no single room is over- or under-booked.
 const distributeGuestsAcrossRooms = (totalGuests, bundleRooms) => {
-  const counts = bundleRooms.map((room) => room.minOccupancy || 1);
+  const counts = bundleRooms.map((room) => Math.min(room.minOccupancy || 1, room.capacity || 1));
   let remaining = totalGuests - counts.reduce((sum, count) => sum + count, 0);
 
-  // Large groups can exceed each room's normal maxOccupancy (extra mattresses/floor
-  // space), so once minimums are met, spread any remainder round-robin without a cap.
-  let i = 0;
   while (remaining > 0) {
-    counts[i % counts.length] += 1;
-    remaining -= 1;
-    i += 1;
+    let madeProgress = false;
+
+    for (let i = 0; i < bundleRooms.length && remaining > 0; i += 1) {
+      const capacity = bundleRooms[i].capacity || 1;
+      if (counts[i] < capacity) {
+        counts[i] += 1;
+        remaining -= 1;
+        madeProgress = true;
+      }
+    }
+
+    if (!madeProgress) break;
   }
 
   return counts;
@@ -94,6 +100,8 @@ const splitProportionally = (total, guestsForRoom) => {
     return share;
   });
 };
+
+const hasValidObjectId = (value) => /^[a-f\d]{24}$/i.test(String(value || ''));
 
 const buildGroupBookingItems = (listing, draft, rooms) => {
   const bundleRooms = getGroupBundleRooms(rooms, listing.bundle);
@@ -404,6 +412,11 @@ function HomePage() {
     try {
       if (activeBooking.isGroupBundle) {
         const items = buildGroupBookingItems(activeBooking, bookingDraft, bundleRooms);
+
+        if (!items.length || items.some((item) => !hasValidObjectId(item.listingId))) {
+          toast.error('Room inventory is still loading. Please refresh and try again.');
+          return;
+        }
 
         const { data } = await api.post('/bookings/multi', {
           items,

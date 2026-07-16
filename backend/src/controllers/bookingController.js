@@ -39,6 +39,10 @@ const ALLOWED_GROUP_RATES = [
   { weekday: 1599, weekend: 1699 }, // Group Booking 2 (16-20 guests, full house)
 ];
 
+// Dormitory is marked inactive (not offered as a standalone bookable room on
+// the site) but is still overflow space for both group bundles.
+const DORMITORY_SLUG = 'dormitory-open-loft';
+
 function isAllowedGroupRate(rate) {
   if (!rate) return false;
   return ALLOWED_GROUP_RATES.some(
@@ -220,10 +224,16 @@ export const createMultiBooking = async (req, res, next) => {
       const appliedGroupRate = isGroupBooking && isAllowedGroupRate(groupRate)
         ? { weekday: Number(groupRate.weekday), weekend: Number(groupRate.weekend) }
         : null;
+
+      if (!mongoose.Types.ObjectId.isValid(listingId)) {
+        validationErrors.push('One selected room is invalid. Please refresh and try again.');
+        continue;
+      }
+
       const listing = await Listing.findById(listingId);
 
-      if (!listing || !listing.active) {
-        validationErrors.push(`Listing ${listingId} not found`);
+      if (!listing || (!listing.active && !(isGroupBooking && listing.slug === DORMITORY_SLUG))) {
+        validationErrors.push('One selected room is no longer available. Please refresh and try again.');
         continue;
       }
 
@@ -536,11 +546,6 @@ const ADMIN_GROUP_BUNDLE_TIERS = {
   'except-pent-house': { label: 'Group Booking', weekday: 1699, weekend: 1899, excludePentHouse: true },
   'full-house': { label: 'Full House', weekday: 1599, weekend: 1699, excludePentHouse: false },
 };
-
-// Dormitory is marked inactive (not offered as a standalone bookable room on
-// the site) but is still overflow space for both group bundles — always
-// include it regardless of its `active` flag.
-const DORMITORY_SLUG = 'dormitory-open-loft';
 
 // Admin attests payment was already collected offline (advance/cash/UPI), so
 // every room in the bundle is created confirmed+paid in one atomic action —
