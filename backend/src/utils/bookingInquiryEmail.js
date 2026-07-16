@@ -74,7 +74,7 @@ export const sendBookingInquiryEmail = async (bookings) => {
 
   await sendMail({
     to: first.contactEmail,
-    subject: `Booking Inquiry - ${first.contactName || 'Guest'} (NO payment done)`,
+    subject: 'Bowline booking request received',
     text: lines.join('\n'),
     html,
     kind: 'booking',

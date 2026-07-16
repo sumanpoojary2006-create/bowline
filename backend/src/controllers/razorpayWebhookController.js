@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import dayjs from 'dayjs';
 import Booking from '../models/Booking.js';
 import { sendText } from '../utils/whatsapp.js';
-import { createNotification, notifyAdmins } from '../utils/notifications.js';
+import { createNotification, notifyAdmins, formatAdminBookingEmailSubject } from '../utils/notifications.js';
 import { writeBookingToSheet, writeFullBookingToSheet, isSheetsConfigured } from '../utils/googleSheets.js';
 import { sendBookingConfirmationEmail } from '../utils/bookingConfirmationEmail.js';
 
@@ -85,19 +85,23 @@ export const handleRazorpayWebhook = async (req, res, next) => {
       return;
     }
 
-    const matching = await Booking.find({ ...query, paymentStatus: { $ne: 'paid' } });
+    const matching = (await Booking.find({ ...query, paymentStatus: { $ne: 'paid' } })).filter(
+      (booking) => !(booking.paymentStatus === 'partially_paid' && booking.razorpayPaymentId === paymentId)
+    );
 
     if (!matching.length) {
       res.sendStatus(200);
       return;
     }
 
-    await Booking.updateMany(query, {
-      status: 'confirmed',
-      paymentStatus: 'paid',
-      paymentMethod: 'razorpay',
-      razorpayPaymentId: paymentId,
-    });
+    for (const booking of matching) {
+      booking.status = 'confirmed';
+      booking.paymentStatus = booking.paymentStatus === 'partially_paid' || booking.payInFullRequested ? 'paid' : 'partially_paid';
+      booking.paymentMethod = 'razorpay';
+      booking.razorpayPaymentId = paymentId;
+      booking.payInFullRequested = false;
+      await booking.save();
+    }
 
     const updated = await Booking.find(query)
       .populate('listing')
@@ -107,7 +111,10 @@ export const handleRazorpayWebhook = async (req, res, next) => {
 
     if (first?.contactPhone) {
       const phone = first.contactPhone.replace(/^\+/, '');
-      const grandTotal = updated.reduce((sum, booking) => sum + booking.totalPrice, 0);
+      const totalPaid = updated.reduce(
+        (sum, booking) => sum + (booking.paymentStatus === 'paid' ? booking.totalPrice : Math.round(booking.totalPrice / 2)),
+        0
+      );
 
       const lines = [`*Payment Received - Booking Confirmed!* ✅`, ``, `*Receipt*`];
 
@@ -140,7 +147,7 @@ export const handleRazorpayWebhook = async (req, res, next) => {
 
       lines.push(
         ``,
-        `*Total Paid: Rs ${grandTotal}*`,
+        `*Total Paid: Rs ${totalPaid}*`,
         `Payment ID: ${paymentId || 'N/A'}`,
         ``,
         `See you soon at Bowline Nature Stay! 🌿`
@@ -172,6 +179,7 @@ export const handleRazorpayWebhook = async (req, res, next) => {
     await notifyAdmins({
       title: 'Booking confirmed via payment',
       message: `${first?.contactName} paid via WhatsApp for ${updated.map((b) => b.listing.name).join(', ')}.`,
+      emailSubject: formatAdminBookingEmailSubject(updated, updated.every((b) => b.paymentStatus === 'paid') ? 'full' : 'partial'),
       type: 'booking',
     }).catch(() => {});
 

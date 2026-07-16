@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import Booking from '../models/Booking.js';
 import { createRazorpayOrder, isRazorpayConfigured } from '../utils/razorpay.js';
-import { createNotification, notifyAdmins, formatBookingNotificationDetails } from '../utils/notifications.js';
+import { createNotification, notifyAdmins, formatBookingNotificationDetails, formatAdminBookingEmailSubject } from '../utils/notifications.js';
 import { writeBookingToSheet, writeFullBookingToSheet, isSheetsConfigured } from '../utils/googleSheets.js';
 import { sendBookingConfirmationEmail } from '../utils/bookingConfirmationEmail.js';
 
@@ -199,6 +199,7 @@ export const verifyPayment = async (req, res, next) => {
     notifyAdmins({
       title: adminTitle,
       message: adminCopy(updated[0]),
+      emailSubject: formatAdminBookingEmailSubject(updated, stage === 'deposit' ? 'partial' : 'full'),
       emailBody: `${adminCopy(updated[0])}\n\n${formatBookingNotificationDetails(updated)}`,
       type: 'booking',
     }).catch(() => {});

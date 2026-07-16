@@ -48,7 +48,16 @@ export const formatBookingNotificationDetails = (bookings) => {
   return lines.join('\n').trim();
 };
 
-export const notifyAdmins = async ({ title, message, emailBody, type = 'system' }) => {
+export const formatAdminBookingEmailSubject = (bookings, status) => {
+  const list = Array.isArray(bookings) ? bookings.filter(Boolean) : [bookings].filter(Boolean);
+  const guestName = list[0]?.contactName || 'Guest';
+
+  if (status === 'full') return `Booking Confirmed (100% paid) - ${guestName}`;
+  if (status === 'partial') return `Booking Confirmed (50% paid) - ${guestName}`;
+  return `Booking Inquiry - ${guestName} (NO payment done)`;
+};
+
+export const notifyAdmins = async ({ title, message, emailBody, emailSubject, type = 'system' }) => {
   const admins = await User.find({ role: 'admin' }).select('_id email');
 
   await Promise.all(
@@ -81,7 +90,7 @@ export const notifyAdmins = async ({ title, message, emailBody, type = 'system' 
       try {
         await sendMail({
           to: recipients.join(','),
-          subject: `Bowline Admin: ${title}`,
+          subject: emailSubject || `Bowline Admin: ${title}`,
           text: emailBody || message,
         });
       } catch (error) {

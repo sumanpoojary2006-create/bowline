@@ -20,7 +20,6 @@ export const sendBookingConfirmationEmail = async (bookings) => {
   const balanceDue = list.reduce((sum, booking) => sum + getAmountDue(booking), 0);
   const isFullyPaid = balanceDue === 0;
   const paidLabel = isFullyPaid ? 'Total Paid' : 'Deposit Paid';
-  const paidPercentLabel = isFullyPaid ? '100% paid' : '50% paid';
 
   const lines = [`Hi ${first.contactName},`, '', 'Your booking with Bowline Nature Stay is confirmed!', ''];
 
@@ -71,7 +70,7 @@ export const sendBookingConfirmationEmail = async (bookings) => {
 
   await sendMail({
     to: first.contactEmail,
-    subject: `Booking Confirmed (${paidPercentLabel}) - ${first.contactName || 'Guest'}`,
+    subject: 'Your Bowline booking is confirmed',
     text: lines.join('\n'),
     html,
     attachments: [

@@ -1,7 +1,7 @@
 import Booking from '../models/Booking.js';
 import { calculateBookingPrice } from '../utils/pricing.js';
 import { validateListingAvailability } from '../utils/availability.js';
-import { createNotification, notifyAdmins, formatBookingNotificationDetails } from '../utils/notifications.js';
+import { createNotification, notifyAdmins, formatBookingNotificationDetails, formatAdminBookingEmailSubject } from '../utils/notifications.js';
 import { writeBookingToSheet, writeFullBookingToSheet, isSheetsConfigured } from '../utils/googleSheets.js';
 import { sendBookingInquiryEmail } from '../utils/bookingInquiryEmail.js';
 
@@ -122,6 +122,7 @@ export const runBookingSideEffects = async (booking, contactName) => {
   await notifyAdmins({
     title: 'New booking received',
     message: `${contactName} placed a booking for ${listing.name} via WhatsApp.`,
+    emailSubject: formatAdminBookingEmailSubject(booking, 'inquiry'),
     emailBody: `${contactName} placed a booking for ${listing.name} via WhatsApp.\n\n${formatBookingNotificationDetails({
       ...booking.toObject(),
       listing,

@@ -5,7 +5,7 @@ import Booking from '../models/Booking.js';
 import Listing from '../models/Listing.js';
 import { calculateBookingPrice } from '../utils/pricing.js';
 import { findValidCoupon, normalizeCouponCode } from '../utils/coupons.js';
-import { createNotification, notifyAdmins, formatBookingNotificationDetails } from '../utils/notifications.js';
+import { createNotification, notifyAdmins, formatBookingNotificationDetails, formatAdminBookingEmailSubject } from '../utils/notifications.js';
 import { getExistingBookingsForRange, validateListingAvailability } from '../utils/availability.js';
 import { writeBookingToSheet, writeFullBookingToSheet, clearBookingFromSheet, isSheetsConfigured } from '../utils/googleSheets.js';
 import { sendBookingConfirmationEmail } from '../utils/bookingConfirmationEmail.js';
@@ -171,6 +171,7 @@ export const createBooking = async (req, res, next) => {
     await notifyAdmins({
       title: 'New booking received',
       message: `${contactName} placed a booking for ${listing.name}.`,
+      emailSubject: formatAdminBookingEmailSubject(booking, 'inquiry'),
       emailBody: `${contactName} placed a booking for ${listing.name}.\n\n${formatBookingNotificationDetails({
         ...booking.toObject(),
         listing,
@@ -381,6 +382,7 @@ export const createMultiBooking = async (req, res, next) => {
     await notifyAdmins({
       title: 'New booking received',
       message: `${bookerName} placed a booking for ${createdBookings.length} room${createdBookings.length > 1 ? 's' : ''}.`,
+      emailSubject: formatAdminBookingEmailSubject(createdBookings, 'inquiry'),
       emailBody: `${bookerName} placed a booking for ${createdBookings.length} room${createdBookings.length > 1 ? 's' : ''}.\n\n${formatBookingNotificationDetails(
         createdBookings.map((booking, index) => ({ ...booking.toObject(), listing: preparedItems[index].listing }))
       )}`,
@@ -529,6 +531,14 @@ export const createAdminManualRoomBooking = async (req, res, next) => {
       .populate('user', 'name email phone');
 
     syncToSheet(populatedBooking);
+
+    notifyAdmins({
+      title: 'Booking confirmed — paid in full',
+      message: `${populatedBooking.contactName} paid in full and their booking for ${populatedBooking.listing.name} was added by admin.`,
+      emailSubject: formatAdminBookingEmailSubject(populatedBooking, 'full'),
+      emailBody: `${populatedBooking.contactName} paid in full and their booking for ${populatedBooking.listing.name} was added by admin.\n\n${formatBookingNotificationDetails(populatedBooking)}`,
+      type: 'booking',
+    }).catch(() => {});
 
     sendBookingConfirmationEmail(populatedBooking).catch((error) => {
       console.error('Failed to send booking confirmation email', error);
@@ -711,6 +721,14 @@ export const createAdminGroupBooking = async (req, res, next) => {
       .populate('user', 'name email phone');
 
     populatedBookings.forEach(syncToSheet);
+
+    notifyAdmins({
+      title: 'Booking confirmed — paid in full',
+      message: `${contactName} paid in full and their ${tier.label} booking was added by admin.`,
+      emailSubject: formatAdminBookingEmailSubject(populatedBookings, 'full'),
+      emailBody: `${contactName} paid in full and their ${tier.label} booking was added by admin.\n\n${formatBookingNotificationDetails(populatedBookings)}`,
+      type: 'booking',
+    }).catch(() => {});
 
     sendBookingConfirmationEmail(populatedBookings).catch((error) => {
       console.error('Failed to send booking confirmation email', error);
@@ -960,6 +978,14 @@ export const updateBookingStatus = async (req, res, next) => {
     // a real confirmation, and must never claim "50%/100% Paid" in the subject.
     const hasPaymentOnRecord = booking.paymentStatus === 'paid' || booking.paymentStatus === 'partially_paid';
     if (nextStatus === 'confirmed' && previousStatus !== 'confirmed' && hasPaymentOnRecord) {
+      notifyAdmins({
+        title: booking.paymentStatus === 'paid' ? 'Booking confirmed — paid in full' : 'Pending/Partial Payment — 50% paid',
+        message: `${booking.contactName} booking for ${booking.listing.name} was confirmed by admin.`,
+        emailSubject: formatAdminBookingEmailSubject(booking, booking.paymentStatus === 'paid' ? 'full' : 'partial'),
+        emailBody: `${booking.contactName} booking for ${booking.listing.name} was confirmed by admin.\n\n${formatBookingNotificationDetails(booking)}`,
+        type: 'booking',
+      }).catch(() => {});
+
       sendBookingConfirmationEmail(booking).catch((error) => {
         console.error('Failed to send booking confirmation email', error);
       });
