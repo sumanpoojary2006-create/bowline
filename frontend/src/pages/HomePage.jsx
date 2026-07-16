@@ -38,6 +38,17 @@ const today = () => {
 const tomorrow = () => addDays(today(), 1);
 const increment = (value, amount, min = 0, max = 20) => Math.max(min, Math.min(max, Number(value || 0) + amount));
 const formatStayDate = (date) => date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+const toCalendarDay = (value) => {
+  const date = new Date(value);
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+
+const doesRangeBlockDay = (range, day) => {
+  const dayStart = toCalendarDay(day);
+  const dayEnd = addDays(dayStart, 1);
+  return toCalendarDay(range.startDate) < dayEnd && toCalendarDay(range.endDate) > dayStart;
+};
 
 // Sum a per-night rate (weekday vs weekend) across the stay, mirroring the
 // backend's night-by-night pricing so multi-night stays spanning a weekend
@@ -338,17 +349,11 @@ function HomePage() {
             (r) => r.status === 'confirmed' || r.status === 'blocked'
           );
           days.forEach((day) => {
-            const dayEnd = addDays(day, 1);
-            const isBlocked = blockingRanges.some(
-              (r) => new Date(r.startDate) < dayEnd && new Date(r.endDate) > day
-            );
+            const isBlocked = blockingRanges.some((r) => doesRangeBlockDay(r, day));
             if (isBlocked) bookedDays.add(formatDateParam(day));
           });
           timelineDays.forEach((day) => {
-            const dayEnd = addDays(day, 1);
-            const isBlocked = blockingRanges.some(
-              (r) => new Date(r.startDate) < dayEnd && new Date(r.endDate) > day
-            );
+            const isBlocked = blockingRanges.some((r) => doesRangeBlockDay(r, day));
             if (isBlocked) timelineBookedDays.add(formatDateParam(day));
           });
 
