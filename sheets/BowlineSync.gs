@@ -46,6 +46,9 @@ var STATUS_COLORS = {
   pending:        '#ffffff'
 };
 
+var WEEKEND_DATE_COLOR = '#fff2cc';
+var DATE_DISPLAY_FORMAT = 'dd-ddd-yyyy';
+
 // ── App → Sheet: doPost handler ─────────────────────────────────────────────
 // Receives POST from Bowline backend when a booking is created/updated/cancelled.
 // Actions: upsert | clear | bulkUpsert
@@ -283,8 +286,22 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('Bowline')
     .addItem('Sync All to App', 'syncAllRooms')
+    .addItem('Format Calendar Tabs', 'formatCalendarTabs')
     .addItem('Fix Red Cells', 'fixRedCells')
     .addToUi();
+}
+
+function formatCalendarTabs() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheets = ss.getSheets();
+
+  for (var s = 0; s < sheets.length; s++) {
+    var sheet = sheets[s];
+    if (!sheet.getName().match(/^[A-Za-z]{3} \d{2}$/)) continue;
+    formatMonthSheet(sheet);
+  }
+
+  SpreadsheetApp.getUi().alert('Done! Calendar date format and weekend highlighting updated.');
 }
 
 // ── One-time cleanup: turn every red cell white across all month sheets ────
@@ -375,9 +392,33 @@ function getOrCreateMonthSheet(date) {
   for (var d = 1; d <= daysInMonth; d++) {
     sheet.getRange(d + 1, 1).setValue(new Date(year, month, d));
   }
-  sheet.getRange(2, 1, daysInMonth, 1).setNumberFormat('d mmm');
+  formatMonthSheet(sheet);
 
   return sheet;
+}
+
+function formatMonthSheet(sheet) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+
+  var numRows = lastRow - 1;
+  var dateRange = sheet.getRange(2, 1, numRows, 1);
+  var dates = dateRange.getValues();
+  var backgrounds = [];
+
+  dateRange.setNumberFormat(DATE_DISPLAY_FORMAT);
+
+  for (var i = 0; i < dates.length; i++) {
+    var value = dates[i][0];
+    if (value instanceof Date) {
+      var day = value.getDay();
+      backgrounds.push([(day === 0 || day === 6) ? WEEKEND_DATE_COLOR : '#ffffff']);
+    } else {
+      backgrounds.push(['#ffffff']);
+    }
+  }
+
+  dateRange.setBackgrounds(backgrounds);
 }
 
 function getRowForDate(sheet, date) {

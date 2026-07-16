@@ -72,6 +72,8 @@ var ROOM_COLUMNS = {
 };
 
 var STATUS_COLORS = { confirmed: '#b6d7a8', partially_paid: '#ffe599', pending: '#ea9999' };
+var WEEKEND_DATE_COLOR = '#fff2cc';
+var DATE_DISPLAY_FORMAT = 'dd-ddd-yyyy';
 
 // ── App → Sheet : doPost ─────────────────────────────────────────────────────
 function doPost(e) {
@@ -183,7 +185,20 @@ function syncAllRooms() {
 }
 
 function onOpen() {
-  SpreadsheetApp.getUi().createMenu('Bowline').addItem('Sync All to App', 'syncAllRooms').addToUi();
+  SpreadsheetApp.getUi()
+    .createMenu('Bowline')
+    .addItem('Sync All to App', 'syncAllRooms')
+    .addItem('Format Calendar Tabs', 'formatCalendarTabs')
+    .addToUi();
+}
+
+function formatCalendarTabs() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  ss.getSheets().forEach(function(sheet) {
+    if (!sheet.getName().match(/^[A-Za-z]{3} \\d{2}$/)) return;
+    formatMonthSheet(sheet);
+  });
+  SpreadsheetApp.getUi().alert('Done! Calendar date format and weekend highlighting updated.');
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -202,8 +217,28 @@ function getOrCreateMonthSheet(d) {
   for (var c in ROOM_COLUMNS) { sheet.getRange(1, parseInt(c,10)).setValue(ROOM_COLUMNS[c]); }
   var year = d.getFullYear(), month = d.getMonth(), days = new Date(year, month+1, 0).getDate();
   for (var i = 1; i <= days; i++) { sheet.getRange(i+1, 1).setValue(new Date(year, month, i)); }
-  sheet.getRange(2,1,days,1).setNumberFormat('d mmm');
+  formatMonthSheet(sheet);
   return sheet;
+}
+
+function formatMonthSheet(sheet) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+  var rows = lastRow - 1;
+  var range = sheet.getRange(2, 1, rows, 1);
+  var dates = range.getValues();
+  var backgrounds = [];
+  range.setNumberFormat(DATE_DISPLAY_FORMAT);
+  for (var i = 0; i < dates.length; i++) {
+    var value = dates[i][0];
+    if (value instanceof Date) {
+      var day = value.getDay();
+      backgrounds.push([(day === 0 || day === 6) ? WEEKEND_DATE_COLOR : '#ffffff']);
+    } else {
+      backgrounds.push(['#ffffff']);
+    }
+  }
+  range.setBackgrounds(backgrounds);
 }
 function getRowForDate(sheet, date) {
   var target = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
