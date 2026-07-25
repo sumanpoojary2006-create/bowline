@@ -257,6 +257,8 @@ export const validateListingAvailability = async ({
     if (ownHold) {
       return {
         available: false,
+        code: 'BOOKING_IN_PROGRESS',
+        bookingId: ownHold._id,
         reason: 'You already have a booking in progress for this room on these dates. Complete or cancel that payment before booking it again.',
       };
     }

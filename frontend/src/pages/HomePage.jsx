@@ -448,9 +448,12 @@ function HomePage() {
           });
         } catch (paymentError) {
           if (paymentError.message === 'PAYMENT_CANCELLED') {
-            toast.error('Payment cancelled. Your booking is saved as pending.');
+            toast.error('Payment cancelled. You can resume or cancel the booking from the next page.');
             setActiveBooking(null);
-            navigate('/', { replace: true, state: { resetBookingModal: true } });
+            navigate(`/booking/confirmation/${bookings[0]._id}`, {
+              replace: true,
+              state: { resetBookingModal: true },
+            });
             return;
           } else {
             toast.error('Payment could not be completed. Your booking is saved as pending.');
@@ -486,9 +489,12 @@ function HomePage() {
           });
         } catch (paymentError) {
           if (paymentError.message === 'PAYMENT_CANCELLED') {
-            toast.error('Payment cancelled. Your booking is saved as pending.');
+            toast.error('Payment cancelled. You can resume or cancel the booking from the next page.');
             setActiveBooking(null);
-            navigate('/', { replace: true, state: { resetBookingModal: true } });
+            navigate(`/booking/confirmation/${booking._id}`, {
+              replace: true,
+              state: { resetBookingModal: true },
+            });
             return;
           } else {
             toast.error('Payment could not be completed. Your booking is saved as pending.');
@@ -530,9 +536,12 @@ function HomePage() {
       } catch (paymentError) {
         setRoomCart([]);
         if (paymentError.message === 'PAYMENT_CANCELLED') {
-          toast.error('Payment cancelled. Your bookings are saved as pending.');
+          toast.error('Payment cancelled. You can resume or cancel the booking from the next page.');
           setActiveBooking(null);
-          navigate('/', { replace: true, state: { resetBookingModal: true } });
+          navigate(`/booking/confirmation/${bookings[0]._id}`, {
+            replace: true,
+            state: { resetBookingModal: true },
+          });
           return;
         } else {
           toast.error('Payment could not be completed. Your bookings are saved as pending.');
@@ -542,6 +551,13 @@ function HomePage() {
         });
       }
     } catch (error) {
+      if (error.response?.data?.code === 'BOOKING_IN_PROGRESS' && error.response.data.bookingId) {
+        const bookingId = error.response.data.bookingId;
+        setActiveBooking(null);
+        toast('Resuming your existing booking so you can complete or cancel it.');
+        navigate(`/booking/confirmation/${bookingId}`);
+        return;
+      }
       toast.error(error.response?.data?.message || 'Unable to create booking');
     } finally {
       setPlacingBooking(false);

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import api from '../lib/api';
+import { payForBookings } from '../lib/razorpay';
 import { formatCurrency, formatDateRange } from '../lib/formatters';
 import PageLoader from '../components/PageLoader';
 import BookingSuccessOverlay from '../components/BookingSuccessOverlay';
@@ -10,6 +12,7 @@ function BookingConfirmationPage() {
   const location = useLocation();
   const [booking, setBooking] = useState(location.state?.booking || null);
   const [loading, setLoading] = useState(!location.state?.booking);
+  const [paying, setPaying] = useState(false);
   const [showCelebration, setShowCelebration] = useState(() => {
     if (location.state?.showCelebration) return true;
     return sessionStorage.getItem('bowline_celebrate_booking') === id;
@@ -56,6 +59,36 @@ function BookingConfirmationPage() {
     );
   }
 
+  const handlePendingPayment = async () => {
+    setPaying(true);
+    try {
+      const { bookings } = await payForBookings({
+        bookingIds: [booking._id],
+        contact: {
+          contactName: booking.contactName,
+          contactEmail: booking.contactEmail,
+          contactPhone: booking.contactPhone,
+        },
+        payInFull: Boolean(booking.payInFullRequested),
+      });
+      setBooking(bookings[0]);
+      setShowCelebration(true);
+      toast.success('Payment received — your booking is confirmed.');
+    } catch (error) {
+      if (error.message === 'PAYMENT_CANCELLED') {
+        toast.error('Payment cancelled. You can resume it here whenever you are ready.');
+      } else {
+        toast.error(error.response?.data?.message || 'Unable to process payment');
+      }
+    } finally {
+      setPaying(false);
+    }
+  };
+
+  const pendingAmount = booking.payInFullRequested
+    ? booking.totalPrice
+    : Math.round(booking.totalPrice / 2);
+
   return (
     <section className="section-shell py-16">
       {showCelebration && <BookingSuccessOverlay onClose={() => setShowCelebration(false)} />}
@@ -67,7 +100,7 @@ function BookingConfirmationPage() {
             ? 'Your 50% deposit was received and your booking is confirmed. The remaining balance is due at check-out — pay it anytime from Manage Booking.'
             : booking.paymentStatus === 'paid'
               ? 'Your payment was received and your booking is confirmed. We look forward to hosting you!'
-              : 'Your reservation request has been received. Bowline will review the dates and follow up manually.'}
+              : 'Your booking is waiting for payment. Complete the existing checkout below to confirm it, or use Manage Booking to cancel it.'}
         </p>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
@@ -122,7 +155,20 @@ function BookingConfirmationPage() {
         </div>
 
         <div className="mt-8 flex flex-wrap gap-3">
-          <Link className="btn-primary" to="/manage-booking">
+          {booking.status === 'pending' && booking.paymentStatus === 'pending' ? (
+            <button
+              className="btn-primary"
+              type="button"
+              onClick={handlePendingPayment}
+              disabled={paying}
+            >
+              {paying ? 'Opening payment...' : `Complete payment · ${formatCurrency(pendingAmount)}`}
+            </button>
+          ) : null}
+          <Link
+            className="btn-primary"
+            to={`/manage-booking?q=${encodeURIComponent(booking.contactEmail || booking.contactPhone || booking._id)}`}
+          >
             Manage Booking
           </Link>
           <Link className="btn-secondary" to="/">

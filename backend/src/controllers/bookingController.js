@@ -100,8 +100,11 @@ export const createBooking = async (req, res, next) => {
     });
 
     if (!availability.available) {
-      res.status(400);
-      throw new Error(availability.reason);
+      res.status(availability.code === 'BOOKING_IN_PROGRESS' ? 409 : 400);
+      const error = new Error(availability.reason);
+      error.code = availability.code;
+      error.bookingId = availability.bookingId;
+      throw error;
     }
 
     const pricing = await calculateBookingPrice({
@@ -1064,6 +1067,7 @@ const serializeGuestBooking = (booking) => {
     pricingBreakdown: booking.pricingBreakdown,
     status: booking.status,
     paymentStatus: booking.paymentStatus,
+    payInFullRequested: booking.payInFullRequested,
     contactName: booking.contactName,
     contactEmail: booking.contactEmail,
     contactPhone: booking.contactPhone,

@@ -58,7 +58,7 @@ export const createPaymentOrder = async (req, res, next) => {
     }
 
     const { bookingIds, payInFull } = req.body;
-    const ids = Array.isArray(bookingIds) ? bookingIds : [bookingIds];
+    let ids = Array.isArray(bookingIds) ? bookingIds : [bookingIds];
 
     if (!ids.length || ids.some((id) => !id)) {
       res.status(400);
@@ -66,39 +66,93 @@ export const createPaymentOrder = async (req, res, next) => {
     }
 
     const ownerFilter = req.user ? { user: req.user._id } : { user: null };
-    const bookings = await Booking.find({ _id: { $in: ids }, ...ownerFilter });
+    let bookings = await Booking.find({ _id: { $in: ids }, ...ownerFilter });
 
     if (bookings.length !== ids.length) {
       res.status(404);
       throw new Error('Booking not found');
     }
 
-    const totalAmount = bookings.reduce((sum, booking) => sum + getAmountDue(booking, payInFull), 0);
+    let reusableOrderId =
+      bookings.every(
+        (booking) =>
+          booking.status === 'pending' &&
+          booking.paymentStatus === 'pending' &&
+          booking.razorpayOrderId &&
+          booking.razorpayOrderId === bookings[0].razorpayOrderId
+      )
+        ? bookings[0].razorpayOrderId
+        : null;
+
+    // A multi-room checkout stores the same order ID on every booking. When a
+    // guest resumes from one room's confirmation card, restore the complete
+    // order so the amount and verification still cover the whole checkout.
+    if (reusableOrderId) {
+      const orderBookings = await Booking.find({
+        razorpayOrderId: reusableOrderId,
+        ...ownerFilter,
+      });
+
+      if (
+        orderBookings.length > 0 &&
+        orderBookings.every(
+          (booking) => booking.status === 'pending' && booking.paymentStatus === 'pending'
+        )
+      ) {
+        bookings = orderBookings;
+        ids = bookings.map((booking) => String(booking._id));
+      } else {
+        reusableOrderId = null;
+      }
+    }
+
     const isFinalPayment = bookings.every((booking) => booking.paymentStatus === 'partially_paid');
+    // An unpaid Razorpay order can be opened again safely. Reusing it avoids
+    // creating two live orders for one booking when a guest closes checkout
+    // and later resumes payment.
+    const effectivePayInFull = reusableOrderId
+      ? bookings.some((booking) => booking.payInFullRequested)
+      : Boolean(payInFull);
+    const totalAmount = bookings.reduce(
+      (sum, booking) => sum + getAmountDue(booking, effectivePayInFull),
+      0
+    );
 
     if (totalAmount <= 0) {
       res.status(400);
       throw new Error('This booking has already been paid in full.');
     }
 
-    const order = await createRazorpayOrder({
-      amount: Math.round(totalAmount * 100),
-      currency: 'INR',
-      receipt: `bowline_${String(bookings[0]._id)}_${Date.now()}`.slice(0, 40),
-      notes: { bookingIds: ids.join(',') },
-    });
+    const order = reusableOrderId
+      ? {
+          id: reusableOrderId,
+          amount: Math.round(totalAmount * 100),
+          currency: 'INR',
+        }
+      : await createRazorpayOrder({
+          amount: Math.round(totalAmount * 100),
+          currency: 'INR',
+          receipt: `bowline_${String(bookings[0]._id)}_${Date.now()}`.slice(0, 40),
+          notes: { bookingIds: ids.join(',') },
+        });
 
-    await Booking.updateMany(
-      { _id: { $in: ids } },
-      { razorpayOrderId: order.id, payInFullRequested: !isFinalPayment && Boolean(payInFull) }
-    );
+    if (!reusableOrderId) {
+      await Booking.updateMany(
+        { _id: { $in: ids } },
+        { razorpayOrderId: order.id, payInFullRequested: !isFinalPayment && effectivePayInFull }
+      );
+    }
 
     res.json({
       orderId: order.id,
       amount: order.amount,
       currency: order.currency,
       keyId: process.env.RAZORPAY_KEY_ID,
-      description: isFinalPayment ? 'Remaining balance' : payInFull ? 'Full payment (100%)' : 'Booking deposit (50%)',
+      description: isFinalPayment
+        ? 'Remaining balance'
+        : effectivePayInFull
+          ? 'Full payment (100%)'
+          : 'Booking deposit (50%)',
     });
   } catch (error) {
     next(error);

@@ -125,16 +125,22 @@ function BookingCard({ booking, onUpdated }) {
   const contact = booking.contactEmail || booking.contactPhone;
   const depositAmount = Math.round(booking.totalPrice / 2);
   const remainingBalance = booking.totalPrice - depositAmount;
+  const pendingAmount = booking.payInFullRequested ? booking.totalPrice : depositAmount;
 
   const handlePayRemainingBalance = async () => {
     setPayingBalance(true);
     try {
-      const { data } = await payForBookings({
+      const { bookings: updatedBookings } = await payForBookings({
         bookingIds: [booking._id],
         contact: { contactName: booking.contactName, contactEmail: booking.contactEmail, contactPhone: booking.contactPhone },
+        payInFull: booking.paymentStatus === 'pending' && Boolean(booking.payInFullRequested),
       });
-      toast.success('Remaining balance paid — see you soon!');
-      onUpdated(data.bookings[0]);
+      toast.success(
+        booking.paymentStatus === 'pending'
+          ? 'Payment received — your booking is confirmed!'
+          : 'Remaining balance paid — see you soon!'
+      );
+      onUpdated(updatedBookings[0]);
     } catch (error) {
       if (error.message === 'PAYMENT_CANCELLED') {
         toast.error('Payment cancelled');
@@ -311,6 +317,22 @@ function BookingCard({ booking, onUpdated }) {
             disabled={payingBalance}
           >
             {payingBalance ? 'Processing...' : `Pay remaining ${formatCurrency(remainingBalance)} now`}
+          </button>
+        </div>
+      ) : null}
+
+      {booking.paymentStatus === 'pending' && booking.status === 'pending' ? (
+        <div className="mt-4 rounded-[1.25rem] border border-amber-400/20 bg-amber-400/5 p-4">
+          <p className="text-sm text-amber-200">
+            Payment has not been completed. Resume the existing checkout or cancel this booking before trying the same room and dates again.
+          </p>
+          <button
+            type="button"
+            className="btn-primary mt-3"
+            onClick={handlePayRemainingBalance}
+            disabled={payingBalance}
+          >
+            {payingBalance ? 'Opening payment...' : `Complete payment · ${formatCurrency(pendingAmount)}`}
           </button>
         </div>
       ) : null}

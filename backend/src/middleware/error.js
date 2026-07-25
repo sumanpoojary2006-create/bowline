@@ -8,5 +8,7 @@ export const errorHandler = (error, req, res, next) => {
 
   res.status(statusCode).json({
     message: error.message || 'Something went wrong',
+    ...(error.code ? { code: error.code } : {}),
+    ...(error.bookingId ? { bookingId: String(error.bookingId) } : {}),
   });
 };
