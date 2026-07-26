@@ -201,6 +201,20 @@ export const verifyPayment = async (req, res, next) => {
       throw new Error('Booking not found for this payment');
     }
 
+    // The Razorpay webhook fires for this exact payment independently and can
+    // beat this call here. If it already recorded this payment ID, the
+    // paymentStatus below is no longer "before this payment" — re-running the
+    // stage logic would misread the deposit the webhook just recorded as the
+    // final/remaining-balance payment and send a second, wrong confirmation.
+    // Just return the current state instead of re-processing.
+    if (bookings[0].razorpayPaymentId === razorpay_payment_id) {
+      const alreadyUpdated = await Booking.find({ razorpayOrderId: razorpay_order_id, ...ownerFilter })
+        .populate('listing')
+        .populate('user', 'name email phone');
+      res.json({ bookings: alreadyUpdated });
+      return;
+    }
+
     // 'final' = paying the remaining balance at check-out; 'full' = guest opted to
     // pay 100% upfront instead of the default 50% deposit; 'deposit' = the default.
     const stageFor = (booking) => {

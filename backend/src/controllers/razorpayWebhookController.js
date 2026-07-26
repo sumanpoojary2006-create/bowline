@@ -2,7 +2,12 @@ import crypto from 'crypto';
 import dayjs from 'dayjs';
 import Booking from '../models/Booking.js';
 import { sendText } from '../utils/whatsapp.js';
-import { createNotification, notifyAdmins, formatAdminBookingEmailSubject } from '../utils/notifications.js';
+import {
+  createNotification,
+  notifyAdmins,
+  formatAdminBookingEmailSubject,
+  formatBookingNotificationDetails,
+} from '../utils/notifications.js';
 import { writeBookingToSheet, writeFullBookingToSheet, isSheetsConfigured } from '../utils/googleSheets.js';
 import { sendBookingConfirmationEmail } from '../utils/bookingConfirmationEmail.js';
 
@@ -85,8 +90,16 @@ export const handleRazorpayWebhook = async (req, res, next) => {
       return;
     }
 
+    // The website checkout flow calls /payments/verify directly the moment
+    // Razorpay confirms payment client-side, and this webhook fires for the
+    // exact same payment independently (Razorpay sends it for every captured
+    // payment, not just WhatsApp payment links). Whichever of the two runs
+    // second must treat this payment as already handled — otherwise it reads
+    // the paymentStatus the other one just wrote, mistakes a single deposit
+    // for the final/remaining-balance payment, and sends a second, wrong
+    // "100% paid" confirmation.
     const matching = (await Booking.find({ ...query, paymentStatus: { $ne: 'paid' } })).filter(
-      (booking) => !(booking.paymentStatus === 'partially_paid' && booking.razorpayPaymentId === paymentId)
+      (booking) => booking.razorpayPaymentId !== paymentId
     );
 
     if (!matching.length) {
@@ -183,10 +196,19 @@ export const handleRazorpayWebhook = async (req, res, next) => {
       }
     }
 
+    // This webhook fires for every captured payment on the account, not just
+    // WhatsApp payment links (the website checkout flow shares the same
+    // Razorpay account) — so the message must not assume WhatsApp.
+    const roomNames = updated.map((b) => b.listing.name).join(', ');
+    const message = paymentLinkId
+      ? `${first?.contactName} paid via WhatsApp for ${roomNames}.`
+      : `${first?.contactName} paid for ${roomNames}.`;
+
     await notifyAdmins({
       title: 'Booking confirmed via payment',
-      message: `${first?.contactName} paid via WhatsApp for ${updated.map((b) => b.listing.name).join(', ')}.`,
+      message,
       emailSubject: formatAdminBookingEmailSubject(updated, updated.every((b) => b.paymentStatus === 'paid') ? 'full' : 'partial'),
+      emailBody: `${message}\n\n${formatBookingNotificationDetails(updated)}`,
       type: 'booking',
     }).catch(() => {});
 
