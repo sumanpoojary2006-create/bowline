@@ -60,6 +60,10 @@ function AdminBlockRoomsPage() {
       toast.error('Fill in dates and a reason');
       return;
     }
+    if (form.endDate <= form.startDate) {
+      toast.error('"To" date must be after "From" date');
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -181,6 +185,7 @@ function AdminBlockRoomsPage() {
                 <input
                   type="date"
                   className="input"
+                  min={form.startDate || undefined}
                   value={form.endDate}
                   onChange={(e) => setField('endDate', e.target.value)}
                 />

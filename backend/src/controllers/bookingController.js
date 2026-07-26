@@ -1475,6 +1475,24 @@ export const blockRoomDates = async (req, res, next) => {
       throw new Error('listingIds, startDate and endDate are required');
     }
 
+    const normalizedStart = new Date(startDate);
+    const normalizedEnd = new Date(endDate);
+
+    if (Number.isNaN(normalizedStart.getTime()) || Number.isNaN(normalizedEnd.getTime())) {
+      res.status(400);
+      throw new Error('Invalid dates supplied');
+    }
+
+    // A reversed range (end before start) breaks the overlap query every
+    // other availability check relies on — Mongo silently finds no
+    // conflicts, so the block would exist in the database but never
+    // actually stop a booking. Reject it here instead of creating a
+    // block that looks real but does nothing.
+    if (normalizedEnd <= normalizedStart) {
+      res.status(400);
+      throw new Error('End date must be after start date');
+    }
+
     const listings = await Listing.find({ _id: { $in: ids } });
     if (listings.length !== ids.length) {
       res.status(404);
@@ -1488,8 +1506,8 @@ export const blockRoomDates = async (req, res, next) => {
         listing: listing._id,
         user: req.user._id,
         bookingType: 'room',
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
+        startDate: normalizedStart,
+        endDate: normalizedEnd,
         status: 'blocked',
         paymentStatus: 'paid',
         paymentMethod: 'manual',
