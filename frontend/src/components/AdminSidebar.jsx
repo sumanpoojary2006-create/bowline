@@ -10,6 +10,7 @@ const groups = [
     label: 'Bookings',
     items: [
       { label: 'Listings', to: '/admin/listings' },
+      { label: 'Block Rooms', to: '/admin/block-rooms' },
       { label: 'Bookings', to: '/admin/bookings' },
       { label: 'Room Calendar', to: '/admin/calendar' },
       { label: 'Pricing', to: '/admin/pricing' },

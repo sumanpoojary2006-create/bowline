@@ -18,6 +18,7 @@ const ManageBookingPage = lazy(() => import('./pages/ManageBookingPage'));
 const BookingConfirmationPage = lazy(() => import('./pages/BookingConfirmationPage'));
 const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage'));
 const AdminListingsPage = lazy(() => import('./pages/AdminListingsPage'));
+const AdminBlockRoomsPage = lazy(() => import('./pages/AdminBlockRoomsPage'));
 const AdminBookingsPage = lazy(() => import('./pages/AdminBookingsPage'));
 const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage'));
 const AdminPricingPage = lazy(() => import('./pages/AdminPricingPage'));
@@ -93,6 +94,7 @@ function App() {
           <Route index element={<Navigate to="overview" replace />} />
           <Route path="overview" element={<AdminDashboardPage />} />
           <Route path="listings" element={<AdminListingsPage />} />
+          <Route path="block-rooms" element={<AdminBlockRoomsPage />} />
           <Route path="bookings" element={<AdminBookingsPage />} />
           <Route path="calendar" element={<AdminCalendarPage />} />
           <Route path="reports" element={<AdminReportsPage />} />

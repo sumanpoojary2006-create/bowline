@@ -236,6 +236,7 @@ export const validateListingAvailability = async ({
     listingId: listing._id,
     startDate: normalizedStart,
     endDate: normalizedEnd,
+    statuses: ['pending', 'confirmed', 'blocked'],
   });
 
   if (listing.type === 'room') {

@@ -1266,7 +1266,7 @@ const buildRescheduleQuote = async (booking, startDate, endDate) => {
     listingId: booking.listing._id,
     startDate: normalizedStart,
     endDate: normalizedEnd,
-    statuses: ['confirmed'],
+    statuses: ['confirmed', 'blocked'],
     excludeBookingId: booking._id,
   });
 
@@ -1470,37 +1470,48 @@ export const confirmReschedule = async (req, res, next) => {
 };
 
 // ── POST /api/bookings/admin/block ──────────────────────────────────────────
+// Accepts either a single listingId or a listingIds array so an admin can
+// block the same date range + reason across several rooms in one action.
 export const blockRoomDates = async (req, res, next) => {
   try {
-    const { listingId, startDate, endDate, blockNote = 'Blocked' } = req.body;
+    const { listingId, listingIds, startDate, endDate, blockNote = 'Blocked' } = req.body;
+    const ids = Array.isArray(listingIds) && listingIds.length ? listingIds : listingId ? [listingId] : [];
 
-    if (!listingId || !startDate || !endDate) {
+    if (!ids.length || !startDate || !endDate) {
       res.status(400);
-      throw new Error('listingId, startDate and endDate are required');
+      throw new Error('listingIds, startDate and endDate are required');
     }
 
-    const listing = await Listing.findById(listingId);
-    if (!listing) { res.status(404); throw new Error('Listing not found'); }
+    const listings = await Listing.find({ _id: { $in: ids } });
+    if (listings.length !== ids.length) {
+      res.status(404);
+      throw new Error('One or more listings were not found');
+    }
 
-    const block = await Booking.create({
-      listing: listing._id,
-      user: req.user._id,
-      bookingType: 'room',
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
-      status: 'blocked',
-      paymentStatus: 'paid',
-      paymentMethod: 'manual',
-      blockNote: String(blockNote).trim() || 'Blocked',
-      contactName: 'Admin Block',
-      contactEmail: 'admin@bowline.internal',
-      guests: 1,
-      adultGuests: 1,
-      totalPrice: 0,
-      source: 'admin',
-    });
+    const note = String(blockNote).trim() || 'Blocked';
 
-    res.status(201).json({ block });
+    const blocks = await Booking.insertMany(
+      listings.map((listing) => ({
+        listing: listing._id,
+        user: req.user._id,
+        bookingType: 'room',
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        status: 'blocked',
+        paymentStatus: 'paid',
+        paymentMethod: 'manual',
+        blockNote: note,
+        contactName: 'Admin Block',
+        contactEmail: 'admin@bowline.internal',
+        guests: 1,
+        adultGuests: 1,
+        unitPrice: 0,
+        totalPrice: 0,
+        source: 'admin',
+      }))
+    );
+
+    res.status(201).json({ blocks });
   } catch (error) {
     next(error);
   }
