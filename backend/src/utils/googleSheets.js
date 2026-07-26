@@ -82,7 +82,15 @@ async function callAppsScript(payload) {
     if (!res.ok) {
       throw new Error(`Apps Script responded ${res.status}: ${await res.text()}`);
     }
-    return res.json().catch(() => ({}));
+
+    // Apps Script's doPost catches its own errors and still replies with
+    // HTTP 200, wrapping the real failure in the JSON body (e.g. a secret
+    // mismatch) — checking res.ok alone treats those as silent success.
+    const result = await res.json().catch(() => ({}));
+    if (result.ok === false) {
+      throw new Error(result.error || 'Apps Script reported failure');
+    }
+    return result;
   });
 }
 

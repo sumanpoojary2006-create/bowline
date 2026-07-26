@@ -1529,7 +1529,9 @@ export const blockRoomDates = async (req, res, next) => {
     // response is sent, killing any still-in-flight fire-and-forget call.
     await Promise.all(
       blocks.map((block, idx) =>
-        writeBookingToSheet({ ...block.toObject(), listing: listings[idx] }).catch(() => {})
+        writeBookingToSheet({ ...block.toObject(), listing: listings[idx] }).catch((err) =>
+          console.error('[blockRoomDates] Sheet sync failed:', err.message)
+        )
       )
     );
 
@@ -1545,7 +1547,9 @@ export const unblockRoomDates = async (req, res, next) => {
     const block = await Booking.findOneAndDelete({ _id: req.params.id, status: 'blocked' }).populate('listing');
     if (!block) { res.status(404); throw new Error('Block not found'); }
     if (isSheetsConfigured()) {
-      await clearBookingFromSheet(block).catch(() => {});
+      await clearBookingFromSheet(block).catch((err) =>
+        console.error('[unblockRoomDates] Sheet sync failed:', err.message)
+      );
     }
     res.json({ success: true });
   } catch (error) {
