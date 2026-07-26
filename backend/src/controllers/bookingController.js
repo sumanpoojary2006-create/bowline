@@ -1524,10 +1524,14 @@ export const blockRoomDates = async (req, res, next) => {
 
     // insertMany preserves input order, so blocks[i] is listings[i]'s block —
     // pair them up to color the calendar sheet red without writing a fake
-    // "Admin Block" row into the full booking-log sheet.
-    blocks.forEach((block, idx) => {
-      writeBookingToSheet({ ...block.toObject(), listing: listings[idx] }).catch(() => {});
-    });
+    // "Admin Block" row into the full booking-log sheet. Must be awaited
+    // before responding — Vercel can freeze the function the instant the
+    // response is sent, killing any still-in-flight fire-and-forget call.
+    await Promise.all(
+      blocks.map((block, idx) =>
+        writeBookingToSheet({ ...block.toObject(), listing: listings[idx] }).catch(() => {})
+      )
+    );
 
     res.status(201).json({ blocks });
   } catch (error) {
@@ -1540,7 +1544,9 @@ export const unblockRoomDates = async (req, res, next) => {
   try {
     const block = await Booking.findOneAndDelete({ _id: req.params.id, status: 'blocked' }).populate('listing');
     if (!block) { res.status(404); throw new Error('Block not found'); }
-    unsyncFromSheet(block);
+    if (isSheetsConfigured()) {
+      await clearBookingFromSheet(block).catch(() => {});
+    }
     res.json({ success: true });
   } catch (error) {
     next(error);
