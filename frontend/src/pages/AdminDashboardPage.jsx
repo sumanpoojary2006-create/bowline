@@ -46,14 +46,14 @@ function timeAgo(value) {
 
 function StatCard({ icon: Icon, label, value, hint }) {
   return (
-    <div className="glass rounded-[2rem] p-5">
+    <div className="glass min-w-0 overflow-hidden rounded-[2rem] p-5">
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-lime-200/10 text-lime-200">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-lime-200/10 text-lime-200">
           <Icon className="h-5 w-5" />
         </div>
         <p className="text-sm text-[#b7c2b2]">{label}</p>
       </div>
-      <p className="mt-4 text-3xl font-bold text-white">{value}</p>
+      <p className="mt-4 break-words text-3xl font-bold text-white">{value}</p>
       {hint ? <p className="mt-1 text-xs text-lime-100/45">{hint}</p> : null}
     </div>
   );
