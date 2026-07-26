@@ -39,10 +39,15 @@ export const sendTomorrowGuestReportEmail = async () => {
     lines.push('No guests checked in for this date.');
   } else {
     report.entries.forEach((entry) => {
+      const paymentLabel =
+        entry.paymentStatus === 'paid'
+          ? `100% paid (Rs ${entry.totalPrice})`
+          : `50% paid (Rs ${entry.amountPaid} paid, Rs ${entry.amountDue} due)`;
+
       lines.push(
         `- ${entry.room}: ${entry.contactName} (${entry.contactPhone || 'no phone'}) - ${entry.adultGuests} adult${entry.adultGuests > 1 ? 's' : ''}${
           entry.childGuests ? `, ${entry.childGuests} child${entry.childGuests > 1 ? 'ren' : ''}` : ''
-        }, Meals V/NV: ${entry.vegCount}/${entry.nonVegCount}`
+        }, Meals V/NV: ${entry.vegCount}/${entry.nonVegCount}, ${paymentLabel}`
       );
     });
   }

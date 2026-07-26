@@ -9,7 +9,6 @@ import { createNotification, notifyAdmins, formatBookingNotificationDetails, for
 import { getExistingBookingsForRange, validateListingAvailability } from '../utils/availability.js';
 import { writeBookingToSheet, writeFullBookingToSheet, clearBookingFromSheet, isSheetsConfigured } from '../utils/googleSheets.js';
 import { sendBookingConfirmationEmail } from '../utils/bookingConfirmationEmail.js';
-import { sendBookingInquiryEmail } from '../utils/bookingInquiryEmail.js';
 import { isEmailConfigured, sendMail } from '../utils/email.js';
 import { createRazorpayOrder, createRazorpayRefund, isRazorpayConfigured } from '../utils/razorpay.js';
 import { daysUntil, getCancellationRefundPercent, getRescheduleFeePercent } from '../utils/bookingPolicy.js';
@@ -187,9 +186,6 @@ export const createBooking = async (req, res, next) => {
       .populate('user', 'name email phone');
 
     await syncToSheet(populatedBooking);
-    await sendBookingInquiryEmail(populatedBooking).catch((error) => {
-      console.error('Failed to send booking inquiry email', error);
-    });
     res.status(201).json({ booking: populatedBooking });
   } catch (error) {
     next(error);
@@ -397,9 +393,6 @@ export const createMultiBooking = async (req, res, next) => {
       .populate('user', 'name email phone');
 
     await Promise.all(populatedBookings.map(syncToSheet));
-    await sendBookingInquiryEmail(populatedBookings).catch((error) => {
-      console.error('Failed to send booking inquiry email', error);
-    });
 
     res.status(201).json({ bookings: populatedBookings, groupId });
   } catch (error) {

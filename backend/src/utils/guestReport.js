@@ -1,5 +1,6 @@
 import dayjs from 'dayjs';
 import Booking from '../models/Booking.js';
+import { getAmountPaid, getAmountDue } from '../controllers/paymentController.js';
 
 export const getGuestsForDate = async (dateInput) => {
   const dayStart = dayjs(dateInput).startOf('day').toDate();
@@ -34,6 +35,10 @@ export const buildDailyReport = async (dateInput) => {
     checkIn: booking.startDate,
     checkOut: booking.endDate,
     specialRequests: booking.specialRequests,
+    totalPrice: booking.totalPrice,
+    paymentStatus: booking.paymentStatus,
+    amountPaid: getAmountPaid(booking),
+    amountDue: getAmountDue(booking),
   }));
 
   entries.sort((a, b) => a.room.localeCompare(b.room));

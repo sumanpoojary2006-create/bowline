@@ -68,6 +68,15 @@ export const generateDailyReportPdf = (report) =>
 
         doc.moveDown(1.6);
 
+        const paymentLabel =
+          entry.paymentStatus === 'paid'
+            ? `Payment: 100% paid (Rs ${entry.totalPrice})`
+            : `Payment: 50% paid (Rs ${entry.amountPaid} paid, Rs ${entry.amountDue} due)`;
+        doc.font('Helvetica').fontSize(8).fillColor('#555');
+        doc.text(paymentLabel, colX.room, doc.y, { width: 500 });
+        doc.fillColor('#000').fontSize(9);
+        doc.moveDown(0.3);
+
         if (entry.specialRequests) {
           doc.font('Helvetica-Oblique').fontSize(8).fillColor('#555');
           doc.text(`Note: ${entry.specialRequests}`, colX.room, doc.y, { width: 500 });

@@ -94,6 +94,11 @@ export const handleRazorpayWebhook = async (req, res, next) => {
       return;
     }
 
+    // A booking already sitting at partially_paid means this payment is the
+    // remaining balance at check-out, not the initial confirmation — the
+    // guest already got their one confirmation email for the deposit.
+    const isFinalPayment = matching.every((booking) => booking.paymentStatus === 'partially_paid');
+
     for (const booking of matching) {
       booking.status = 'confirmed';
       booking.paymentStatus = booking.paymentStatus === 'partially_paid' || booking.payInFullRequested ? 'paid' : 'partially_paid';
@@ -159,9 +164,11 @@ export const handleRazorpayWebhook = async (req, res, next) => {
       });
     }
 
-    await sendBookingConfirmationEmail(updated).catch((error) => {
-      console.error('[Razorpay webhook] confirmation email failed:', error?.message);
-    });
+    if (!isFinalPayment) {
+      await sendBookingConfirmationEmail(updated).catch((error) => {
+        console.error('[Razorpay webhook] confirmation email failed:', error?.message);
+      });
+    }
 
     for (const booking of updated) {
       await syncToSheet(booking);

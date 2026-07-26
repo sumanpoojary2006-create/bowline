@@ -3,7 +3,6 @@ import { calculateBookingPrice } from '../utils/pricing.js';
 import { validateListingAvailability } from '../utils/availability.js';
 import { createNotification, notifyAdmins, formatBookingNotificationDetails, formatAdminBookingEmailSubject } from '../utils/notifications.js';
 import { writeBookingToSheet, writeFullBookingToSheet, isSheetsConfigured } from '../utils/googleSheets.js';
-import { sendBookingInquiryEmail } from '../utils/bookingInquiryEmail.js';
 
 // Awaited before returning so the initial (pending) sheet write can't race
 // the later "confirmed" write from payment verification — see the matching
@@ -131,7 +130,4 @@ export const runBookingSideEffects = async (booking, contactName) => {
   });
 
   await syncToSheet(booking);
-  await sendBookingInquiryEmail(booking).catch((error) => {
-    console.error('Failed to send booking inquiry email', error);
-  });
 };
