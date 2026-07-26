@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import Booking from '../models/Booking.js';
-import { createRazorpayOrder, isRazorpayConfigured } from '../utils/razorpay.js';
+import { createRazorpayOrder, fetchRazorpayOrder, isRazorpayConfigured } from '../utils/razorpay.js';
 import { createNotification, notifyAdmins, formatBookingNotificationDetails, formatAdminBookingEmailSubject } from '../utils/notifications.js';
 import { writeBookingToSheet, writeFullBookingToSheet, isSheetsConfigured } from '../utils/googleSheets.js';
 import { sendBookingConfirmationEmail } from '../utils/bookingConfirmationEmail.js';
@@ -123,20 +123,35 @@ export const createPaymentOrder = async (req, res, next) => {
       throw new Error('This booking has already been paid in full.');
     }
 
-    const order = reusableOrderId
-      ? {
-          id: reusableOrderId,
-          amount: Math.round(totalAmount * 100),
-          currency: 'INR',
-        }
-      : await createRazorpayOrder({
-          amount: Math.round(totalAmount * 100),
-          currency: 'INR',
-          receipt: `bowline_${String(bookings[0]._id)}_${Date.now()}`.slice(0, 40),
-          notes: { bookingIds: ids.join(',') },
-        });
+    // Never repurpose a reused order with a locally-recomputed amount — an
+    // order's amount is immutable once created at Razorpay, so if the amount
+    // due has drifted since (reschedule, coupon, a sibling booking changing
+    // state) Checkout would reject every attempt against it with a generic
+    // "trouble completing your request" failure. Trust Razorpay's own record
+    // of the order instead, and only reuse it when it still agrees.
+    let order = null;
 
-    if (!reusableOrderId) {
+    if (reusableOrderId) {
+      const existingOrder = await fetchRazorpayOrder(reusableOrderId).catch(() => null);
+
+      if (existingOrder?.status === 'paid') {
+        res.status(409);
+        throw new Error('This booking has already been paid. Refresh the page to see the latest status.');
+      }
+
+      if (existingOrder && existingOrder.amount === Math.round(totalAmount * 100)) {
+        order = existingOrder;
+      }
+    }
+
+    if (!order) {
+      order = await createRazorpayOrder({
+        amount: Math.round(totalAmount * 100),
+        currency: 'INR',
+        receipt: `bowline_${String(bookings[0]._id)}_${Date.now()}`.slice(0, 40),
+        notes: { bookingIds: ids.join(',') },
+      });
+
       await Booking.updateMany(
         { _id: { $in: ids } },
         { razorpayOrderId: order.id, payInFullRequested: !isFinalPayment && effectivePayInFull }

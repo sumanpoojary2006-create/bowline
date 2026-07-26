@@ -38,6 +38,26 @@ export async function createRazorpayOrder({ amount, currency = 'INR', receipt, n
   return data;
 }
 
+export async function fetchRazorpayOrder(orderId) {
+  const authHeader = getAuthHeader();
+
+  if (!authHeader) {
+    throw new Error('Razorpay is not configured');
+  }
+
+  const response = await fetch(`${RAZORPAY_API_BASE}/orders/${orderId}`, {
+    headers: { Authorization: authHeader },
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error?.description || 'Unable to fetch Razorpay order');
+  }
+
+  return data;
+}
+
 export async function createPaymentLink({ amount, currency = 'INR', description, customer, notes, callback_url }) {
   const authHeader = getAuthHeader();
 
