@@ -52,13 +52,17 @@ export const pushToSheet = async (req, res, next) => {
 
     const bookings = await Booking.find({
       bookingType: 'room',
-      status: { $in: ['pending', 'confirmed'] },
+      status: { $in: ['pending', 'confirmed', 'blocked'] },
     })
       .populate('listing', 'name')
       .populate('user', 'name');
 
+    // Blocked rooms aren't real guest bookings — color them on the calendar
+    // but keep the fake "Admin Block" contact off the Bookings log sheet.
     const { pushed } = await pushAllBookingsToSheet(bookings);
-    const { pushed: pushedFull } = await pushAllFullBookingsToSheet(bookings);
+    const { pushed: pushedFull } = await pushAllFullBookingsToSheet(
+      bookings.filter((b) => b.status !== 'blocked')
+    );
     res.json({
       message: `Pushed ${pushed} bookings to the calendar and ${pushedFull} rows to the Bookings sheet`,
       total: bookings.length,

@@ -25,6 +25,7 @@ export const STATUS_COLORS = {
   partially_paid: '#ffe599', // yellow – 50% deposit paid
   pending:        '#ffffff', // no color – not yet confirmed
   cancelled:      '#ffffff', // no color – cleared
+  blocked:        '#e06666', // red    – admin-blocked, unavailable to guests
 };
 
 // The Sheet's cell color is keyed on this calendar status, which is a step
@@ -33,6 +34,7 @@ export const STATUS_COLORS = {
 // admin can see at a glance that the balance is still outstanding.
 function getCalendarStatus(booking) {
   if (booking.status === 'cancelled') return 'cancelled';
+  if (booking.status === 'blocked') return 'blocked';
   if (booking.paymentStatus === 'partially_paid') return 'partially_paid';
   return booking.status;
 }
