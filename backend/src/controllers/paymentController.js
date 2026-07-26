@@ -1,43 +1,28 @@
 import crypto from 'crypto';
 import Booking from '../models/Booking.js';
 import { createRazorpayOrder, fetchRazorpayOrder, isRazorpayConfigured } from '../utils/razorpay.js';
-import { createNotification, notifyAdmins, formatBookingNotificationDetails, formatAdminBookingEmailSubject } from '../utils/notifications.js';
+import {
+  createNotification,
+  notifyAdmins,
+  formatBookingNotificationDetails,
+  formatBookingNotificationDetailsHtml,
+  formatAdminBookingEmailSubject,
+} from '../utils/notifications.js';
 import { writeBookingToSheet, writeFullBookingToSheet, isSheetsConfigured } from '../utils/googleSheets.js';
 import { sendBookingConfirmationEmail } from '../utils/bookingConfirmationEmail.js';
+import { getDepositAmount, getAmountDue, getAmountPaid } from '../utils/bookingAmounts.js';
+
+// Re-exported so existing importers (receiptPdf.js, guestReport.js,
+// bookingConfirmationEmail.js) don't need to change — the actual definitions
+// live in utils/bookingAmounts.js so notifications.js can use them too
+// without creating a circular import back into this controller.
+export { getDepositAmount, getAmountDue, getAmountPaid };
 
 function syncToSheet(booking) {
   if (!isSheetsConfigured()) return;
   writeBookingToSheet(booking).catch(() => {});
   writeFullBookingToSheet(booking).catch(() => {});
 }
-
-// Bookings are paid in two installments: 50% deposit at booking time, the
-// remaining 50% online at check-out. The deposit amount is derived from
-// totalPrice rather than stored, so it always reflects the booking's current
-// price (e.g. after a reschedule).
-export const getDepositAmount = (booking) => Math.round(booking.totalPrice / 2);
-
-export const getAmountDue = (booking, payInFull = false) => {
-  if (booking.paymentStatus === 'paid') return 0;
-  if (booking.paymentStatus === 'partially_paid') return booking.totalPrice - getDepositAmount(booking);
-  return payInFull ? booking.totalPrice : getDepositAmount(booking);
-};
-
-// What the guest has actually paid for this booking so far. Use this anywhere
-// a "Total Paid" figure is shown — for partially-paid bookings, this is the
-// 50% deposit (plus any reschedule fee if applicable), not the full total.
-export const getAmountPaid = (booking) => {
-  const deposit = getDepositAmount(booking);
-  const rescheduleFee = Number(booking.rescheduleFeeAmount || 0);
-
-  if (booking.paymentStatus === 'paid') {
-    return booking.totalPrice + rescheduleFee;
-  }
-  if (booking.paymentStatus === 'partially_paid') {
-    return deposit + rescheduleFee;
-  }
-  return rescheduleFee; // 'pending' or 'failed' — only the reschedule fee if any
-};
 
 // Razorpay rejects any refund request under 100 paise (₹1) — this only ever
 // bites on our sub-rupee test bookings, but without a floor the refund call
@@ -284,6 +269,7 @@ export const verifyPayment = async (req, res, next) => {
       message: adminCopy(updated[0]),
       emailSubject: formatAdminBookingEmailSubject(updated, stage === 'deposit' ? 'partial' : 'full'),
       emailBody: `${adminCopy(updated[0])}\n\n${formatBookingNotificationDetails(updated)}`,
+      emailHtml: `<p style="font-family: Arial, sans-serif;">${adminCopy(updated[0])}</p>${formatBookingNotificationDetailsHtml(updated)}`,
       type: 'booking',
     }).catch(() => {});
 

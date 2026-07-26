@@ -30,7 +30,7 @@ function drawHeader(doc) {
   doc.font('Helvetica').fontSize(8.5).fillColor('#666')
     .text('Bowline Nature Stay', MARGIN + 150, headerTop + 24, { align: 'right', width: CONTENT_WIDTH - 150 })
     .text('Devaramane, Mudigere, Chikkamagaluru', MARGIN + 150, headerTop + 36, { align: 'right', width: CONTENT_WIDTH - 150 })
-    .text('bowlinestays@gmail.com | +91 74116 60024 | www.bowlinestays.com', MARGIN + 150, headerTop + 48, {
+    .text('bowlinestays@gmail.com | +91 63660 04404 | www.bowlinestays.com', MARGIN + 150, headerTop + 48, {
       align: 'right',
       width: CONTENT_WIDTH - 150,
     });
@@ -161,7 +161,7 @@ export const generateBookingReceiptPdf = (bookings) =>
     doc.moveTo(MARGIN, footerY).lineTo(MARGIN + CONTENT_WIDTH, footerY).strokeColor('#d9e8d0').lineWidth(0.8).stroke();
     doc.font('Helvetica').fontSize(8).fillColor('#777')
       .text('Thank you for choosing Bowline Nature Stay.', MARGIN, footerY + 10, { align: 'center', width: CONTENT_WIDTH })
-      .text('bowlinestays@gmail.com | +91 74116 60024 | www.bowlinestays.com', MARGIN, footerY + 24, {
+      .text('bowlinestays@gmail.com | +91 63660 04404 | www.bowlinestays.com', MARGIN, footerY + 24, {
         align: 'center',
         width: CONTENT_WIDTH,
       });

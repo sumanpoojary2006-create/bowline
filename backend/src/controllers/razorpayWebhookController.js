@@ -7,6 +7,7 @@ import {
   notifyAdmins,
   formatAdminBookingEmailSubject,
   formatBookingNotificationDetails,
+  formatBookingNotificationDetailsHtml,
 } from '../utils/notifications.js';
 import { writeBookingToSheet, writeFullBookingToSheet, isSheetsConfigured } from '../utils/googleSheets.js';
 import { sendBookingConfirmationEmail } from '../utils/bookingConfirmationEmail.js';
@@ -209,6 +210,7 @@ export const handleRazorpayWebhook = async (req, res, next) => {
       message,
       emailSubject: formatAdminBookingEmailSubject(updated, updated.every((b) => b.paymentStatus === 'paid') ? 'full' : 'partial'),
       emailBody: `${message}\n\n${formatBookingNotificationDetails(updated)}`,
+      emailHtml: `<p style="font-family: Arial, sans-serif;">${message}</p>${formatBookingNotificationDetailsHtml(updated)}`,
       type: 'booking',
     }).catch(() => {});
 

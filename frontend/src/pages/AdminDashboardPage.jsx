@@ -46,15 +46,17 @@ function timeAgo(value) {
 
 function StatCard({ icon: Icon, label, value, hint }) {
   return (
-    <div className="glass min-w-0 overflow-hidden rounded-[2rem] p-5">
+    <div className="glass flex h-full min-w-0 flex-col overflow-hidden rounded-[1.75rem] p-5 transition hover:border-lime-100/25">
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-lime-200/10 text-lime-200">
           <Icon className="h-5 w-5" />
         </div>
         <p className="text-sm text-[#b7c2b2]">{label}</p>
       </div>
-      <p className="mt-4 break-words text-3xl font-bold text-white">{value}</p>
-      {hint ? <p className="mt-1 text-xs text-lime-100/45">{hint}</p> : null}
+      <p className="mt-4 break-words text-[1.65rem] font-bold leading-tight text-white tabular-nums sm:text-3xl">
+        {value}
+      </p>
+      {hint ? <p className="mt-auto pt-2 text-xs text-lime-100/45">{hint}</p> : null}
     </div>
   );
 }
@@ -191,119 +193,129 @@ function AdminDashboardPage() {
   const { overview, notifications } = payload;
   const breakdownEntries = Object.entries(overview.breakdown || {}).filter(([, count]) => count > 0);
 
+  const syncButton = (
+    <button
+      className="btn-secondary flex shrink-0 items-center gap-2"
+      onClick={syncAllAirbnb}
+      disabled={syncing}
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582M20 20v-5h-.581M5.635 15A9 9 0 104.582 9H4" />
+      </svg>
+      {syncing ? 'Syncing…' : 'Sync Airbnb'}
+    </button>
+  );
+
   return (
     <div className="space-y-6">
       <SectionHeader
         eyebrow="Admin Dashboard"
         title="Command center"
         description="A snapshot of confirmed bookings, revenue, and what needs your attention."
+        action={syncButton}
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="grid flex-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          <StatCard icon={CalendarDaysIcon} label="Total bookings" value={overview.totalBookings} />
-          <StatCard icon={BanknotesIcon} label="Estimated booking value" value={formatCurrency(overview.revenue)} />
-          <StatCard icon={BuildingOffice2Icon} label="Active listings" value={overview.activeListings} />
-          <StatCard icon={UsersIcon} label="Active users" value={overview.activeUsers} />
-          <StatCard
-            icon={ChatBubbleLeftRightIcon}
-            label="WhatsApp contacts"
-            value={whatsappContactCount === null ? '—' : whatsappContactCount}
-          />
-        </div>
-        <button
-          className="btn-secondary flex shrink-0 items-center gap-2 self-start"
-          onClick={syncAllAirbnb}
-          disabled={syncing}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582M20 20v-5h-.581M5.635 15A9 9 0 104.582 9H4" />
-          </svg>
-          {syncing ? 'Syncing…' : 'Sync Airbnb'}
-        </button>
-      </div>
-
-      <div className="glass rounded-[2rem] p-6">
-        <h2 className="text-lg font-semibold text-white">Airbnb "Full House" calendar</h2>
-        <p className="mt-1 text-sm text-[#b7c2b2]">
-          Airbnb sells the whole property as its own separate listing, with its own calendar URL.
-          Paste that listing's export calendar link here so a Full House reservation blocks every
-          room (including ones without their own Airbnb listing) — it isn't linked automatically.
-        </p>
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <input
-            type="url"
-            className="input min-w-0 flex-1"
-            placeholder="https://www.airbnb.co.in/calendar/ical/....ics?t=..."
-            value={fullHouseUrl}
-            onChange={(event) => setFullHouseUrl(event.target.value)}
-          />
-          <button
-            className="btn-secondary shrink-0"
-            onClick={saveFullHouseUrl}
-            disabled={savingFullHouseUrl || fullHouseUrl.trim() === fullHouseUrlSaved.trim()}
-          >
-            {savingFullHouseUrl ? 'Saving…' : 'Save'}
-          </button>
-        </div>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
+        <StatCard icon={CalendarDaysIcon} label="Total bookings" value={overview.totalBookings} />
+        <StatCard icon={BanknotesIcon} label="Estimated booking value" value={formatCurrency(overview.revenue)} />
+        <StatCard icon={BuildingOffice2Icon} label="Active listings" value={overview.activeListings} />
+        <StatCard icon={UsersIcon} label="Active users" value={overview.activeUsers} />
+        <StatCard
+          icon={ChatBubbleLeftRightIcon}
+          label="WhatsApp contacts"
+          value={whatsappContactCount === null ? '—' : whatsappContactCount}
+        />
       </div>
 
       {breakdownEntries.length > 0 ? (
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7c8a76]">
+            Bookings by type
+          </span>
           {breakdownEntries.map(([type, count]) => (
-            <div key={type} className="glass rounded-full px-4 py-2 text-sm text-[#cdd6c9]">
+            <div key={type} className="glass rounded-full px-4 py-1.5 text-sm text-[#cdd6c9]">
               <span className="font-semibold text-white">{count}</span> {TYPE_LABELS[type] || type}
             </div>
           ))}
         </div>
       ) : null}
 
-      <div className="glass rounded-[2rem] p-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-semibold text-white">Monthly analytics</h2>
-            <p className="mt-1 text-sm text-[#b7c2b2]">Revenue and booking activity for the selected month.</p>
+      <div className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
+        <div className="glass rounded-[2rem] p-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-semibold text-white">Monthly analytics</h2>
+              <p className="mt-1 text-sm text-[#b7c2b2]">Revenue and booking activity for the selected month.</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <input
+                type="month"
+                className="input"
+                value={month}
+                onChange={(event) => setMonth(event.target.value)}
+              />
+              <button className="btn-secondary" onClick={downloadMonthlyCsv} disabled={downloading}>
+                {downloading ? 'Preparing...' : 'Download CSV'}
+              </button>
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+
+          {analyticsLoading || !analytics ? (
+            <p className="mt-6 text-sm text-[#b7c2b2]">Loading analytics...</p>
+          ) : (
+            <>
+              <div className="mt-6 grid gap-4 sm:grid-cols-3">
+                <StatCard icon={BanknotesIcon} label="Monthly revenue" value={formatCurrency(analytics.revenue)} hint="Confirmed bookings only" />
+                <StatCard icon={CalendarDaysIcon} label="Confirmed bookings" value={analytics.confirmedBookings} />
+                <StatCard icon={CalendarDaysIcon} label="Cancelled bookings" value={analytics.cancelledBookings} />
+              </div>
+
+              {Object.keys(analytics.bySource || {}).length > 0 ? (
+                <div className="mt-6">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7c8a76]">By source</p>
+                  <div className="mt-3 flex flex-wrap gap-3">
+                    {Object.entries(analytics.bySource).map(([source, stats]) => (
+                      <div
+                        key={source}
+                        className="rounded-[1.25rem] border border-lime-100/10 bg-[#0f1912]/90 px-4 py-3 text-sm text-[#cdd6c9]"
+                      >
+                        <p className="font-semibold text-white">{SOURCE_LABELS[source] || source}</p>
+                        <p className="mt-1 text-xs text-[#8b9686]">
+                          {stats.count} booking{stats.count === 1 ? '' : 's'} · {formatCurrency(stats.revenue)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </>
+          )}
+        </div>
+
+        <div className="glass rounded-[2rem] p-6">
+          <h2 className="text-lg font-semibold text-white">Airbnb "Full House" calendar</h2>
+          <p className="mt-2 text-sm text-[#b7c2b2]">
+            Airbnb sells the whole property as its own separate listing, with its own calendar URL.
+            Paste that listing's export calendar link here so a Full House reservation blocks every
+            room (including ones without their own Airbnb listing) — it isn't linked automatically.
+          </p>
+          <div className="mt-4 space-y-3">
             <input
-              type="month"
+              type="url"
               className="input"
-              value={month}
-              onChange={(event) => setMonth(event.target.value)}
+              placeholder="https://www.airbnb.co.in/calendar/ical/....ics?t=..."
+              value={fullHouseUrl}
+              onChange={(event) => setFullHouseUrl(event.target.value)}
             />
-            <button className="btn-secondary" onClick={downloadMonthlyCsv} disabled={downloading}>
-              {downloading ? 'Preparing...' : 'Download CSV'}
+            <button
+              className="btn-secondary w-full"
+              onClick={saveFullHouseUrl}
+              disabled={savingFullHouseUrl || fullHouseUrl.trim() === fullHouseUrlSaved.trim()}
+            >
+              {savingFullHouseUrl ? 'Saving…' : 'Save'}
             </button>
           </div>
         </div>
-
-        {analyticsLoading || !analytics ? (
-          <p className="mt-6 text-sm text-[#b7c2b2]">Loading analytics...</p>
-        ) : (
-          <>
-            <div className="mt-6 grid gap-4 md:grid-cols-3">
-              <StatCard icon={BanknotesIcon} label="Monthly revenue" value={formatCurrency(analytics.revenue)} hint="Confirmed bookings only" />
-              <StatCard icon={CalendarDaysIcon} label="Confirmed bookings" value={analytics.confirmedBookings} />
-              <StatCard icon={CalendarDaysIcon} label="Cancelled bookings" value={analytics.cancelledBookings} />
-            </div>
-
-            {Object.keys(analytics.bySource || {}).length > 0 ? (
-              <div className="mt-6">
-                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">By source</p>
-                <div className="mt-3 flex flex-wrap gap-3">
-                  {Object.entries(analytics.bySource).map(([source, stats]) => (
-                    <div key={source} className="glass rounded-[1.25rem] px-4 py-3 text-sm text-[#cdd6c9]">
-                      <p className="font-semibold text-white">{SOURCE_LABELS[source] || source}</p>
-                      <p className="mt-1 text-xs text-slate-400">
-                        {stats.count} booking{stats.count === 1 ? '' : 's'} · {formatCurrency(stats.revenue)}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </>
-        )}
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
@@ -325,7 +337,7 @@ function AdminDashboardPage() {
               overview.upcomingBookings.map((booking) => (
                 <div
                   key={booking._id}
-                  className="flex items-center justify-between gap-4 rounded-[1.5rem] bg-slate-900/70 p-4"
+                  className="flex items-center justify-between gap-4 rounded-[1.5rem] border border-lime-100/10 bg-[#0f1912]/90 p-4"
                 >
                   <div className="flex items-center gap-4">
                     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-lime-200/10 text-lime-200">
@@ -333,12 +345,12 @@ function AdminDashboardPage() {
                     </div>
                     <div>
                       <p className="text-lg font-semibold text-white">{booking.listing?.name}</p>
-                      <p className="mt-1 text-sm text-slate-400">{booking.user?.name}</p>
+                      <p className="mt-1 text-sm text-[#8b9686]">{booking.user?.name}</p>
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-medium text-white">{formatDate(booking.startDate)}</p>
-                    <p className="mt-1 text-xs text-slate-400">{formatCurrency(booking.totalPrice)}</p>
+                    <p className="mt-1 text-xs text-[#8b9686]">{formatCurrency(booking.totalPrice)}</p>
                   </div>
                 </div>
               ))
@@ -359,12 +371,12 @@ function AdminDashboardPage() {
               <EmptyState title="All quiet" description="New booking and payment alerts will show up here." />
             ) : (
               notifications.map((notification) => (
-                <div key={notification._id} className="rounded-[1.5rem] bg-slate-900/70 p-4">
+                <div key={notification._id} className="rounded-[1.5rem] border border-lime-100/10 bg-[#0f1912]/90 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <p className="font-semibold text-white">{notification.title}</p>
-                    <p className="shrink-0 text-xs text-slate-500">{timeAgo(notification.createdAt)}</p>
+                    <p className="shrink-0 text-xs text-[#8b9686]">{timeAgo(notification.createdAt)}</p>
                   </div>
-                  <p className="mt-2 text-sm text-slate-300">{notification.message}</p>
+                  <p className="mt-2 text-sm text-[#c3cebf]">{notification.message}</p>
                 </div>
               ))
             )}
