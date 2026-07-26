@@ -102,10 +102,17 @@ export async function writeBookingToSheet(booking) {
   if (!roomName || !ROOM_COLUMN_INDEX[roomName]) return;
 
   const calStatus = getCalendarStatus(booking);
+  // A block's "guest" is a fake placeholder contact — show the admin's
+  // reason for blocking instead, which is what's actually useful in the cell.
+  const cellLabel =
+    booking.status === 'blocked'
+      ? booking.blockNote || 'Blocked'
+      : booking.contactName || booking.user?.name || '';
+
   await callAppsScript({
     action:    'upsert',
     roomName,
-    guestName: booking.contactName || booking.user?.name || '',
+    guestName: cellLabel,
     startDate: toDateStr(booking.startDate),
     endDate:   toDateStr(booking.endDate),
     status:    calStatus,
