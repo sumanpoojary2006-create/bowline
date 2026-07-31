@@ -1,18 +1,25 @@
 import Booking from '../models/Booking.js';
 
+const blocksRoom = (range) => range.status === 'confirmed' || range.status === 'blocked';
+
 export const getBookedDateRanges = async (listingId, fromDate, toDate) => {
   const bookings = await Booking.find({
     listing: listingId,
-    status: { $in: ['confirmed', 'pending', 'blocked'] },
-    paymentStatus: { $ne: 'failed' },
+    $or: [
+      { status: { $in: ['confirmed', 'blocked'] } },
+      { status: 'pending', paymentStatus: { $in: ['paid', 'partially_paid'] } },
+    ],
     startDate: { $lt: new Date(toDate) },
     endDate: { $gt: new Date(fromDate) },
-  }).select('startDate endDate status blockNote');
+  }).select('startDate endDate status paymentStatus blockNote');
 
   return bookings.map((b) => ({
     startDate: b.startDate,
     endDate: b.endDate,
-    status: b.status,
+    // A paid pending record is an occupied room. Expose it as confirmed to
+    // calendar consumers so an older sheet sync that downgraded a red block
+    // to pending cannot make the dates appear open.
+    status: b.status === 'pending' ? 'confirmed' : b.status,
     blockNote: b.blockNote,
   }));
 };
@@ -25,7 +32,7 @@ export const getNextAvailableWindow = async (listingId, nights, fromDate, maxDay
 
   const isWindowFree = (start, end) =>
     !bookedRanges.some(
-      (r) => r.status === 'confirmed' && r.startDate < end && r.endDate > start
+      (r) => blocksRoom(r) && r.startDate < end && r.endDate > start
     );
 
   const cursor = new Date(fromDate);
@@ -52,7 +59,7 @@ export const getNextAvailableWindowMulti = async (listingIds, nights, fromDate, 
 
   const isWindowFree = (start, end) =>
     !bookedRanges.some(
-      (r) => r.status === 'confirmed' && new Date(r.startDate) < end && new Date(r.endDate) > start
+      (r) => blocksRoom(r) && new Date(r.startDate) < end && new Date(r.endDate) > start
     );
 
   const cursor = new Date(fromDate);
@@ -81,7 +88,7 @@ export const getPreviousAvailableWindow = async (listingId, nights, fromDate, ma
 
   const isWindowFree = (start, end) =>
     !bookedRanges.some(
-      (r) => r.status === 'confirmed' && r.startDate < end && r.endDate > start
+      (r) => blocksRoom(r) && r.startDate < end && r.endDate > start
     );
 
   const cursor = new Date(fromDate);
@@ -101,7 +108,7 @@ export const getPreviousAvailableWindow = async (listingId, nights, fromDate, ma
 export const isWindowAvailable = async (listingId, startDate, endDate) => {
   const bookedRanges = await getBookedDateRanges(listingId, startDate, endDate);
   return !bookedRanges.some(
-    (r) => r.status === 'confirmed' && r.startDate < endDate && r.endDate > startDate
+    (r) => blocksRoom(r) && r.startDate < endDate && r.endDate > startDate
   );
 };
 
@@ -115,7 +122,7 @@ export const getBlockingListingIds = async (listingIds, startDate, endDate) => {
       const ranges = await getBookedDateRanges(listingId, startDate, endDate);
       const blocked = ranges.some(
         (r) =>
-          (r.status === 'confirmed' || r.status === 'blocked') &&
+          blocksRoom(r) &&
           new Date(r.startDate) < endDate &&
           new Date(r.endDate) > startDate
       );

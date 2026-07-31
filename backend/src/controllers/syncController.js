@@ -143,13 +143,25 @@ export const inboundWebhook = async (req, res, next) => {
       );
 
       if (existing) {
-        const newStatus = sb.status === 'confirmed' ? 'confirmed' : 'pending';
-        if (existing.status !== newStatus || existing.contactName !== sb.guestName) {
+        const newStatus = sb.status;
+        const newContactName = newStatus === 'blocked' ? 'Admin Block' : sb.guestName;
+        const newBlockNote = newStatus === 'blocked' ? sb.guestName : '';
+        if (
+          existing.status !== newStatus ||
+          existing.contactName !== newContactName ||
+          (existing.blockNote || '') !== newBlockNote
+        ) {
           existing.status = newStatus;
-          existing.contactName = sb.guestName;
+          existing.contactName = newContactName;
+          existing.blockNote = newBlockNote;
+          if (newStatus === 'blocked') {
+            existing.paymentStatus = 'paid';
+          }
           await existing.save();
-          const populated = await Booking.findById(existing._id).populate('listing').populate('user', 'name email');
-          await writeFullBookingToSheet(populated).catch(() => {});
+          if (newStatus !== 'blocked') {
+            const populated = await Booking.findById(existing._id).populate('listing').populate('user', 'name email');
+            await writeFullBookingToSheet(populated).catch(() => {});
+          }
           results.updated++;
         }
       } else {
@@ -168,19 +180,26 @@ export const inboundWebhook = async (req, res, next) => {
           startDate:    sb.startDate,
           endDate:      sb.endDate,
           guests:       1,
-          unitPrice:    pricing.unitPrice,
-          totalPrice:   pricing.totalPrice,
-          pricingBreakdown: { basePrice: pricing.basePrice, adjustments: pricing.adjustments },
-          status:       sb.status === 'confirmed' ? 'confirmed' : 'pending',
-          paymentStatus: 'pending',
+          unitPrice:    sb.status === 'blocked' ? 0 : pricing.unitPrice,
+          totalPrice:   sb.status === 'blocked' ? 0 : pricing.totalPrice,
+          pricingBreakdown:
+            sb.status === 'blocked'
+              ? { basePrice: 0, adjustments: [] }
+              : { basePrice: pricing.basePrice, adjustments: pricing.adjustments },
+          status:       sb.status,
+          paymentStatus: sb.status === 'blocked' ? 'paid' : 'pending',
           paymentMethod: 'manual',
-          contactName:  sb.guestName,
+          contactName:  sb.status === 'blocked' ? 'Admin Block' : sb.guestName,
           contactEmail: 'sheet-import@bowline.internal',
           contactPhone: '',
-          specialRequests: 'Created via Google Sheet',
+          blockNote:    sb.status === 'blocked' ? sb.guestName : '',
+          specialRequests: sb.status === 'blocked' ? 'Blocked via Google Sheet' : 'Created via Google Sheet',
+          source:       'sheet',
         });
-        const populated = await Booking.findById(created._id).populate('listing').populate('user', 'name email');
-        await writeFullBookingToSheet(populated).catch(() => {});
+        if (sb.status !== 'blocked') {
+          const populated = await Booking.findById(created._id).populate('listing').populate('user', 'name email');
+          await writeFullBookingToSheet(populated).catch(() => {});
+        }
         results.created++;
       }
     }

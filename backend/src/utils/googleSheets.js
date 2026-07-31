@@ -194,7 +194,10 @@ export async function pushAllBookingsToSheet(bookings) {
     .filter((b) => b.listing?.name && ROOM_COLUMN_INDEX[b.listing.name])
     .map((b) => ({
       roomName:  b.listing.name,
-      guestName: b.contactName || b.user?.name || '',
+      guestName:
+        b.status === 'blocked'
+          ? b.blockNote || 'Blocked'
+          : b.contactName || b.user?.name || '',
       startDate: toDateStr(b.startDate),
       endDate:   toDateStr(b.endDate),
       status:    getCalendarStatus(b),
@@ -260,11 +263,12 @@ export function groupCellsIntoBookings(cells, roomName) {
 
   for (const cell of cells) {
     const guest = (cell.value || '').trim();
+    const status = mapColor(cell.color);
     if (!guest) {
       if (current) { bookings.push(current); current = null; }
       continue;
     }
-    if (current && current.guestName === guest) {
+    if (current && current.guestName === guest && current.status === status) {
       const end = new Date(cell.date);
       end.setDate(end.getDate() + 1);
       current.endDate = end;
@@ -277,7 +281,7 @@ export function groupCellsIntoBookings(cells, roomName) {
         guestName: guest,
         startDate: new Date(cell.date),
         endDate:   end,
-        status:    mapColor(cell.color),
+        status,
       };
     }
   }
@@ -287,7 +291,12 @@ export function groupCellsIntoBookings(cells, roomName) {
 
 function mapColor(hex) {
   const h = (hex || '').toLowerCase();
+  if (h === '#e06666' || h === '#cc0000' || h === '#ea9999') return 'blocked';
   if (h === '#b6d7a8' || h === '#93c47d') return 'confirmed';
+  // Yellow represents a confirmed booking with a deposit outstanding. The
+  // calendar-column webhook does not carry payment details, but it must still
+  // preserve the fact that the room is unavailable.
+  if (h === '#ffe599' || h === '#ffd966') return 'confirmed';
   return 'pending';
 }
 
