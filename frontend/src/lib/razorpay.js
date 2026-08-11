@@ -1,5 +1,19 @@
 import api from './api';
 
+// Keep card payments explicit and first in every Razorpay checkout. Razorpay
+// still appends the other methods enabled for the merchant account.
+const paymentMethodConfig = {
+  method: 'card',
+  config: {
+    display: {
+      sequence: ['card'],
+      preferences: {
+        show_default_blocks: true,
+      },
+    },
+  },
+};
+
 export function loadRazorpayScript() {
   return new Promise((resolve) => {
     if (window.Razorpay) {
@@ -30,6 +44,7 @@ export async function payRescheduleFee({ bookingId, contact, startDate, endDate 
 
   return new Promise((resolve, reject) => {
     const checkout = new window.Razorpay({
+      ...paymentMethodConfig,
       key: data.keyId,
       amount: data.amount,
       currency: data.currency,
@@ -77,6 +92,7 @@ export async function payForBookings({ bookingIds, contact, payInFull = false })
 
   return new Promise((resolve, reject) => {
     const checkout = new window.Razorpay({
+      ...paymentMethodConfig,
       key: data.keyId,
       amount: data.amount,
       currency: data.currency,

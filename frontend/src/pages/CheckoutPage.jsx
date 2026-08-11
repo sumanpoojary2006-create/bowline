@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { useBookingCart } from '../context/BookingCartContext';
 import api from '../lib/api';
 import { formatCurrency, formatDate } from '../lib/formatters';
+import { payForBookings } from '../lib/razorpay';
 import { GST_RATE } from '../lib/roomRates';
 
 function CheckoutPage() {
@@ -28,6 +29,7 @@ function CheckoutPage() {
   const [submitting, setSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [confirmedBookingId, setConfirmedBookingId] = useState(null);
+  const [paymentPlan, setPaymentPlan] = useState('deposit');
 
   useEffect(() => {
     if (user) {
@@ -145,9 +147,26 @@ function CheckoutPage() {
         couponCode: couponOffer?.coupon?.code || '',
       });
 
+      const bookingIds = data.bookings.map((booking) => booking._id);
       clearCart();
-      setConfirmedBookingId(data.bookings?.[0]?._id || null);
-      setShowSuccess(true);
+      setConfirmedBookingId(bookingIds[0] || null);
+
+      try {
+        const result = await payForBookings({
+          bookingIds,
+          contact,
+          payInFull: paymentPlan === 'full',
+        });
+        setConfirmedBookingId(result.bookings?.[0]?._id || bookingIds[0] || null);
+        setShowSuccess(true);
+      } catch (paymentError) {
+        if (paymentError.message === 'PAYMENT_CANCELLED') {
+          toast.error('Payment cancelled. You can resume it from your booking page.');
+        } else {
+          toast.error(paymentError.response?.data?.message || 'Payment could not be completed. Your booking is saved as pending.');
+        }
+        navigate(bookingIds[0] ? `/booking/confirmation/${bookingIds[0]}` : '/manage-booking');
+      }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Unable to complete booking');
     } finally {
@@ -431,8 +450,38 @@ function CheckoutPage() {
                 Select veg or non-veg meal preference for every guest before confirming.
               </p>
             ) : null}
+            <div className="rounded-[1.25rem] border border-lime-100/10 bg-black/20 p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-lime-200/80">Payment</p>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <label className={`cursor-pointer rounded-xl border p-3 text-sm ${paymentPlan === 'deposit' ? 'border-lime-300 bg-lime-200/10 text-white' : 'border-white/10 text-slate-300'}`}>
+                  <input
+                    className="sr-only"
+                    type="radio"
+                    name="checkoutPaymentPlan"
+                    checked={paymentPlan === 'deposit'}
+                    onChange={() => setPaymentPlan('deposit')}
+                  />
+                  <span className="font-semibold">Pay 50% now</span>
+                  <span className="mt-1 block text-xs text-slate-400">{formatCurrency(Math.round(finalEstimate / 2))}</span>
+                </label>
+                <label className={`cursor-pointer rounded-xl border p-3 text-sm ${paymentPlan === 'full' ? 'border-lime-300 bg-lime-200/10 text-white' : 'border-white/10 text-slate-300'}`}>
+                  <input
+                    className="sr-only"
+                    type="radio"
+                    name="checkoutPaymentPlan"
+                    checked={paymentPlan === 'full'}
+                    onChange={() => setPaymentPlan('full')}
+                  />
+                  <span className="font-semibold">Pay 100% now</span>
+                  <span className="mt-1 block text-xs text-slate-400">{formatCurrency(finalEstimate)}</span>
+                </label>
+              </div>
+              <p className="mt-3 text-xs text-slate-400">Credit/debit card and other enabled Razorpay methods are available.</p>
+            </div>
             <button className="btn-primary w-full disabled:opacity-50" type="submit" disabled={submitting || !mealSelectionComplete}>
-              {submitting ? 'Placing Booking...' : `Confirm ${items.length} Booking${items.length > 1 ? 's' : ''}`}
+              {submitting
+                ? 'Opening Payment...'
+                : `Pay ${formatCurrency(paymentPlan === 'full' ? finalEstimate : Math.round(finalEstimate / 2))} now`}
             </button>
           </form>
         </div>
