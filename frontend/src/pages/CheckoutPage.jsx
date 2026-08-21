@@ -385,7 +385,7 @@ function CheckoutPage() {
                   <span className="mt-1 block text-xs text-slate-400">{formatCurrency(finalEstimate)}</span>
                 </label>
               </div>
-              <p className="mt-3 text-xs text-slate-400">Credit/debit card and other enabled Razorpay methods are available.</p>
+              <p className="mt-3 text-xs text-slate-400">UPI, net banking and other enabled Razorpay methods are available.</p>
             </div>
             <button className="btn-primary w-full disabled:opacity-50" type="submit" disabled={submitting}>
               {submitting

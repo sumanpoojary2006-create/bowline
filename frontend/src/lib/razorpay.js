@@ -1,12 +1,15 @@
 import api from './api';
 
-// Keep card payments explicit and first in every Razorpay checkout. Razorpay
-// still appends the other methods enabled for the merchant account.
+// UPI leads because it's the only method currently completing: card payments
+// fail at Razorpay's payment_initiation step with an internal SERVER_ERROR
+// (32 of 33 attempts since July 2026), so defaulting to card sent almost
+// every guest into a failed payment. Card stays in the list for anyone who
+// wants it. Put 'card' back at the front of the sequence once Razorpay has
+// resolved the initiation failures.
 const paymentMethodConfig = {
-  method: 'card',
   config: {
     display: {
-      sequence: ['card'],
+      sequence: ['upi'],
       preferences: {
         show_default_blocks: true,
       },
