@@ -7,7 +7,7 @@ import { calculateBookingPrice } from '../utils/pricing.js';
 import { findValidCoupon, normalizeCouponCode } from '../utils/coupons.js';
 import { createNotification, notifyAdmins, formatBookingNotificationDetails, formatAdminBookingEmailSubject } from '../utils/notifications.js';
 import { getExistingBookingsForRange, validateListingAvailability } from '../utils/availability.js';
-import { writeBookingToSheet, writeFullBookingToSheet, clearBookingFromSheet, isSheetsConfigured } from '../utils/googleSheets.js';
+import { writeBookingToSheet, writeFullBookingToSheet, refreshSheetRange, isSheetsConfigured } from '../utils/googleSheets.js';
 import { sendBookingConfirmationEmail } from '../utils/bookingConfirmationEmail.js';
 import { isEmailConfigured, sendMail } from '../utils/email.js';
 import { createRazorpayOrder, createRazorpayRefund, isRazorpayConfigured } from '../utils/razorpay.js';
@@ -28,7 +28,7 @@ function syncToSheet(booking) {
 
 function unsyncFromSheet(booking) {
   if (!isSheetsConfigured()) return;
-  clearBookingFromSheet(booking).catch(() => {});
+  refreshSheetRange(booking.listing, booking.startDate, booking.endDate).catch(() => {});
 }
 
 // Only these per-person group booking tariffs are accepted from clients,
@@ -59,8 +59,6 @@ export const createBooking = async (req, res, next) => {
       adultGuests,
       childGuests = 0,
       pets = 0,
-      vegCount = 0,
-      nonVegCount = 0,
       contactName,
       contactEmail,
       contactPhone,
@@ -80,14 +78,7 @@ export const createBooking = async (req, res, next) => {
     const normalizedAdults = Number(adultGuests ?? guests ?? 1);
     const normalizedChildren = Number(childGuests || 0);
     const normalizedPets = Number(pets || 0);
-    const normalizedVeg = Number(vegCount || 0);
-    const normalizedNonVeg = Number(nonVegCount || 0);
     const normalizedGuests = Number(guests ?? normalizedAdults + normalizedChildren);
-
-    if (listing.type === 'room' && normalizedVeg + normalizedNonVeg !== normalizedGuests) {
-      res.status(400);
-      throw new Error('Meal preference is required for every guest');
-    }
 
     const availability = await validateListingAvailability({
       listing,
@@ -135,8 +126,6 @@ export const createBooking = async (req, res, next) => {
       adultGuests: normalizedAdults,
       childGuests: normalizedChildren,
       pets: normalizedPets,
-      vegCount: normalizedVeg,
-      nonVegCount: normalizedNonVeg,
       unitPrice: pricing.unitPrice,
       totalPrice: Math.max(pricing.totalPrice - couponDiscount, 0),
       pricingBreakdown: {
@@ -220,7 +209,7 @@ export const createMultiBooking = async (req, res, next) => {
     const seenRoomWindows = new Set();
 
     for (const item of items) {
-      const { listingId, startDate, endDate, guests, adultGuests, childGuests = 0, pets = 0, vegCount = 0, nonVegCount = 0, groupRate } = item;
+      const { listingId, startDate, endDate, guests, adultGuests, childGuests = 0, pets = 0, groupRate } = item;
       const appliedGroupRate = isGroupBooking && isAllowedGroupRate(groupRate)
         ? { weekday: Number(groupRate.weekday), weekend: Number(groupRate.weekend) }
         : null;
@@ -242,14 +231,7 @@ export const createMultiBooking = async (req, res, next) => {
       const normalizedAdults = Number(adultGuests ?? guests ?? 1);
       const normalizedChildren = Number(childGuests || 0);
       const normalizedPets = Number(pets || 0);
-      const normalizedVeg = Number(vegCount || 0);
-      const normalizedNonVeg = Number(nonVegCount || 0);
       const normalizedGuests = Number(guests ?? normalizedAdults + normalizedChildren) || 1;
-
-      if (listing.type === 'room' && normalizedVeg + normalizedNonVeg !== normalizedGuests) {
-        validationErrors.push(`${listing.name}: Meal preference is required for every guest`);
-        continue;
-      }
 
       if (listing.type === 'room') {
         const windowKey = `${listing._id}:${normalizedStart.toISOString()}:${normalizedEnd.toISOString()}`;
@@ -294,8 +276,6 @@ export const createMultiBooking = async (req, res, next) => {
         normalizedAdults,
         normalizedChildren,
         normalizedPets,
-        normalizedVeg,
-        normalizedNonVeg,
         pricing,
       });
     }
@@ -318,7 +298,7 @@ export const createMultiBooking = async (req, res, next) => {
     let remainingDiscount = couponDiscount;
 
     const createdBookings = await Promise.all(
-      preparedItems.map(({ listing, normalizedStart, normalizedEnd, normalizedGuests, normalizedAdults, normalizedChildren, normalizedPets, normalizedVeg, normalizedNonVeg, pricing }, index) => {
+      preparedItems.map(({ listing, normalizedStart, normalizedEnd, normalizedGuests, normalizedAdults, normalizedChildren, normalizedPets, pricing }, index) => {
         const itemDiscount =
           coupon && subtotal > 0
             ? index === preparedItems.length - 1
@@ -337,8 +317,6 @@ export const createMultiBooking = async (req, res, next) => {
           adultGuests: normalizedAdults,
           childGuests: normalizedChildren,
           pets: normalizedPets,
-          vegCount: normalizedVeg,
-          nonVegCount: normalizedNonVeg,
           unitPrice: pricing.unitPrice,
           totalPrice: Math.max(pricing.totalPrice - itemDiscount, 0),
           pricingBreakdown: {
@@ -433,8 +411,6 @@ export const createAdminManualRoomBooking = async (req, res, next) => {
       adultGuests,
       childGuests = 0,
       pets = 0,
-      vegCount = 0,
-      nonVegCount = 0,
       contactName,
       contactEmail,
       contactPhone = '',
@@ -462,8 +438,6 @@ export const createAdminManualRoomBooking = async (req, res, next) => {
     const normalizedAdults = Number(adultGuests ?? guests);
     const normalizedChildren = Number(childGuests || 0);
     const normalizedPets = Number(pets || 0);
-    const normalizedVeg = Number(vegCount || 0);
-    const normalizedNonVeg = Number(nonVegCount || 0);
     const normalizedGuests = Number(guests ?? normalizedAdults + normalizedChildren);
 
     const availability = await validateListingAvailability({
@@ -502,8 +476,6 @@ export const createAdminManualRoomBooking = async (req, res, next) => {
       adultGuests: normalizedAdults,
       childGuests: normalizedChildren,
       pets: normalizedPets,
-      vegCount: normalizedVeg,
-      nonVegCount: normalizedNonVeg,
       unitPrice: pricing.unitPrice,
       totalPrice: pricing.totalPrice,
       pricingBreakdown: {
@@ -687,8 +659,6 @@ export const createAdminGroupBooking = async (req, res, next) => {
           adultGuests: roomGuests,
           childGuests: 0,
           pets: roomPets,
-          vegCount: 0,
-          nonVegCount: 0,
           unitPrice: pricing.unitPrice,
           totalPrice: pricing.totalPrice,
           pricingBreakdown: {
@@ -1429,11 +1399,7 @@ export const confirmReschedule = async (req, res, next) => {
     await booking.save();
 
     if (isSheetsConfigured()) {
-      clearBookingFromSheet({
-        listing: booking.listing,
-        startDate: previousStartDate,
-        endDate: previousEndDate,
-      }).catch(() => {});
+      refreshSheetRange(booking.listing, previousStartDate, previousEndDate).catch(() => {});
     }
     syncToSheet(booking);
 
@@ -1547,7 +1513,7 @@ export const unblockRoomDates = async (req, res, next) => {
     const block = await Booking.findOneAndDelete({ _id: req.params.id, status: 'blocked' }).populate('listing');
     if (!block) { res.status(404); throw new Error('Block not found'); }
     if (isSheetsConfigured()) {
-      await clearBookingFromSheet(block).catch((err) =>
+      await refreshSheetRange(block.listing, block.startDate, block.endDate).catch((err) =>
         console.error('[unblockRoomDates] Sheet sync failed:', err.message)
       );
     }

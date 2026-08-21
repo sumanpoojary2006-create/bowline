@@ -46,16 +46,6 @@ const bookingSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
-    vegCount: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
-    nonVegCount: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
     unitPrice: {
       type: Number,
       required: true,

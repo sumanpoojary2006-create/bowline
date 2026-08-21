@@ -153,9 +153,6 @@ export const handleRazorpayWebhook = async (req, res, next) => {
           lines.push(`Pets: ${booking.pets}`);
         }
 
-        if (booking.vegCount || booking.nonVegCount) {
-          lines.push(`Meals: ${booking.vegCount} veg, ${booking.nonVegCount} non-veg`);
-        }
 
         if (booking.pricingBreakdown?.adjustments?.length) {
           lines.push(`Adjustments: ${booking.pricingBreakdown.adjustments.join(', ')}`);

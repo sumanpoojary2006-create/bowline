@@ -30,8 +30,6 @@ export const buildDailyReport = async (dateInput) => {
     adultGuests: booking.adultGuests,
     childGuests: booking.childGuests,
     pets: booking.pets,
-    vegCount: booking.vegCount,
-    nonVegCount: booking.nonVegCount,
     checkIn: booking.startDate,
     checkOut: booking.endDate,
     specialRequests: booking.specialRequests,
@@ -48,11 +46,9 @@ export const buildDailyReport = async (dateInput) => {
       acc.adults += entry.adultGuests || 0;
       acc.children += entry.childGuests || 0;
       acc.pets += entry.pets || 0;
-      acc.veg += entry.vegCount || 0;
-      acc.nonVeg += entry.nonVegCount || 0;
       return acc;
     },
-    { adults: 0, children: 0, pets: 0, veg: 0, nonVeg: 0 }
+    { adults: 0, children: 0, pets: 0 }
   );
 
   return {

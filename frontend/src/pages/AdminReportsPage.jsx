@@ -77,8 +77,8 @@ function AdminReportsPage() {
     <div className="space-y-6">
       <SectionHeader
         eyebrow="Daily Report"
-        title="Guest & meal report"
-        description="Veg/non-veg counts and the full guest list for the selected day, ready to share with the team."
+        title="Guest report"
+        description="The full guest list for the selected day, ready to share with the team."
         action={
           <button
             onClick={handleDownload}
@@ -130,9 +130,7 @@ function AdminReportsPage() {
         <PageLoader label="Loading report..." />
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-            <SummaryCard label="Veg" value={report.totals.veg} accent="text-lime-300" />
-            <SummaryCard label="Non-Veg" value={report.totals.nonVeg} accent="text-amber-300" />
+          <div className="grid grid-cols-3 gap-4">
             <SummaryCard label="Adults" value={report.totals.adults} />
             <SummaryCard label="Children" value={report.totals.children} />
             <SummaryCard label="Pets" value={report.totals.pets} />
@@ -153,7 +151,6 @@ function AdminReportsPage() {
                     <th className="px-4 py-3">Dates</th>
                     <th className="px-4 py-3">Guests</th>
                     <th className="px-4 py-3">Pets</th>
-                    <th className="px-4 py-3">Meals (V/NV)</th>
                     <th className="px-4 py-3">Notes</th>
                   </tr>
                 </thead>
@@ -171,9 +168,6 @@ function AdminReportsPage() {
                         {entry.childGuests ? `, ${entry.childGuests} child${entry.childGuests > 1 ? 'ren' : ''}` : ''}
                       </td>
                       <td className="px-4 py-3 text-slate-400">{entry.pets || '-'}</td>
-                      <td className="px-4 py-3 text-slate-300">
-                        {entry.vegCount} / {entry.nonVegCount}
-                      </td>
                       <td className="px-4 py-3 text-slate-500">{entry.specialRequests || '-'}</td>
                     </tr>
                   ))}

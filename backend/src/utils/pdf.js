@@ -14,10 +14,8 @@ export const generateDailyReportPdf = (report) =>
     doc.font('Helvetica').fontSize(12).text(`Guest Report - ${report.dateLabel}`);
     doc.moveDown(1);
 
-    doc.font('Helvetica-Bold').fontSize(13).text('Meal Summary');
+    doc.font('Helvetica-Bold').fontSize(13).text('Occupancy Summary');
     doc.font('Helvetica').fontSize(11);
-    doc.text(`Veg: ${report.totals.veg}`);
-    doc.text(`Non-Veg: ${report.totals.nonVeg}`);
     doc.text(`Total Adults: ${report.totals.adults}    Total Children: ${report.totals.children}    Pets: ${report.totals.pets}`);
     doc.moveDown(1);
 
@@ -27,7 +25,7 @@ export const generateDailyReportPdf = (report) =>
     if (!report.entries.length) {
       doc.font('Helvetica').fontSize(11).text('No guests for this date.');
     } else {
-      const colX = { room: 40, guest: 150, dates: 300, guests: 420, meals: 480 };
+      const colX = { room: 40, guest: 150, dates: 300, guests: 420 };
       const rowHeight = 20;
 
       const drawHeader = () => {
@@ -36,7 +34,6 @@ export const generateDailyReportPdf = (report) =>
         doc.text('Guest / Phone', colX.guest, doc.y);
         doc.text('Dates', colX.dates, doc.y);
         doc.text('Pax', colX.guests, doc.y);
-        doc.text('Meals (V/NV)', colX.meals, doc.y);
         doc.moveDown(0.8);
         doc.font('Helvetica').fontSize(9);
       };
@@ -64,7 +61,6 @@ export const generateDailyReportPdf = (report) =>
           { width: 110 }
         );
         doc.text(guests, colX.guests, y, { width: 55 });
-        doc.text(`${entry.vegCount} / ${entry.nonVegCount}`, colX.meals, y, { width: 70 });
 
         doc.moveDown(1.6);
 

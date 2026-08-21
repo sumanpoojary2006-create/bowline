@@ -22,8 +22,6 @@ export const createRoomBooking = async ({
   adultGuests,
   childGuests = 0,
   pets = 0,
-  vegCount = 0,
-  nonVegCount = 0,
   contactName,
   contactEmail,
   contactPhone,
@@ -33,10 +31,6 @@ export const createRoomBooking = async ({
   deferSideEffects = false,
 }) => {
   const guests = adultGuests + childGuests;
-
-  if (Number(vegCount || 0) + Number(nonVegCount || 0) !== guests) {
-    throw new Error('Meal preference is required for every guest');
-  }
 
   const availability = await validateListingAvailability({
     listing,
@@ -72,8 +66,6 @@ export const createRoomBooking = async ({
     adultGuests,
     childGuests,
     pets,
-    vegCount,
-    nonVegCount,
     unitPrice: pricing.unitPrice,
     totalPrice: pricing.totalPrice,
     pricingBreakdown: {

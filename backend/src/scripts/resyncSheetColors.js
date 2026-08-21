@@ -5,7 +5,7 @@ import 'dotenv/config';
 import mongoose from 'mongoose';
 import Booking from '../models/Booking.js';
 import '../models/Listing.js';
-import { clearBookingFromSheet, writeBookingToSheet } from '../utils/googleSheets.js';
+import { refreshSheetRange, writeBookingToSheet } from '../utils/googleSheets.js';
 
 await mongoose.connect(process.env.MONGODB_URI);
 
@@ -21,7 +21,7 @@ let cleared = 0;
 for (const b of dead) {
   if (!b.listing?.name) continue;
   try {
-    await clearBookingFromSheet(b);
+    await refreshSheetRange(b.listing, b.startDate, b.endDate);
     cleared++;
   } catch (e) {
     console.error('clear failed:', b._id.toString(), e.message);

@@ -39,70 +39,139 @@ function CopyButton({ text }) {
   );
 }
 
+// The canonical script lives at sheets/BowlineSync.gs — this copy is what the
+// admin pastes into Apps Script, so the two must stay identical.
 const APPS_SCRIPT_CODE = `// ── Bowline × Google Sheets — bidirectional booking sync ───────────────────
 //
 // SETUP INSTRUCTIONS
+// ──────────────────
 // 1. Open your Google Sheet
 // 2. Extensions → Apps Script → paste this entire file into Code.gs
-// 3. Replace WEBHOOK_URL and WEBHOOK_SECRET with your actual values
+// 3. Replace WEBHOOK_URL and WEBHOOK_SECRET with your values
 // 4. Deploy as web app:
 //      Deploy → New deployment → Web app
-//      Execute as: Me  |  Who has access: Anyone
+//      Execute as: Me | Who has access: Anyone
 //      Copy the /exec URL → set as APPS_SCRIPT_WEB_APP_URL in Vercel
 // 5. Add onEdit trigger:
-//      Triggers → Add Trigger → onEdit → From spreadsheet → On edit
+//      Triggers → Add Trigger
+//      Function: onEdit | Event source: From spreadsheet | Event type: On edit
+// 6. Authorize when prompted
 //
-// SHEET STRUCTURE
-// Row 1 : Date | Cozy 1 | Cozy 2 | Cozy Mini | Dormitory (Open Loft) | Pent House
-// Row 2+: One row per calendar day  |  Cell value = guest name  |  background = status
+// SHEET STRUCTURE EXPECTED
+// ────────────────────────
+// Month tabs ("Jan 26", "Feb 26", …):
+//   Row 1  : Headers  → Date | Cozy 1 | Cozy 2 | Cozy Mini | Dormitory | Pent House
+//   Row 2+ : One row per calendar day of the month
+//   Cell value = Guest name when booked, empty when free
+//   Cell background = booking status colour (see legend below)
 //
-// COLOURS
-// #b6d7a8  Confirmed (paid in full)    #ffe599  Confirmed (50% deposit)
-// #ea9999  Pending / unpaid    #ffffff  Empty / Cancelled
+// "Bookings" tab: one row per booking, created automatically on first write.
+//
+// STATUS COLOURS
+// ──────────────
+// #b6d7a8  Confirmed, paid in full (green)
+// #ffe599  Confirmed with a 50% deposit — balance still due (yellow)
+// #ffffff  Pending / unconfirmed / cancelled — name only, no colour
+// #e06666  Blocked by admin — room unavailable to guests (red)
+// ───────────────────────────────────────────────────────────────────────────
 
 var WEBHOOK_URL    = 'https://bowline-omega.vercel.app/api/sync/inbound';
-var WEBHOOK_SECRET = 'YOUR_SHEETS_WEBHOOK_SECRET';
+var WEBHOOK_SECRET = 'YOUR_SHEETS_WEBHOOK_SECRET'; // must match SHEETS_WEBHOOK_SECRET env var
 
+// Column index → room name (must match Listing names in Bowline database exactly)
 var ROOM_COLUMNS = {
   2: 'Cozy 1',
   3: 'Cozy 2',
   4: 'Cozy Mini',
-  5: 'Dormitory (Open Loft)',
+  5: 'Dormitory',
   6: 'Pent House'
 };
 
-var STATUS_COLORS = { confirmed: '#b6d7a8', partially_paid: '#ffe599', pending: '#ea9999' };
+var STATUS_COLORS = {
+  confirmed:      '#b6d7a8',
+  partially_paid: '#ffe599',
+  pending:        '#ffffff',
+  blocked:        '#e06666'
+};
+
 var WEEKEND_DATE_COLOR = '#fff2cc';
 var DATE_DISPLAY_FORMAT = 'dd-ddd-yyyy';
 
-// ── App → Sheet : doPost ─────────────────────────────────────────────────────
+// ── App → Sheet: doPost handler ─────────────────────────────────────────────
+// Receives POST from Bowline backend when a booking is created/updated/cancelled.
+// Actions: upsert | clear | bulkUpsert
 function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);
+
     if (data.secret !== WEBHOOK_SECRET) {
-      return json({ ok: false, error: 'Invalid secret' });
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: false, error: 'Invalid secret' }))
+        .setMimeType(ContentService.MimeType.JSON);
     }
+
+    var result = { ok: true };
+
     if (data.action === 'upsert') {
-      upsertBookingCells(data.roomName, data.startDate, data.endDate, data.guestName, data.status);
+      upsertBookingCells(data.roomName, data.startDate, data.endDate, data.guestName, data.status, data.color);
+      result.action = 'upsert';
+
     } else if (data.action === 'clear') {
       clearBookingCells(data.roomName, data.startDate, data.endDate);
+      result.action = 'clear';
+
     } else if (data.action === 'bulkUpsert') {
-      (data.items || []).forEach(function(item) {
+      var items = data.items || [];
+      for (var i = 0; i < items.length; i++) {
+        var item = items[i];
         upsertBookingCells(item.roomName, item.startDate, item.endDate, item.guestName, item.status);
-      });
+      }
+      result.action = 'bulkUpsert';
+      result.count = items.length;
+
+    } else if (data.action === 'upsertBooking') {
+      upsertBookingRow(data.booking);
+      result.action = 'upsertBooking';
+
+    } else if (data.action === 'bulkUpsertBookings') {
+      var rows = data.items || [];
+      for (var r = 0; r < rows.length; r++) {
+        upsertBookingRow(rows[r]);
+      }
+      result.action = 'bulkUpsertBookings';
+      result.count = rows.length;
+
+    } else if (data.action === 'upsertContact') {
+      upsertWhatsAppContact(data.phone, data.profileName, data.firstSeenAt, data.lastSeenAt, data.messageCount);
+      result.action = 'upsertContact';
+
+    } else {
+      result.ok = false;
+      result.error = 'Unknown action: ' + data.action;
     }
-    return json({ ok: true, action: data.action });
+
+    return ContentService
+      .createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
+
   } catch (err) {
-    return json({ ok: false, error: err.message });
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: false, error: err.message }))
+      .setMimeType(ContentService.MimeType.JSON);
   }
 }
 
-function upsertBookingCells(roomName, startDateStr, endDateStr, guestName, status) {
-  var col   = getRoomColumn(roomName);
+// ── Write booking cells into the sheet ──────────────────────────────────────
+function upsertBookingCells(roomName, startDateStr, endDateStr, guestName, status, colorOverride) {
+  var col = getRoomColumn(roomName);
   if (!col) return;
-  var color = STATUS_COLORS[status] || STATUS_COLORS['pending'];
-  var d     = new Date(startDateStr);
-  var end   = new Date(endDateStr);
+
+  var start = parseDateOnly(startDateStr);
+  var end   = parseDateOnly(endDateStr);
+  var color = colorOverride || STATUS_COLORS[status] || '#ffffff';
+
+  // Iterate over each day in [start, end)
+  var d = new Date(start);
   while (d < end) {
     var sheet = getOrCreateMonthSheet(d);
     if (sheet) {
@@ -117,73 +186,208 @@ function upsertBookingCells(roomName, startDateStr, endDateStr, guestName, statu
   }
 }
 
+// ── Clear booking cells from the sheet ──────────────────────────────────────
 function clearBookingCells(roomName, startDateStr, endDateStr) {
   var col = getRoomColumn(roomName);
   if (!col) return;
-  var d   = new Date(startDateStr);
-  var end = new Date(endDateStr);
+
+  var start = parseDateOnly(startDateStr);
+  var end   = parseDateOnly(endDateStr);
+
+  var d = new Date(start);
   while (d < end) {
     var sheet = getMonthSheet(d);
     if (sheet) {
       var row = getRowForDate(sheet, d);
       if (row > 0) {
-        sheet.getRange(row, col).clearContent().setBackground('#ffffff');
+        var cell = sheet.getRange(row, col);
+        cell.clearContent();
+        cell.setBackground('#ffffff');
       }
     }
     d.setDate(d.getDate() + 1);
   }
 }
 
-// ── Sheet → App : onEdit ─────────────────────────────────────────────────────
+// ── Write / update a row in the "Bookings" tab ──────────────────────────────
+// Column order must match BOOKING_SHEET_HEADERS in backend/src/utils/googleSheets.js.
+var BOOKINGS_SHEET = 'Bookings';
+var BOOKINGS_HEADERS = [
+  'Booking ID', 'Room', 'Guest Name', 'Email', 'Phone',
+  'Check-in', 'Check-out', 'Adults', 'Children', 'Pets',
+  'Total Price', 'Status', 'Payment Status'
+];
+
+function getBookingsSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(BOOKINGS_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(BOOKINGS_SHEET);
+    sheet.getRange(1, 1, 1, BOOKINGS_HEADERS.length).setValues([BOOKINGS_HEADERS]);
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function upsertBookingRow(b) {
+  if (!b || !b.bookingId) return;
+
+  var sheet = getBookingsSheet();
+  var values = [
+    b.bookingId, b.roomName || '', b.guestName || '', b.email || '', b.phone || '',
+    b.checkIn || '', b.checkOut || '', b.adults, b.children, b.pets,
+    b.totalPrice, b.status || '', b.paymentStatus || ''
+  ];
+
+  var lastRow = sheet.getLastRow();
+  var row = -1;
+  if (lastRow >= 2) {
+    var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    for (var i = 0; i < ids.length; i++) {
+      if (String(ids[i][0]) === String(b.bookingId)) { row = i + 2; break; }
+    }
+  }
+
+  if (row === -1) {
+    sheet.appendRow(values);
+  } else {
+    sheet.getRange(row, 1, 1, values.length).setValues([values]);
+  }
+}
+
+// ── Write / update a WhatsApp lead row in the "WhatsApp Leads" tab ──────────
+var WHATSAPP_LEADS_SHEET = 'WhatsApp Leads';
+var WHATSAPP_LEADS_HEADERS = ['Phone', 'Name', 'First Seen', 'Last Seen', 'Messages'];
+
+function upsertWhatsAppContact(phone, profileName, firstSeenAt, lastSeenAt, messageCount) {
+  if (!phone) return;
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(WHATSAPP_LEADS_SHEET);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(WHATSAPP_LEADS_SHEET);
+    sheet.getRange(1, 1, 1, WHATSAPP_LEADS_HEADERS.length).setValues([WHATSAPP_LEADS_HEADERS]);
+    sheet.setFrozenRows(1);
+  }
+
+  var lastRow = sheet.getLastRow();
+  var row = -1;
+
+  if (lastRow >= 2) {
+    var phones = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    for (var i = 0; i < phones.length; i++) {
+      if (String(phones[i][0]) === String(phone)) {
+        row = i + 2;
+        break;
+      }
+    }
+  }
+
+  var firstSeen = firstSeenAt ? new Date(firstSeenAt) : new Date();
+  var lastSeen = lastSeenAt ? new Date(lastSeenAt) : new Date();
+
+  if (row === -1) {
+    sheet.appendRow([phone, profileName || '', firstSeen, lastSeen, messageCount || 1]);
+  } else {
+    sheet.getRange(row, 2).setValue(profileName || sheet.getRange(row, 2).getValue());
+    sheet.getRange(row, 4).setValue(lastSeen);
+    sheet.getRange(row, 5).setValue(messageCount || 1);
+  }
+}
+
+// ── Sheet → App: onEdit trigger ─────────────────────────────────────────────
 function onEdit(e) {
   try {
     var range     = e.range;
     var sheet     = range.getSheet();
     var col       = range.getColumn();
     var sheetName = sheet.getName();
-    if (col < 2 || col > 6 || !ROOM_COLUMNS[col]) return;
+
+    // Only act on room columns (2–6) in month sheets ("Jan 26", "Feb 26", …)
+    if (col < 2 || col > 6) return;
+    if (!ROOM_COLUMNS[col]) return;
     if (!sheetName.match(/^[A-Za-z]{3} \\d{2}$/)) return;
+
     syncColumn(sheet, sheetName, col);
-  } catch (err) { Logger.log('onEdit error: ' + err.message); }
+  } catch (err) {
+    Logger.log('onEdit error: ' + err.message);
+  }
 }
 
+// ── Sync a full room column to Bowline ─────────────────────────────────────
 function syncColumn(sheet, sheetName, col) {
   var roomName = ROOM_COLUMNS[col];
   var lastRow  = sheet.getLastRow();
   if (lastRow < 2) return;
+
   var numRows    = lastRow - 1;
   var dateValues = sheet.getRange(2, 1, numRows, 1).getValues();
   var cellValues = sheet.getRange(2, col, numRows, 1).getValues();
   var cellColors = sheet.getRange(2, col, numRows, 1).getBackgrounds();
-  var tz = Session.getScriptTimeZone();
+  var tz         = Session.getScriptTimeZone();
+
   var cells = [];
   for (var i = 0; i < numRows; i++) {
     var raw = dateValues[i][0];
     if (!raw) continue;
     var dateStr = Utilities.formatDate(new Date(raw), tz, 'yyyy-MM-dd');
     if (!dateStr || dateStr === 'NaN-aN-aN') continue;
-    cells.push({ date: dateStr, value: (cellValues[i][0] || '').toString().trim(), color: cellColors[i][0] || '#ffffff' });
+    cells.push({
+      date:  dateStr,
+      value: (cellValues[i][0] || '').toString().trim(),
+      color: cellColors[i][0] || '#ffffff'
+    });
   }
+
   if (cells.length === 0) return;
-  var payload = JSON.stringify({ sheetName: sheetName, roomName: roomName, cells: cells, secret: WEBHOOK_SECRET });
-  var response = UrlFetchApp.fetch(WEBHOOK_URL, { method: 'post', contentType: 'application/json', payload: payload, muteHttpExceptions: true });
-  Logger.log('[Bowline] ' + sheetName + '/' + roomName + ' → ' + response.getResponseCode() + ': ' + response.getContentText());
+
+  var payload = JSON.stringify({
+    sheetName: sheetName,
+    roomName:  roomName,
+    cells:     cells,
+    secret:    WEBHOOK_SECRET
+  });
+  var options = {
+    method:             'post',
+    contentType:        'application/json',
+    payload:            payload,
+    muteHttpExceptions: true
+  };
+
+  var response = UrlFetchApp.fetch(WEBHOOK_URL, options);
+  var code     = response.getResponseCode();
+  var body     = response.getContentText();
+
+  Logger.log('[Bowline Sync] ' + sheetName + ' / ' + roomName + ' → HTTP ' + code + ': ' + body);
 }
 
-// ── Manual sync + custom menu ────────────────────────────────────────────────
+// ── Manual full-sheet sync (run from Apps Script editor or Bowline menu) ────
 function syncAllRooms() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  ss.getSheets().forEach(function(sheet) {
-    var name = sheet.getName();
-    if (!name.match(/^[A-Za-z]{3} \\d{2}$/)) return;
+  var ss     = SpreadsheetApp.getActiveSpreadsheet();
+  var sheets = ss.getSheets();
+
+  for (var s = 0; s < sheets.length; s++) {
+    var sheet     = sheets[s];
+    var sheetName = sheet.getName();
+    if (!sheetName.match(/^[A-Za-z]{3} \\d{2}$/)) continue;
+
     for (var col = 2; col <= 6; col++) {
       if (!ROOM_COLUMNS[col]) continue;
-      try { syncColumn(sheet, name, col); Utilities.sleep(300); } catch (err) { Logger.log(err.message); }
+      try {
+        syncColumn(sheet, sheetName, col);
+        Utilities.sleep(300); // avoid rate limits
+      } catch (err) {
+        Logger.log('Error syncing ' + sheetName + ' col ' + col + ': ' + err.message);
+      }
     }
-  });
-  SpreadsheetApp.getUi().alert('Sync complete!');
+  }
+
+  Logger.log('syncAllRooms complete');
+  SpreadsheetApp.getUi().alert('Sync complete! All rooms pushed to Bowline.');
 }
 
+// ── Custom menu ─────────────────────────────────────────────────────────────
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('Bowline')
@@ -194,41 +398,86 @@ function onOpen() {
 
 function formatCalendarTabs() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  ss.getSheets().forEach(function(sheet) {
-    if (!sheet.getName().match(/^[A-Za-z]{3} \\d{2}$/)) return;
+  var sheets = ss.getSheets();
+
+  for (var s = 0; s < sheets.length; s++) {
+    var sheet = sheets[s];
+    if (!sheet.getName().match(/^[A-Za-z]{3} \\d{2}$/)) continue;
     formatMonthSheet(sheet);
-  });
+  }
+
   SpreadsheetApp.getUi().alert('Done! Calendar date format and weekend highlighting updated.');
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-function json(obj) { return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON); }
-function getRoomColumn(roomName) { for (var c in ROOM_COLUMNS) { if (ROOM_COLUMNS[c] === roomName) return parseInt(c, 10); } return null; }
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+// Backend sends plain "YYYY-MM-DD" strings. new Date("YYYY-MM-DD") parses as
+// UTC midnight per spec, but the rest of this file (sheetNameForDate,
+// getRowForDate, the date column itself) all work in the script's local
+// timezone — so a UTC-parsed date can read back as the previous day here,
+// shifting every cell this booking touches one row earlier. Parse the Y/M/D
+// components directly instead, so the result is already in local terms.
+function parseDateOnly(str) {
+  var parts = str.split('-');
+  return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+}
+
+function getRoomColumn(roomName) {
+  for (var col in ROOM_COLUMNS) {
+    if (ROOM_COLUMNS[col] === roomName) return parseInt(col, 10);
+  }
+  return null;
+}
+
 var MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-function sheetNameForDate(d) { return MONTH_NAMES[d.getMonth()] + ' ' + d.getFullYear().toString().slice(2); }
-function getMonthSheet(d) { return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetNameForDate(d)); }
-function getOrCreateMonthSheet(d) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var name = sheetNameForDate(d);
-  var sheet = ss.getSheetByName(name);
+
+function sheetNameForDate(date) {
+  var yy = date.getFullYear().toString().slice(2);
+  return MONTH_NAMES[date.getMonth()] + ' ' + yy;
+}
+
+function getMonthSheet(date) {
+  var ss   = SpreadsheetApp.getActiveSpreadsheet();
+  var name = sheetNameForDate(date);
+  return ss.getSheetByName(name);
+}
+
+function getOrCreateMonthSheet(date) {
+  var ss     = SpreadsheetApp.getActiveSpreadsheet();
+  var name   = sheetNameForDate(date);
+  var sheet  = ss.getSheetByName(name);
   if (sheet) return sheet;
+
+  // Create month sheet with headers and date column
   sheet = ss.insertSheet(name);
-  sheet.getRange(1,1).setValue('Date');
-  for (var c in ROOM_COLUMNS) { sheet.getRange(1, parseInt(c,10)).setValue(ROOM_COLUMNS[c]); }
-  var year = d.getFullYear(), month = d.getMonth(), days = new Date(year, month+1, 0).getDate();
-  for (var i = 1; i <= days; i++) { sheet.getRange(i+1, 1).setValue(new Date(year, month, i)); }
+  sheet.getRange(1, 1).setValue('Date');
+  for (var col in ROOM_COLUMNS) {
+    sheet.getRange(1, parseInt(col, 10)).setValue(ROOM_COLUMNS[col]);
+  }
+
+  // Fill in all days of the month
+  var year  = date.getFullYear();
+  var month = date.getMonth();
+  var daysInMonth = new Date(year, month + 1, 0).getDate();
+  for (var d = 1; d <= daysInMonth; d++) {
+    sheet.getRange(d + 1, 1).setValue(new Date(year, month, d));
+  }
   formatMonthSheet(sheet);
+
   return sheet;
 }
 
 function formatMonthSheet(sheet) {
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return;
-  var rows = lastRow - 1;
-  var range = sheet.getRange(2, 1, rows, 1);
-  var dates = range.getValues();
+
+  var numRows = lastRow - 1;
+  var dateRange = sheet.getRange(2, 1, numRows, 1);
+  var dates = dateRange.getValues();
   var backgrounds = [];
-  range.setNumberFormat(DATE_DISPLAY_FORMAT);
+
+  dateRange.setNumberFormat(DATE_DISPLAY_FORMAT);
+
   for (var i = 0; i < dates.length; i++) {
     var value = dates[i][0];
     if (value instanceof Date) {
@@ -238,17 +487,21 @@ function formatMonthSheet(sheet) {
       backgrounds.push(['#ffffff']);
     }
   }
-  range.setBackgrounds(backgrounds);
+
+  dateRange.setBackgrounds(backgrounds);
 }
+
 function getRowForDate(sheet, date) {
   var target = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return -1;
-  var dates = sheet.getRange(2, 1, lastRow-1, 1).getValues();
+
+  var dates = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
   for (var i = 0; i < dates.length; i++) {
-    var c = dates[i][0];
-    if (!c) continue;
-    if (new Date(c.getFullYear(), c.getMonth(), c.getDate()).getTime() === target) return i+2;
+    var cell = dates[i][0];
+    if (!cell) continue;
+    var cellDate = new Date(cell.getFullYear(), cell.getMonth(), cell.getDate()).getTime();
+    if (cellDate === target) return i + 2; // 1-indexed, offset by header row
   }
   return -1;
 }`;
@@ -471,8 +724,8 @@ function AdminSyncPage() {
           {[
             { color: '#b6d7a8', label: 'Confirmed, paid in full' },
             { color: '#ffe599', label: 'Confirmed, 50% deposit (balance due)' },
-            { color: '#ea9999', label: 'Pending / unpaid' },
-            { color: '#ffffff', label: 'Empty / Cancelled', border: true },
+            { color: '#e06666', label: 'Blocked — unavailable to guests' },
+            { color: '#ffffff', label: 'Empty / Pending / Cancelled', border: true },
           ].map((item) => (
             <div key={item.color} className="flex items-center gap-2">
               <span

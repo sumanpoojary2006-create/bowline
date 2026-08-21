@@ -32,9 +32,6 @@ export const formatBookingNotificationDetails = (bookings) => {
       `Guest name: ${booking.contactName || 'N/A'}`,
       `Phone: ${booking.contactPhone || 'N/A'}`,
       `Email: ${booking.contactEmail || 'N/A'}`,
-      ...(booking.vegCount || booking.nonVegCount
-        ? [`Meals: ${booking.vegCount || 0} veg, ${booking.nonVegCount || 0} non-veg`]
-        : []),
       `Amount: Rs ${booking.totalPrice}`,
       `Paid: Rs ${getAmountPaid(booking)}`,
       `Pending: Rs ${getAmountDue(booking)}`,
@@ -72,11 +69,6 @@ export const formatBookingNotificationDetailsHtml = (bookings) => {
           <p style="margin: 6px 0 0; color: #444; font-size: 13px;">${dates} (${nights} night${nights > 1 ? 's' : ''})</p>
           <p style="margin: 4px 0 0; color: #444; font-size: 13px;">${guestsLine}</p>
           <p style="margin: 4px 0 0; color: #444; font-size: 13px;">${booking.contactName || 'N/A'} · ${booking.contactPhone || 'N/A'} · ${booking.contactEmail || 'N/A'}</p>
-          ${
-            booking.vegCount || booking.nonVegCount
-              ? `<p style="margin: 4px 0 0; color: #444; font-size: 13px;">Meals: ${booking.vegCount || 0} veg, ${booking.nonVegCount || 0} non-veg</p>`
-              : ''
-          }
           <p style="margin: 10px 0 0; font-size: 13px;">Total: Rs ${booking.totalPrice}</p>
           <p style="margin: 4px 0 0; font-size: 14px; font-weight: bold; color: #15803d;">Paid: Rs ${paid}</p>
           <p style="margin: 4px 0 0; font-size: 14px; font-weight: bold; color: ${due > 0 ? '#dc2626' : '#15803d'};">

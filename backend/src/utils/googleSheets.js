@@ -9,6 +9,8 @@
 //   APPS_SCRIPT_WEB_APP_URL  – the deployed Apps Script web app URL
 //   SHEETS_WEBHOOK_SECRET    – shared secret (same value in Apps Script + here)
 
+import Booking from '../models/Booking.js';
+
 // ── Room name → column index in the sheet (1-based, col A = 1) ────────────
 // These must match the column headers in your Google Sheet, row 1.
 // Keys = exact MongoDB Listing.name values.
@@ -94,6 +96,13 @@ async function callAppsScript(payload) {
   });
 }
 
+// A block's "guest" is a fake placeholder contact — show the admin's reason
+// for blocking instead, which is what's actually useful in the cell.
+function cellLabelFor(booking) {
+  if (booking.status === 'blocked') return booking.blockNote || 'Blocked';
+  return booking.contactName || booking.user?.name || '';
+}
+
 // ── Write a booking into the sheet ────────────────────────────────────────
 export async function writeBookingToSheet(booking) {
   if (!isSheetsConfigured()) return;
@@ -102,12 +111,7 @@ export async function writeBookingToSheet(booking) {
   if (!roomName || !ROOM_COLUMN_INDEX[roomName]) return;
 
   const calStatus = getCalendarStatus(booking);
-  // A block's "guest" is a fake placeholder contact — show the admin's
-  // reason for blocking instead, which is what's actually useful in the cell.
-  const cellLabel =
-    booking.status === 'blocked'
-      ? booking.blockNote || 'Blocked'
-      : booking.contactName || booking.user?.name || '';
+  const cellLabel = cellLabelFor(booking);
 
   await callAppsScript({
     action:    'upsert',
@@ -120,27 +124,94 @@ export async function writeBookingToSheet(booking) {
   });
 }
 
-// ── Clear a booking from the sheet (on cancel) ─────────────────────────────
-export async function clearBookingFromSheet(booking) {
+// ── Redraw a room's cells for a date range ────────────────────────────────
+// Blanking a range outright erases whatever else sits on those dates — a
+// manual block, an Airbnb reservation, another guest — which is how names
+// went missing from the sheet. Anything that removes a booking has to redraw
+// the range from what's left in the database instead of clearing it.
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export async function refreshSheetRange(listing, startDate, endDate) {
   if (!isSheetsConfigured()) return;
 
-  const roomName = booking.listing?.name ?? booking.listing;
-  if (!roomName || !ROOM_COLUMN_INDEX[roomName]) return;
+  const roomName = listing?.name;
+  const listingId = listing?._id ?? listing;
+  if (!roomName || !ROOM_COLUMN_INDEX[roomName] || !listingId) return;
 
-  await callAppsScript({
-    action:    'clear',
-    roomName,
-    startDate: toDateStr(booking.startDate),
-    endDate:   toDateStr(booking.endDate),
-  });
+  const start = new Date(`${toDateStr(startDate)}T00:00:00.000Z`);
+  const end = new Date(`${toDateStr(endDate)}T00:00:00.000Z`);
+  if (end <= start) return;
+
+  const bookings = await Booking.find({
+    listing: listingId,
+    status: { $in: ['pending', 'confirmed', 'blocked'] },
+    startDate: { $lt: end },
+    endDate: { $gt: start },
+  })
+    .populate('user', 'name')
+    .sort({ startDate: 1 });
+
+  // Several records can legitimately cover the same night — an Airbnb-side
+  // block landing on dates we already hold, or an unpaid hold sitting under a
+  // real reservation. A booking that actually holds the room outranks one
+  // that doesn't, and between equals our own record wins because it carries
+  // the name a human wrote.
+  const holdsRoom = (b) => b.status !== 'pending' || ['paid', 'partially_paid'].includes(b.paymentStatus);
+  bookings.sort(
+    (a, b) =>
+      Number(holdsRoom(b)) - Number(holdsRoom(a)) ||
+      Number(a.source === 'airbnb') - Number(b.source === 'airbnb')
+  );
+
+  // Group consecutive days that resolve to the same cell contents into one
+  // Apps Script call, so a month-long range costs a couple of requests
+  // rather than one per day.
+  const runs = [];
+  for (let time = start.getTime(); time < end.getTime(); time += DAY_MS) {
+    const day = new Date(time);
+    const occupant = bookings.find((b) => b.startDate <= day && b.endDate > day);
+    const guestName = occupant ? cellLabelFor(occupant) : '';
+    const status = occupant ? getCalendarStatus(occupant) : null;
+    const previous = runs[runs.length - 1];
+
+    if (previous && previous.guestName === guestName && previous.status === status) {
+      previous.end = new Date(time + DAY_MS);
+    } else {
+      runs.push({ guestName, status, start: day, end: new Date(time + DAY_MS) });
+    }
+  }
+
+  const occupied = runs.filter((run) => run.status);
+
+  for (const run of runs.filter((r) => !r.status)) {
+    await callAppsScript({
+      action:    'clear',
+      roomName,
+      startDate: toDateStr(run.start),
+      endDate:   toDateStr(run.end),
+    });
+  }
+
+  if (occupied.length) {
+    await callAppsScript({
+      action: 'bulkUpsert',
+      items: occupied.map((run) => ({
+        roomName,
+        guestName: run.guestName,
+        startDate: toDateStr(run.start),
+        endDate:   toDateStr(run.end),
+        status:    run.status,
+      })),
+    });
+  }
 }
 
 // ── Full booking sync — one row per booking in the "Bookings" tab ──────────
 // Column order in the "Bookings" sheet tab (row 1 = headers):
 //   A: Booking ID   B: Room        C: Guest Name   D: Email
 //   E: Phone        F: Check-in    G: Check-out    H: Adults
-//   I: Children     J: Pets        K: Veg Meals    L: Non-Veg Meals
-//   M: Total Price  N: Status      O: Payment Status
+//   I: Children     J: Pets        K: Total Price
+//   L: Status       M: Payment Status
 export const BOOKING_SHEET_NAME = 'Bookings';
 
 export const BOOKING_SHEET_HEADERS = [
@@ -154,8 +225,6 @@ export const BOOKING_SHEET_HEADERS = [
   'Adults',
   'Children',
   'Pets',
-  'Veg Meals',
-  'Non-Veg Meals',
   'Total Price',
   'Status',
   'Payment Status',
@@ -177,8 +246,6 @@ export async function writeFullBookingToSheet(booking) {
       adults: booking.adultGuests ?? booking.guests ?? 1,
       children: booking.childGuests ?? 0,
       pets: booking.pets ?? 0,
-      vegMeals: booking.vegCount ?? 0,
-      nonVegMeals: booking.nonVegCount ?? 0,
       totalPrice: booking.totalPrice ?? 0,
       status: booking.status,
       paymentStatus: booking.paymentStatus,
@@ -194,10 +261,7 @@ export async function pushAllBookingsToSheet(bookings) {
     .filter((b) => b.listing?.name && ROOM_COLUMN_INDEX[b.listing.name])
     .map((b) => ({
       roomName:  b.listing.name,
-      guestName:
-        b.status === 'blocked'
-          ? b.blockNote || 'Blocked'
-          : b.contactName || b.user?.name || '',
+      guestName: cellLabelFor(b),
       startDate: toDateStr(b.startDate),
       endDate:   toDateStr(b.endDate),
       status:    getCalendarStatus(b),
@@ -224,8 +288,6 @@ export async function pushAllFullBookingsToSheet(bookings) {
     adults: b.adultGuests ?? b.guests ?? 1,
     children: b.childGuests ?? 0,
     pets: b.pets ?? 0,
-    vegMeals: b.vegCount ?? 0,
-    nonVegMeals: b.nonVegCount ?? 0,
     totalPrice: b.totalPrice ?? 0,
     status: b.status,
     paymentStatus: b.paymentStatus,

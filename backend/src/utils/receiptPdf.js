@@ -106,9 +106,6 @@ export const generateBookingReceiptPdf = (bookings) =>
       y = row(doc, 'Check-in', checkIn, y);
       y = row(doc, 'Check-out', `${checkOut} (${nights} night${nights > 1 ? 's' : ''})`, y);
       if (guestParts.length) y = row(doc, 'Guests', guestParts.join(', '), y);
-      if (booking.vegCount != null || booking.nonVegCount != null) {
-        y = row(doc, 'Meals', `${booking.vegCount ?? 0} veg · ${booking.nonVegCount ?? 0} non-veg`, y);
-      }
       if (booking.specialRequests) {
         y = row(doc, 'Special requests', booking.specialRequests, y);
       }

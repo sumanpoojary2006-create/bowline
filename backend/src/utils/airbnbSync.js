@@ -4,13 +4,67 @@ import AppSetting from '../models/AppSetting.js';
 import { calculateBookingPrice } from './pricing.js';
 import { parseIcsEvents } from './ical.js';
 import { getExistingBookingsForRange } from './availability.js';
-import { isSheetsConfigured, writeBookingToSheet, writeFullBookingToSheet, clearBookingFromSheet } from './googleSheets.js';
+import { isSheetsConfigured, writeFullBookingToSheet, refreshSheetRange } from './googleSheets.js';
 
 // Dormitory is inactive (not bookable standalone) but is still part of the
 // Full House bundle — keep this in sync with listingController.js.
 const BUNDLE_ALWAYS_INCLUDE_SLUGS = ['dormitory-open-loft'];
 
 export const FULL_HOUSE_SETTING_KEY = 'airbnb_full_house_ical_url';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Airbnb marks real reservations "Reserved". Everything else in the feed
+// ("Airbnb (Not available)") is a date Airbnb considers unbookable — which
+// includes every date it imported from our own published iCal feed.
+const isBlockEvent = (event) => !/reserved/i.test(event.summary || '');
+
+const mergeRanges = (ranges) => {
+  const merged = [];
+  for (const range of [...ranges].sort((a, b) => a.start - b.start)) {
+    const last = merged[merged.length - 1];
+    if (last && range.start <= last.end) {
+      if (range.end > last.end) last.end = new Date(range.end);
+    } else {
+      merged.push({ start: new Date(range.start), end: new Date(range.end) });
+    }
+  }
+  return merged;
+};
+
+// Airbnb imports our published calendar, then re-exports those same dates in
+// its own feed as "not available". Ingesting one of those creates a phantom
+// reservation sitting on top of the block we ourselves published — and since
+// Airbnb reissues the UID on every refresh, each sync cancels the phantom and
+// creates a replacement, which is what kept wiping names out of the sheet.
+// So a not-available night only counts when the room is otherwise free that
+// night, which leaves genuine Airbnb-side blocks working as before.
+const uncoveredNights = async (listing, event) => {
+  const ourBookings = await Booking.find({
+    listing: listing._id,
+    source: { $ne: 'airbnb' },
+    startDate: { $lt: event.end },
+    endDate: { $gt: event.start },
+    $or: [
+      { status: { $in: ['confirmed', 'blocked'] } },
+      { status: 'pending', paymentStatus: { $in: ['paid', 'partially_paid'] } },
+    ],
+  }).select('startDate endDate');
+
+  const ranges = [];
+  for (let time = event.start.getTime(); time < event.end.getTime(); time += DAY_MS) {
+    const night = new Date(time);
+    if (ourBookings.some((b) => b.startDate <= night && b.endDate > night)) continue;
+
+    const last = ranges[ranges.length - 1];
+    if (last && last.end.getTime() === time) {
+      last.end = new Date(time + DAY_MS);
+    } else {
+      ranges.push({ start: night, end: new Date(time + DAY_MS) });
+    }
+  }
+  return ranges;
+};
 
 // Pulls a listing's Airbnb "export calendar" iCal feed and mirrors its busy
 // dates into our Booking collection as source:'airbnb' bookings, so the
@@ -40,84 +94,99 @@ export const syncListingFromAirbnb = async (listing) => {
     status: { $ne: 'cancelled' },
   });
 
+  // Only the dates this run actually changed need redrawing in the sheet.
+  const touched = [];
+  const liveExternalIds = new Set();
+
   for (const event of events) {
-    const existing = existingAirbnbBookings.find((b) => b.externalId === event.uid);
+    const blockEvent = isBlockEvent(event);
+    const ranges = blockEvent
+      ? await uncoveredNights(listing, event)
+      : [{ start: event.start, end: event.end }];
 
-    if (existing) {
-      if (
-        existing.startDate.getTime() !== event.start.getTime() ||
-        existing.endDate.getTime() !== event.end.getTime()
-      ) {
-        const oldStartDate = existing.startDate;
-        const oldEndDate = existing.endDate;
-        existing.startDate = event.start;
-        existing.endDate = event.end;
-        await existing.save();
-        result.updated++;
+    for (const range of ranges) {
+      // A not-available event can survive as several disjoint runs once our
+      // own published dates are carved out of it, so the external id has to
+      // identify the run rather than the event.
+      const externalId = blockEvent
+        ? `${event.uid}#${range.start.toISOString().slice(0, 10)}`
+        : event.uid;
+      liveExternalIds.add(externalId);
 
-        // The old date range is now stale in the calendar tab — clear it so a
-        // postponed/moved Airbnb reservation doesn't leave a phantom booking
-        // behind on its original dates.
-        if (isSheetsConfigured()) {
-          await clearBookingFromSheet({ listing, startDate: oldStartDate, endDate: oldEndDate }).catch(() => {});
+      const existing = existingAirbnbBookings.find((b) => b.externalId === externalId);
+
+      if (existing) {
+        if (
+          existing.startDate.getTime() !== range.start.getTime() ||
+          existing.endDate.getTime() !== range.end.getTime()
+        ) {
+          touched.push({ start: existing.startDate, end: existing.endDate });
+          existing.startDate = range.start;
+          existing.endDate = range.end;
+          await existing.save();
+          touched.push({ start: range.start, end: range.end });
+          result.updated++;
         }
+        continue;
       }
-      continue;
+
+      const pricing = blockEvent
+        ? null
+        : await calculateBookingPrice({
+            listing,
+            bookingType: 'room',
+            startDate: range.start,
+            endDate: range.end,
+            guests: 1,
+            applyGst: false,
+          });
+
+      const created = await Booking.create({
+        bookingType: 'room',
+        listing: listing._id,
+        user: null,
+        startDate: range.start,
+        endDate: range.end,
+        guests: 1,
+        unitPrice: pricing?.unitPrice ?? 0,
+        totalPrice: pricing?.totalPrice ?? 0,
+        pricingBreakdown: pricing
+          ? { basePrice: pricing.basePrice, adjustments: pricing.adjustments }
+          : { basePrice: 0, adjustments: [] },
+        status: blockEvent ? 'blocked' : 'confirmed',
+        paymentStatus: 'paid',
+        paymentMethod: 'airbnb',
+        contactName: blockEvent ? 'Airbnb Block' : 'Airbnb Guest',
+        contactEmail: 'airbnb-sync@bowline.internal',
+        contactPhone: '',
+        blockNote: blockEvent ? 'Blocked on Airbnb' : null,
+        specialRequests: blockEvent ? 'Blocked on Airbnb' : 'Synced from Airbnb',
+        source: 'airbnb',
+        externalId,
+      });
+
+      touched.push({ start: range.start, end: range.end });
+      result.created++;
+
+      if (!blockEvent && isSheetsConfigured()) {
+        await writeFullBookingToSheet({ ...created.toObject(), listing }).catch(() => {});
+      }
     }
-
-    const pricing = await calculateBookingPrice({
-      listing,
-      bookingType: 'room',
-      startDate: event.start,
-      endDate: event.end,
-      guests: 1,
-      applyGst: false,
-    });
-
-    await Booking.create({
-      bookingType: 'room',
-      listing: listing._id,
-      user: null,
-      startDate: event.start,
-      endDate: event.end,
-      guests: 1,
-      unitPrice: pricing.unitPrice,
-      totalPrice: pricing.totalPrice,
-      pricingBreakdown: { basePrice: pricing.basePrice, adjustments: pricing.adjustments },
-      status: 'confirmed',
-      paymentStatus: 'paid',
-      paymentMethod: 'airbnb',
-      contactName: 'Airbnb Guest',
-      contactEmail: 'airbnb-sync@bowline.internal',
-      contactPhone: '',
-      specialRequests: 'Synced from Airbnb',
-      source: 'airbnb',
-      externalId: event.uid,
-    });
-    result.created++;
   }
 
   // Cancel bookings that disappeared from the Airbnb feed
-  const feedUids = new Set(events.map((e) => e.uid));
   for (const booking of existingAirbnbBookings) {
-    if (!feedUids.has(booking.externalId)) {
+    if (!liveExternalIds.has(booking.externalId)) {
       booking.status = 'cancelled';
       await booking.save();
+      touched.push({ start: booking.startDate, end: booking.endDate });
       result.cancelled++;
     }
   }
 
-  if (isSheetsConfigured() && (result.created || result.updated || result.cancelled)) {
-    const populated = await Booking.find({ listing: listing._id, source: 'airbnb' })
-      .populate('listing')
-      .populate('user', 'name email');
-    for (const booking of populated) {
-      if (booking.status === 'cancelled') {
-        await clearBookingFromSheet(booking).catch(() => {});
-      } else {
-        await writeBookingToSheet(booking).catch(() => {});
-      }
-      await writeFullBookingToSheet(booking).catch(() => {});
+  if (isSheetsConfigured()) {
+    for (const range of mergeRanges(touched)) {
+      await refreshSheetRange(listing, range.start, range.end).catch(() => {});
     }
   }
 
@@ -128,7 +197,7 @@ export const syncListingFromAirbnb = async (listing) => {
 // the same one of these across several rooms means nothing (it's just our
 // own default text), unlike a real name repeated across rooms.
 const GENERIC_CONTACT_NAMES = new Set([
-  '', 'airbnb guest', 'offline booking', 'offline block', 'test', 'bowline admin',
+  '', 'airbnb guest', 'airbnb block', 'offline booking', 'offline block', 'test', 'bowline admin',
 ]);
 
 const isGenericContactName = (name) => {
@@ -183,6 +252,9 @@ export const syncFullHouseFromAirbnb = async () => {
     status: { $ne: 'cancelled' },
     externalId: { $regex: '^fullhouse:' },
   });
+
+  // Only the room/date combinations this run changed need redrawing.
+  const touched = [];
 
   for (const event of events) {
     // A multi-night "not available" block can be fully booked out for
@@ -260,16 +332,12 @@ export const syncFullHouseFromAirbnb = async () => {
             existing.startDate.getTime() !== spanStart.getTime() ||
             existing.endDate.getTime() !== spanEnd.getTime()
           ) {
-            const oldStartDate = existing.startDate;
-            const oldEndDate = existing.endDate;
+            touched.push({ room, start: existing.startDate, end: existing.endDate });
             existing.startDate = spanStart;
             existing.endDate = spanEnd;
             await existing.save();
+            touched.push({ room, start: spanStart, end: spanEnd });
             result.updated++;
-
-            if (isSheetsConfigured()) {
-              await clearBookingFromSheet({ listing: room, startDate: oldStartDate, endDate: oldEndDate }).catch(() => {});
-            }
           }
           continue;
         }
@@ -312,6 +380,7 @@ export const syncFullHouseFromAirbnb = async () => {
           source: 'airbnb',
           externalId: fhExternalId,
         });
+        touched.push({ room, start: spanStart, end: spanEnd });
         result.created++;
       }
 
@@ -326,21 +395,18 @@ export const syncFullHouseFromAirbnb = async () => {
     if (!uid || !feedUids.has(uid)) {
       booking.status = 'cancelled';
       await booking.save();
+      const room = rooms.find((r) => r._id.equals(booking.listing));
+      if (room) touched.push({ room, start: booking.startDate, end: booking.endDate });
       result.cancelled++;
     }
   }
 
-  if (isSheetsConfigured() && (result.created || result.updated || result.cancelled)) {
-    const populated = await Booking.find({ source: 'airbnb', externalId: { $regex: '^fullhouse:' } })
-      .populate('listing')
-      .populate('user', 'name email');
-    for (const booking of populated) {
-      if (booking.status === 'cancelled') {
-        await clearBookingFromSheet(booking).catch(() => {});
-      } else {
-        await writeBookingToSheet(booking).catch(() => {});
+  if (isSheetsConfigured()) {
+    for (const room of rooms) {
+      const roomRanges = touched.filter((t) => t.room._id.equals(room._id));
+      for (const range of mergeRanges(roomRanges)) {
+        await refreshSheetRange(room, range.start, range.end).catch(() => {});
       }
-      await writeFullBookingToSheet(booking).catch(() => {});
     }
   }
 
@@ -356,8 +422,18 @@ export const syncAllAirbnbCalendars = async () => {
 
   const results = [];
   for (const listing of listings) {
-    results.push(await syncListingFromAirbnb(listing));
+    try {
+      results.push(await syncListingFromAirbnb(listing));
+    } catch (error) {
+      results.push({ listing: listing.name, created: 0, updated: 0, cancelled: 0, errors: [error.message] });
+    }
   }
-  results.push(await syncFullHouseFromAirbnb());
+
+  try {
+    results.push(await syncFullHouseFromAirbnb());
+  } catch (error) {
+    results.push({ listing: 'Full House', created: 0, updated: 0, cancelled: 0, errors: [error.message] });
+  }
+
   return results;
 };

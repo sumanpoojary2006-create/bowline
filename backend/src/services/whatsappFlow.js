@@ -16,7 +16,7 @@ import { createRoomBooking, runBookingSideEffects } from './bookingService.js';
 import { createPaymentLink, createRazorpayRefund, isRazorpayConfigured } from '../utils/razorpay.js';
 import { getCancellationRefundPercent } from '../utils/bookingPolicy.js';
 import { calculateRefundPaise } from '../controllers/paymentController.js';
-import { clearBookingFromSheet, writeFullBookingToSheet } from '../utils/googleSheets.js';
+import { refreshSheetRange, writeFullBookingToSheet } from '../utils/googleSheets.js';
 import { notifyAdmins } from '../utils/notifications.js';
 
 const RESET_WORDS = ['menu', 'hi', 'hello', 'hey', 'start', 'restart'];
@@ -166,9 +166,6 @@ const handleMyBookingsSelect = async (session, phone, buttonId, profileName) => 
     lines.push(`Pets: ${booking.pets}`);
   }
 
-  if (booking.vegCount || booking.nonVegCount) {
-    lines.push(`Meals: ${booking.vegCount} veg, ${booking.nonVegCount} non-veg`);
-  }
 
   if (booking.pricingBreakdown?.adjustments?.length) {
     lines.push(`Adjustments: ${booking.pricingBreakdown.adjustments.join(', ')}`);
@@ -332,7 +329,7 @@ const handleMyBookingCancel = async (session, phone, buttonId, profileName) => {
   );
 
   // Slow side effects after the guest has their confirmation
-  clearBookingFromSheet(booking).catch(() => {});
+  refreshSheetRange(booking.listing, booking.startDate, booking.endDate).catch(() => {});
   writeFullBookingToSheet(booking).catch(() => {});
   try {
     await notifyAdmins({
@@ -505,8 +502,6 @@ const handleGroupDates = async (session, phone, text) => {
       adultGuests,
       childGuests: 0,
       pets: 0,
-      vegCount: 0,
-      nonVegCount: 0,
       totalPrice: pricing.totalPrice,
       unitPrice: pricing.unitPrice,
     });
@@ -753,20 +748,6 @@ const handleChildren = async (session, phone, buttonId, text) => {
   await sendPetsPicker(phone);
 };
 
-const sendMealQuestion = async (phone, totalGuests) => {
-  const rows = Array.from({ length: totalGuests + 1 }, (_, i) => ({
-    id: `nonveg_${i}`,
-    title: i === 0 ? '0 – All vegetarian' : i === totalGuests ? `${i} – All non-veg` : `${i} non-veg, ${totalGuests - i} veg`,
-  }));
-
-  await sendList(phone, {
-    header: 'Meal Preference',
-    bodyText: `How many of your *${totalGuests} guest${totalGuests > 1 ? 's' : ''}* prefer *non-vegetarian* meals?`,
-    buttonText: 'Select',
-    sections: [{ title: 'Non-veg count', rows }],
-  });
-};
-
 const handlePets = async (session, phone, buttonId, text) => {
   if (buttonId === 'pets_custom') {
     await sendText(phone, 'Please type the number of pets:');
@@ -785,17 +766,14 @@ const handlePets = async (session, phone, buttonId, text) => {
     return;
   }
 
-  const totalGuests = (session.data.adultGuests || 0) + (session.data.childGuests || 0);
   session.data = { ...session.data, pets };
-  session.step = 'NONVEG';
   await session.save();
 
-  await sendMealQuestion(phone, totalGuests);
+  await sendSummary(session, phone);
 };
 
 const sendSummary = async (session, phone) => {
-  const { listingId, listingName, startDate, endDate, adultGuests, childGuests, pets, vegCount, nonVegCount } =
-    session.data;
+  const { listingId, listingName, startDate, endDate, adultGuests, childGuests, pets } = session.data;
 
   const listing = await Listing.findById(listingId);
 
@@ -853,9 +831,6 @@ const sendSummary = async (session, phone) => {
     lines.push(`Pets: ${pets}`);
   }
 
-  if (vegCount || nonVegCount) {
-    lines.push(`Meals: ${vegCount} veg, ${nonVegCount} non-veg`);
-  }
 
   if (pricing.adjustments?.length) {
     lines.push(`Adjustments: ${pricing.adjustments.join(', ')}`);
@@ -950,28 +925,6 @@ const handleEmail = async (session, phone, buttonId, text) => {
   await sendPaymentOptions(phone);
 };
 
-const handleNonVeg = async (session, phone, text, buttonId) => {
-  let nonVeg = null;
-
-  if (buttonId?.startsWith('nonveg_')) {
-    nonVeg = parseInt(buttonId.replace('nonveg_', ''), 10);
-  } else {
-    nonVeg = parsePositiveInt(text);
-  }
-
-  const totalGuests = (session.data.adultGuests || 0) + (session.data.childGuests || 0);
-
-  if (nonVeg === null || nonVeg < 0 || nonVeg > totalGuests) {
-    await sendMealQuestion(phone, totalGuests);
-    return;
-  }
-
-  session.data = { ...session.data, nonVegCount: nonVeg, vegCount: totalGuests - nonVeg };
-  await session.save();
-
-  await sendSummary(session, phone);
-};
-
 const resetSession = async (session) => {
   session.step = 'MENU';
   session.data = {};
@@ -990,7 +943,7 @@ const finalizeBookings = async (session, phone, profileName, payInFull = false) 
   const bookings = [];
 
   for (const item of items) {
-    const { listingId, listingName, startDate, endDate, adultGuests, childGuests, pets, vegCount, nonVegCount } = item;
+    const { listingId, listingName, startDate, endDate, adultGuests, childGuests, pets } = item;
 
     const listing = await Listing.findById(listingId);
 
@@ -1023,8 +976,6 @@ const finalizeBookings = async (session, phone, profileName, payInFull = false) 
         adultGuests,
         childGuests,
         pets,
-        vegCount,
-        nonVegCount,
         contactName,
         contactEmail,
         contactPhone,
@@ -1182,8 +1133,6 @@ export const handleIncomingMessage = async (phone, message, profileName) => {
       return handleChildren(session, phone, buttonId, text);
     case 'PETS':
       return handlePets(session, phone, buttonId, text);
-    case 'NONVEG':
-      return handleNonVeg(session, phone, text, buttonId);
     case 'SUMMARY_CONFIRM':
       return handleSummaryConfirm(session, phone, buttonId);
     case 'EMAIL':

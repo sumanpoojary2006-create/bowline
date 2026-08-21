@@ -123,7 +123,6 @@ const buildGroupBookingItems = (listing, draft, rooms) => {
 
   const guestsForRoom = distributeGuestsAcrossRooms(totalGuests, bundleRooms);
   const adultsForRoom = splitProportionally(adults, guestsForRoom);
-  const vegForRoom = splitProportionally(draft.vegCount, guestsForRoom);
 
   return bundleRooms.map((room, index) => ({
     listingId: room._id,
@@ -133,8 +132,6 @@ const buildGroupBookingItems = (listing, draft, rooms) => {
     adultGuests: adultsForRoom[index],
     childGuests: guestsForRoom[index] - adultsForRoom[index],
     pets: index === 0 ? Number(draft.pets) : 0,
-    vegCount: vegForRoom[index],
-    nonVegCount: guestsForRoom[index] - vegForRoom[index],
     groupRate: { weekday: tier.weekday, weekend: tier.weekend },
   }));
 };
@@ -147,16 +144,7 @@ const toBookingItem = (listing, draft) => ({
   adultGuests: draft.adults,
   childGuests: draft.children,
   pets: draft.pets,
-  vegCount: draft.vegCount,
-  nonVegCount: draft.nonVegCount,
 });
-
-const clampMealCounts = (draft) => {
-  const total = Number(draft.adults) + Number(draft.children);
-  const vegCount = Math.min(draft.vegCount, total);
-  const nonVegCount = Math.min(draft.nonVegCount, total - vegCount);
-  return { ...draft, vegCount, nonVegCount };
-};
 
 function HomePage() {
   const navigate = useNavigate();
@@ -178,8 +166,6 @@ function HomePage() {
     adults: 2,
     children: 0,
     pets: 0,
-    vegCount: 0,
-    nonVegCount: 0,
     contactName: '',
     contactEmail: '',
     contactPhone: '',
@@ -273,8 +259,6 @@ function HomePage() {
       adults,
       children: 0,
       pets: 0,
-      vegCount: 0,
-      nonVegCount: 0,
       contactName: user?.name || '',
       contactEmail: user?.email || '',
       contactPhone: user?.phone || '',
@@ -579,8 +563,6 @@ function HomePage() {
   const combinedGst = roomCart.reduce((sum, item) => sum + (item.gstAmount || 0), 0) + (activeTotals?.gstAmount || 0);
   const modalCouponDiscount = couponOffer?.discount || 0;
   const modalFinalTotal = Math.max(combinedSubtotal - modalCouponDiscount, 0);
-  const modalMealSelectionComplete = bookingDraft.vegCount + bookingDraft.nonVegCount === modalTotalGuests;
-
   useEffect(() => {
     setCouponOffer(null);
   }, [combinedSubtotal]);
@@ -980,7 +962,7 @@ function HomePage() {
                         toast.error(`Minimum occupants should be ${minOccupancy}`);
                         return;
                       }
-                      setBookingDraft((prev) => clampMealCounts({ ...prev, adults: increment(prev.adults, -1, minOccupancy, 20) }));
+                      setBookingDraft((prev) => ({ ...prev, adults: increment(prev.adults, -1, minOccupancy, 20) }));
                     }}
                   >
                     <MinusIcon className="h-4 w-4" />
@@ -992,7 +974,7 @@ function HomePage() {
                     disabled={activeBooking?.isGroupBundle && modalTotalGuests >= (activeBooking.maxOccupancy || 20)}
                     onClick={() =>
                       setBookingDraft((prev) =>
-                        clampMealCounts({ ...prev, adults: increment(prev.adults, 1, 1, activeBooking?.maxOccupancy || 20) })
+                        ({ ...prev, adults: increment(prev.adults, 1, 1, activeBooking?.maxOccupancy || 20) })
                       )
                     }
                   >
@@ -1013,7 +995,7 @@ function HomePage() {
                     className="rounded-full border border-lime-100/15 p-2 text-white disabled:opacity-40"
                     type="button"
                     disabled={bookingDraft.children <= 0}
-                    onClick={() => setBookingDraft((prev) => clampMealCounts({ ...prev, children: increment(prev.children, -1, 0, 20) }))}
+                    onClick={() => setBookingDraft((prev) => ({ ...prev, children: increment(prev.children, -1, 0, 20) }))}
                   >
                     <MinusIcon className="h-4 w-4" />
                   </button>
@@ -1024,7 +1006,7 @@ function HomePage() {
                     disabled={activeBooking?.isGroupBundle && modalTotalGuests >= (activeBooking.maxOccupancy || 20)}
                     onClick={() =>
                       setBookingDraft((prev) =>
-                        clampMealCounts({ ...prev, children: increment(prev.children, 1, 0, activeBooking?.maxOccupancy || 20) })
+                        ({ ...prev, children: increment(prev.children, 1, 0, activeBooking?.maxOccupancy || 20) })
                       )
                     }
                   >
@@ -1058,76 +1040,6 @@ function HomePage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between rounded-[1.25rem] border border-lime-100/10 bg-black/20 px-4 py-3">
-                <div>
-                  <p className="text-sm font-semibold text-[#f5f0dd]">Veg meals</p>
-                  <p className="text-xs text-[#aab5a5]">Number of guests on veg meals</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    className="rounded-full border border-lime-100/15 p-2 text-white disabled:opacity-40"
-                    type="button"
-                    disabled={bookingDraft.vegCount <= 0}
-                    onClick={() => setBookingDraft((prev) => ({ ...prev, vegCount: increment(prev.vegCount, -1, 0, modalTotalGuests) }))}
-                  >
-                    <MinusIcon className="h-4 w-4" />
-                  </button>
-                  <span className="w-6 text-center text-sm font-semibold text-[#f5f0dd]">{bookingDraft.vegCount}</span>
-                  <button
-                    className="rounded-full border border-lime-100/15 p-2 text-white disabled:opacity-40"
-                    type="button"
-                    disabled={bookingDraft.vegCount >= modalTotalGuests}
-                    onClick={() =>
-                      setBookingDraft((prev) => {
-                        const vegCount = increment(prev.vegCount, 1, 0, modalTotalGuests);
-                        const nonVegCount = Math.min(prev.nonVegCount, modalTotalGuests - vegCount);
-                        return { ...prev, vegCount, nonVegCount };
-                      })
-                    }
-                  >
-                    <PlusIcon className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between rounded-[1.25rem] border border-lime-100/10 bg-black/20 px-4 py-3">
-                <div>
-                  <p className="text-sm font-semibold text-[#f5f0dd]">Non-veg meals</p>
-                  <p className="text-xs text-[#aab5a5]">Number of guests on non-veg meals</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    className="rounded-full border border-lime-100/15 p-2 text-white disabled:opacity-40"
-                    type="button"
-                    disabled={bookingDraft.nonVegCount <= 0}
-                    onClick={() => setBookingDraft((prev) => ({ ...prev, nonVegCount: increment(prev.nonVegCount, -1, 0, modalTotalGuests) }))}
-                  >
-                    <MinusIcon className="h-4 w-4" />
-                  </button>
-                  <span className="w-6 text-center text-sm font-semibold text-[#f5f0dd]">{bookingDraft.nonVegCount}</span>
-                  <button
-                    className="rounded-full border border-lime-100/15 p-2 text-white disabled:opacity-40"
-                    type="button"
-                    disabled={bookingDraft.nonVegCount >= modalTotalGuests}
-                    onClick={() =>
-                      setBookingDraft((prev) => {
-                        const nonVegCount = increment(prev.nonVegCount, 1, 0, modalTotalGuests);
-                        const vegCount = Math.min(prev.vegCount, modalTotalGuests - nonVegCount);
-                        return { ...prev, nonVegCount, vegCount };
-                      })
-                    }
-                  >
-                    <PlusIcon className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-
-              {bookingDraft.vegCount + bookingDraft.nonVegCount !== modalTotalGuests ? (
-                <p className="px-1 text-xs text-amber-300">
-                  Meal preference is required for every guest. {bookingDraft.vegCount + bookingDraft.nonVegCount} of {modalTotalGuests} guest
-                  {modalTotalGuests === 1 ? '' : 's'} assigned.
-                </p>
-              ) : null}
             </div>
 
             <div className="mt-5 rounded-[1.25rem] border border-lime-100/10 bg-black/20 p-4 text-sm text-[#cdd6c9]">
@@ -1142,7 +1054,6 @@ function HomePage() {
                 <button
                   className="btn-secondary flex-1 border-lime-100/30 bg-lime-200/10 text-lime-100 hover:bg-lime-200/20 disabled:opacity-50"
                   onClick={addCurrentRoomToCart}
-                  disabled={!modalMealSelectionComplete}
                   type="button"
                 >
                   <span className="inline-flex items-center justify-center gap-2">
@@ -1154,7 +1065,6 @@ function HomePage() {
               <button
                 className="btn-primary flex-1 disabled:opacity-50"
                 onClick={() => setBookingStep('summary')}
-                disabled={!modalMealSelectionComplete}
                 type="button"
               >
                 Book Now
@@ -1198,14 +1108,6 @@ function HomePage() {
                     <div className="flex items-center justify-between">
                       <span>Pets</span>
                       <span className="font-semibold text-white">{bookingDraft.pets}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Veg meals</span>
-                      <span className="font-semibold text-white">{bookingDraft.vegCount}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Non-veg meals</span>
-                      <span className="font-semibold text-white">{bookingDraft.nonVegCount}</span>
                     </div>
                   </div>
 

@@ -252,8 +252,6 @@ export const bookingRowInbound = async (req, res, next) => {
       adults,
       children,
       pets,
-      vegMeals,
-      nonVegMeals,
       totalPrice,
       status,
       paymentStatus,
@@ -276,8 +274,6 @@ export const bookingRowInbound = async (req, res, next) => {
       if (adults !== undefined && adults !== '') booking.adultGuests = Number(adults);
       if (children !== undefined && children !== '') booking.childGuests = Number(children);
       if (pets !== undefined && pets !== '') booking.pets = Number(pets);
-      if (vegMeals !== undefined && vegMeals !== '') booking.vegCount = Number(vegMeals);
-      if (nonVegMeals !== undefined && nonVegMeals !== '') booking.nonVegCount = Number(nonVegMeals);
       if (totalPrice !== undefined && totalPrice !== '') booking.totalPrice = Number(totalPrice);
       if (status) booking.status = status;
       if (paymentStatus) booking.paymentStatus = paymentStatus;
@@ -315,8 +311,6 @@ export const bookingRowInbound = async (req, res, next) => {
     const normalizedAdults = adults !== undefined && adults !== '' ? Number(adults) : 1;
     const normalizedChildren = children !== undefined && children !== '' ? Number(children) : 0;
     const normalizedPets = pets !== undefined && pets !== '' ? Number(pets) : 0;
-    const normalizedVeg = vegMeals !== undefined && vegMeals !== '' ? Number(vegMeals) : 0;
-    const normalizedNonVeg = nonVegMeals !== undefined && nonVegMeals !== '' ? Number(nonVegMeals) : 0;
 
     let unitPrice, finalTotalPrice, pricingBreakdown;
     if (totalPrice !== undefined && totalPrice !== '' && Number(totalPrice) > 0) {
@@ -353,8 +347,6 @@ export const bookingRowInbound = async (req, res, next) => {
       adultGuests: normalizedAdults,
       childGuests: normalizedChildren,
       pets: normalizedPets,
-      vegCount: normalizedVeg,
-      nonVegCount: normalizedNonVeg,
       unitPrice,
       totalPrice: finalTotalPrice,
       pricingBreakdown,
@@ -389,8 +381,13 @@ export const getCalendarFeed = async (req, res, next) => {
       throw new Error('Listing not found');
     }
 
+    // Airbnb-sourced dates are deliberately left out: Airbnb imports this
+    // feed and re-exports whatever it finds as its own "not available"
+    // events, so publishing its own reservations back to it creates an echo
+    // that reappears here on the next sync under a fresh UID.
     const bookings = await Booking.find({
       listing: listing._id,
+      source: { $ne: 'airbnb' },
       status: { $in: ['confirmed', 'blocked'] },
       $or: [{ status: 'blocked' }, { paymentStatus: { $in: ['paid', 'partially_paid'] } }],
     }).select('startDate endDate status _id');

@@ -16,10 +16,13 @@
 //
 // SHEET STRUCTURE EXPECTED
 // ────────────────────────
-// Row 1  : Headers  → Date | Cozy 1 | Cozy 2 | Cozy Mini | Dormitory | Pent House
-// Row 2+ : One row per calendar day of the month
-// Cell value = Guest name when booked, empty when free
-// Cell background = booking status colour (see legend below)
+// Month tabs ("Jan 26", "Feb 26", …):
+//   Row 1  : Headers  → Date | Cozy 1 | Cozy 2 | Cozy Mini | Dormitory | Pent House
+//   Row 2+ : One row per calendar day of the month
+//   Cell value = Guest name when booked, empty when free
+//   Cell background = booking status colour (see legend below)
+//
+// "Bookings" tab: one row per booking, created automatically on first write.
 //
 // STATUS COLOURS
 // ──────────────
@@ -82,6 +85,18 @@ function doPost(e) {
       }
       result.action = 'bulkUpsert';
       result.count = items.length;
+
+    } else if (data.action === 'upsertBooking') {
+      upsertBookingRow(data.booking);
+      result.action = 'upsertBooking';
+
+    } else if (data.action === 'bulkUpsertBookings') {
+      var rows = data.items || [];
+      for (var r = 0; r < rows.length; r++) {
+        upsertBookingRow(rows[r]);
+      }
+      result.action = 'bulkUpsertBookings';
+      result.count = rows.length;
 
     } else if (data.action === 'upsertContact') {
       upsertWhatsAppContact(data.phone, data.profileName, data.firstSeenAt, data.lastSeenAt, data.messageCount);
@@ -148,6 +163,52 @@ function clearBookingCells(roomName, startDateStr, endDateStr) {
       }
     }
     d.setDate(d.getDate() + 1);
+  }
+}
+
+// ── Write / update a row in the "Bookings" tab ──────────────────────────────
+// Column order must match BOOKING_SHEET_HEADERS in backend/src/utils/googleSheets.js.
+var BOOKINGS_SHEET = 'Bookings';
+var BOOKINGS_HEADERS = [
+  'Booking ID', 'Room', 'Guest Name', 'Email', 'Phone',
+  'Check-in', 'Check-out', 'Adults', 'Children', 'Pets',
+  'Total Price', 'Status', 'Payment Status'
+];
+
+function getBookingsSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(BOOKINGS_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(BOOKINGS_SHEET);
+    sheet.getRange(1, 1, 1, BOOKINGS_HEADERS.length).setValues([BOOKINGS_HEADERS]);
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function upsertBookingRow(b) {
+  if (!b || !b.bookingId) return;
+
+  var sheet = getBookingsSheet();
+  var values = [
+    b.bookingId, b.roomName || '', b.guestName || '', b.email || '', b.phone || '',
+    b.checkIn || '', b.checkOut || '', b.adults, b.children, b.pets,
+    b.totalPrice, b.status || '', b.paymentStatus || ''
+  ];
+
+  var lastRow = sheet.getLastRow();
+  var row = -1;
+  if (lastRow >= 2) {
+    var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    for (var i = 0; i < ids.length; i++) {
+      if (String(ids[i][0]) === String(b.bookingId)) { row = i + 2; break; }
+    }
+  }
+
+  if (row === -1) {
+    sheet.appendRow(values);
+  } else {
+    sheet.getRange(row, 1, 1, values.length).setValues([values]);
   }
 }
 

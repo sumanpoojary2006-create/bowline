@@ -39,8 +39,6 @@ function ListingDetailPage({ bookingFirst = false }) {
   const initialAdults = Number(statePrefill.adults || searchParams.get('adults') || initialGuests || 1);
   const initialChildren = Number(statePrefill.children || searchParams.get('children') || 0);
   const initialPets = Number(statePrefill.pets || searchParams.get('pets') || 0);
-  const initialVegCount = Number(statePrefill.vegCount ?? searchParams.get('vegCount') ?? 0);
-  const initialNonVegCount = Number(statePrefill.nonVegCount ?? searchParams.get('nonVegCount') ?? 0);
   const initialContactName = statePrefill.contactName || searchParams.get('contactName') || '';
   const initialContactEmail = statePrefill.contactEmail || searchParams.get('contactEmail') || '';
   const initialContactPhone = statePrefill.contactPhone || searchParams.get('contactPhone') || '';
@@ -59,8 +57,6 @@ function ListingDetailPage({ bookingFirst = false }) {
     adults: initialAdults,
     children: initialChildren,
     pets: initialPets,
-    vegCount: initialVegCount,
-    nonVegCount: initialNonVegCount,
     contactName: initialContactName,
     contactEmail: initialContactEmail,
     contactPhone: initialContactPhone,
@@ -70,8 +66,6 @@ function ListingDetailPage({ bookingFirst = false }) {
     Math.round((booking.endDate.getTime() - booking.startDate.getTime()) / (1000 * 60 * 60 * 24)),
     1
   );
-  const bookingTotalGuests = Number(booking.adults) + Number(booking.children);
-  const mealSelectionComplete = listing?.type !== 'room' || booking.vegCount + booking.nonVegCount === bookingTotalGuests;
 
   useEffect(() => {
     const fetchListing = async () => {
@@ -174,10 +168,6 @@ function ListingDetailPage({ bookingFirst = false }) {
 
   const checkAvailability = async () => {
     if (!listing) return;
-    if (listing.type === 'room' && !mealSelectionComplete) {
-      toast.error('Please assign a veg or non-veg meal preference for every guest');
-      return;
-    }
     setChecking(true);
     try {
       const { data } = await api.post(`/listings/${listing._id}/availability`, {
@@ -187,8 +177,6 @@ function ListingDetailPage({ bookingFirst = false }) {
         adultGuests: booking.adults,
         childGuests: booking.children,
         pets: booking.pets,
-        vegCount: booking.vegCount,
-        nonVegCount: booking.nonVegCount,
       });
       setAvailability(data);
       if (!data.available) {
@@ -207,11 +195,6 @@ function ListingDetailPage({ bookingFirst = false }) {
       return;
     }
 
-    if (listing.type === 'room' && !mealSelectionComplete) {
-      toast.error('Please assign a veg or non-veg meal preference for every guest');
-      return;
-    }
-
     try {
       const { data } = await api.post('/bookings', {
         listingId: listing._id,
@@ -221,8 +204,6 @@ function ListingDetailPage({ bookingFirst = false }) {
         adultGuests: booking.adults,
         childGuests: booking.children,
         pets: booking.pets,
-        vegCount: booking.vegCount,
-        nonVegCount: booking.nonVegCount,
         contactName: booking.contactName,
         contactEmail: booking.contactEmail,
         contactPhone: booking.contactPhone,
@@ -243,8 +224,6 @@ function ListingDetailPage({ bookingFirst = false }) {
       adults: String(booking.adults),
       children: String(booking.children),
       pets: String(booking.pets),
-      vegCount: String(booking.vegCount),
-      nonVegCount: String(booking.nonVegCount),
     });
 
     navigate(`/book/${room.slug}?${query.toString()}`, {
@@ -256,8 +235,6 @@ function ListingDetailPage({ bookingFirst = false }) {
           adults: String(booking.adults),
           children: String(booking.children),
           pets: String(booking.pets),
-          vegCount: String(booking.vegCount),
-          nonVegCount: String(booking.nonVegCount),
         },
       },
     });
@@ -519,84 +496,6 @@ function ListingDetailPage({ bookingFirst = false }) {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between rounded-[1.25rem] border border-white/10 bg-[#0d1710]/80 px-4 py-3">
-                    <div>
-                      <p className="text-sm font-semibold text-white">Veg meals</p>
-                      <p className="text-xs text-slate-500">Number of guests on veg meals</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <button
-                        className="rounded-full border border-white/15 p-2 text-white disabled:opacity-40"
-                        type="button"
-                        disabled={booking.vegCount <= 0}
-                        onClick={() => {
-                          setAvailability(null);
-                          setBooking((prev) => ({ ...prev, vegCount: increment(prev.vegCount, -1, 0, bookingTotalGuests) }));
-                        }}
-                      >
-                        <MinusIcon className="h-4 w-4" />
-                      </button>
-                      <span className="w-6 text-center text-sm font-semibold text-white">{booking.vegCount}</span>
-                      <button
-                        className="rounded-full border border-white/15 p-2 text-white disabled:opacity-40"
-                        type="button"
-                        disabled={booking.vegCount >= bookingTotalGuests}
-                        onClick={() => {
-                          setAvailability(null);
-                          setBooking((prev) => {
-                            const vegCount = increment(prev.vegCount, 1, 0, bookingTotalGuests);
-                            const nonVegCount = Math.min(prev.nonVegCount, bookingTotalGuests - vegCount);
-                            return { ...prev, vegCount, nonVegCount };
-                          });
-                        }}
-                      >
-                        <PlusIcon className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between rounded-[1.25rem] border border-white/10 bg-[#0d1710]/80 px-4 py-3">
-                    <div>
-                      <p className="text-sm font-semibold text-white">Non-veg meals</p>
-                      <p className="text-xs text-slate-500">Number of guests on non-veg meals</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <button
-                        className="rounded-full border border-white/15 p-2 text-white disabled:opacity-40"
-                        type="button"
-                        disabled={booking.nonVegCount <= 0}
-                        onClick={() => {
-                          setAvailability(null);
-                          setBooking((prev) => ({ ...prev, nonVegCount: increment(prev.nonVegCount, -1, 0, bookingTotalGuests) }));
-                        }}
-                      >
-                        <MinusIcon className="h-4 w-4" />
-                      </button>
-                      <span className="w-6 text-center text-sm font-semibold text-white">{booking.nonVegCount}</span>
-                      <button
-                        className="rounded-full border border-white/15 p-2 text-white disabled:opacity-40"
-                        type="button"
-                        disabled={booking.nonVegCount >= bookingTotalGuests}
-                        onClick={() => {
-                          setAvailability(null);
-                          setBooking((prev) => {
-                            const nonVegCount = increment(prev.nonVegCount, 1, 0, bookingTotalGuests);
-                            const vegCount = Math.min(prev.vegCount, bookingTotalGuests - nonVegCount);
-                            return { ...prev, nonVegCount, vegCount };
-                          });
-                        }}
-                      >
-                        <PlusIcon className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {booking.vegCount + booking.nonVegCount !== booking.adults + booking.children ? (
-                    <p className="px-1 text-xs text-amber-300">
-                      Meal preference is required for every guest. {booking.vegCount + booking.nonVegCount} of {booking.adults + booking.children} guest
-                      {booking.adults + booking.children === 1 ? '' : 's'} assigned.
-                    </p>
-                  ) : null}
                 </div>
               ) : (
                 <div>
@@ -647,10 +546,10 @@ function ListingDetailPage({ bookingFirst = false }) {
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <button className="btn-secondary disabled:opacity-50" type="button" onClick={checkAvailability} disabled={checking || !mealSelectionComplete}>
+                <button className="btn-secondary disabled:opacity-50" type="button" onClick={checkAvailability} disabled={checking}>
                   {checking ? 'Checking...' : 'Check Availability'}
                 </button>
-                <button className="btn-primary disabled:opacity-50" type="submit" disabled={!mealSelectionComplete}>
+                <button className="btn-primary" type="submit">
                   Send Booking Request
                 </button>
               </div>
@@ -679,11 +578,6 @@ function ListingDetailPage({ bookingFirst = false }) {
                   {booking.children > 0 ? `, ${booking.children} child${booking.children === 1 ? '' : 'ren'}` : ''}
                   {booking.pets > 0 ? `, ${booking.pets} pet${booking.pets === 1 ? '' : 's'}` : ''}
                 </p>
-                {listing.type === 'room' ? (
-                  <p className="text-slate-300">
-                    Meals: {booking.vegCount} veg, {booking.nonVegCount} non-veg
-                  </p>
-                ) : null}
                 <p className="text-slate-300">Average nightly tariff: {formatCurrency(availability.pricing.unitPrice)} per person</p>
                 {availability.pricing.gstAmount ? (
                   <p className="text-slate-300">

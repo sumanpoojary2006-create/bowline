@@ -30,7 +30,6 @@ export const sendTomorrowGuestReportEmail = async () => {
   const lines = [
     `Guest report for ${report.dateLabel}`,
     '',
-    `Veg: ${report.totals.veg} | Non-Veg: ${report.totals.nonVeg}`,
     `Adults: ${report.totals.adults} | Children: ${report.totals.children} | Pets: ${report.totals.pets}`,
     '',
   ];
@@ -47,7 +46,7 @@ export const sendTomorrowGuestReportEmail = async () => {
       lines.push(
         `- ${entry.room}: ${entry.contactName} (${entry.contactPhone || 'no phone'}) - ${entry.adultGuests} adult${entry.adultGuests > 1 ? 's' : ''}${
           entry.childGuests ? `, ${entry.childGuests} child${entry.childGuests > 1 ? 'ren' : ''}` : ''
-        }, Meals V/NV: ${entry.vegCount}/${entry.nonVegCount}, ${paymentLabel}`
+        }, ${paymentLabel}`
       );
     });
   }
