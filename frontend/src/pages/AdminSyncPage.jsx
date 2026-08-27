@@ -130,10 +130,7 @@ function doPost(e) {
 
     } else if (data.action === 'bulkUpsert') {
       var items = data.items || [];
-      for (var i = 0; i < items.length; i++) {
-        var item = items[i];
-        upsertBookingCells(item.roomName, item.startDate, item.endDate, item.guestName, item.status);
-      }
+      bulkUpsertBookingCells(items);
       result.action = 'bulkUpsert';
       result.count = items.length;
 
@@ -143,9 +140,7 @@ function doPost(e) {
 
     } else if (data.action === 'bulkUpsertBookings') {
       var rows = data.items || [];
-      for (var r = 0; r < rows.length; r++) {
-        upsertBookingRow(rows[r]);
-      }
+      bulkUpsertBookingRows(rows);
       result.action = 'bulkUpsertBookings';
       result.count = rows.length;
 
@@ -193,6 +188,57 @@ function upsertBookingCells(roomName, startDateStr, endDateStr, guestName, statu
       }
     }
     d.setDate(d.getDate() + 1);
+  }
+}
+
+// Apply a complete calendar resync with one read and one write per month.
+// The older implementation performed several Spreadsheet service calls per
+// occupied night and timed out on a full production dataset.
+function bulkUpsertBookingCells(items) {
+  var months = {};
+
+  for (var i = 0; i < items.length; i++) {
+    var item = items[i];
+    var col = getRoomColumn(item.roomName);
+    if (!col) continue;
+
+    var start = parseDateOnly(item.startDate);
+    var end = parseDateOnly(item.endDate);
+    var color = STATUS_COLORS[item.status] || '#ffffff';
+    var d = new Date(start);
+
+    while (d < end) {
+      var name = sheetNameForDate(d);
+      if (!months[name]) months[name] = { date: new Date(d), updates: [] };
+      months[name].updates.push({
+        row: d.getDate() - 1,
+        col: col - 2,
+        value: item.guestName || '',
+        color: color
+      });
+      d.setDate(d.getDate() + 1);
+    }
+  }
+
+  for (var sheetName in months) {
+    var month = months[sheetName];
+    var sheet = getOrCreateMonthSheet(month.date);
+    var numRows = sheet.getLastRow() - 1;
+    if (numRows < 1) continue;
+
+    var range = sheet.getRange(2, 2, numRows, 5);
+    var values = range.getValues();
+    var backgrounds = range.getBackgrounds();
+
+    for (var u = 0; u < month.updates.length; u++) {
+      var update = month.updates[u];
+      if (update.row < 0 || update.row >= numRows) continue;
+      values[update.row][update.col] = update.value;
+      backgrounds[update.row][update.col] = update.color;
+    }
+
+    range.setValues(values);
+    range.setBackgrounds(backgrounds);
   }
 }
 
@@ -259,16 +305,59 @@ function upsertBookingRow(b) {
   var existingMeals = row === -1 ? [0, 0] : sheet.getRange(row, 11, 1, 2).getValues()[0];
   var vegMeals = b.vegMeals === null || b.vegMeals === undefined ? (existingMeals[0] || 0) : b.vegMeals;
   var nonVegMeals = b.nonVegMeals === null || b.nonVegMeals === undefined ? (existingMeals[1] || 0) : b.nonVegMeals;
-  var values = [
-    b.bookingId, b.roomName || '', b.guestName || '', b.email || '', b.phone || '',
-    b.checkIn || '', b.checkOut || '', b.adults, b.children, b.pets,
-    vegMeals, nonVegMeals, b.totalPrice, b.status || '', b.paymentStatus || ''
-  ];
+  var values = bookingRowValues(b, vegMeals, nonVegMeals);
 
   if (row === -1) {
     sheet.appendRow(values);
   } else {
     sheet.getRange(row, 1, 1, values.length).setValues([values]);
+  }
+}
+
+function bookingRowValues(b, vegMeals, nonVegMeals) {
+  return [
+    b.bookingId, b.roomName || '', b.guestName || '', b.email || '', b.phone || '',
+    b.checkIn || '', b.checkOut || '', b.adults, b.children, b.pets,
+    vegMeals, nonVegMeals, b.totalPrice, b.status || '', b.paymentStatus || ''
+  ];
+}
+
+// Reconcile every booking row in memory, then write the table once. This is
+// both faster and atomic from the sheet's perspective.
+function bulkUpsertBookingRows(rows) {
+  var sheet = getBookingsSheet();
+  var lastRow = sheet.getLastRow();
+  var data = lastRow >= 2
+    ? sheet.getRange(2, 1, lastRow - 1, BOOKINGS_HEADERS.length).getValues()
+    : [];
+  var rowById = {};
+
+  for (var i = 0; i < data.length; i++) {
+    if (data[i][0] !== '') rowById[String(data[i][0])] = i;
+  }
+
+  for (var r = 0; r < rows.length; r++) {
+    var b = rows[r];
+    if (!b || !b.bookingId) continue;
+    var key = String(b.bookingId);
+    var index = rowById[key];
+    var existing = index === undefined ? null : data[index];
+    var vegMeals = b.vegMeals === null || b.vegMeals === undefined
+      ? ((existing && existing[10]) || 0) : b.vegMeals;
+    var nonVegMeals = b.nonVegMeals === null || b.nonVegMeals === undefined
+      ? ((existing && existing[11]) || 0) : b.nonVegMeals;
+    var values = bookingRowValues(b, vegMeals, nonVegMeals);
+
+    if (index === undefined) {
+      rowById[key] = data.length;
+      data.push(values);
+    } else {
+      data[index] = values;
+    }
+  }
+
+  if (data.length) {
+    sheet.getRange(2, 1, data.length, BOOKINGS_HEADERS.length).setValues(data);
   }
 }
 
