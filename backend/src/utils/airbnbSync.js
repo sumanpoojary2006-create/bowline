@@ -19,6 +19,12 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export const isAirbnbReservationEvent = (event) => /reserved/i.test(event.summary || '');
 const isBlockEvent = (event) => !isAirbnbReservationEvent(event);
 
+// Airbnb can assign a fresh UID to the same imported/manual block on every
+// export. Reservation UIDs are stable, but block identity must be based on
+// the uncovered run's date or every sync becomes cancel + recreate churn.
+export const getAirbnbExternalId = (event, range, blockEvent) =>
+  blockEvent ? `airbnb-block:${range.start.toISOString().slice(0, 10)}` : event.uid;
+
 const mergeRanges = (ranges) => {
   const merged = [];
   for (const range of [...ranges].sort((a, b) => a.start - b.start)) {
@@ -108,9 +114,7 @@ export const syncListingFromAirbnb = async (listing) => {
       // A not-available event can survive as several disjoint runs once our
       // own published dates are carved out of it, so the external id has to
       // identify the run rather than the event.
-      const externalId = blockEvent
-        ? `${event.uid}#${range.start.toISOString().slice(0, 10)}`
-        : event.uid;
+      const externalId = getAirbnbExternalId(event, range, blockEvent);
       liveExternalIds.add(externalId);
 
       const existing = existingAirbnbBookings.find((b) => b.externalId === externalId);
