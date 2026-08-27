@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { groupCellsIntoBookings } from './googleSheets.js';
+import { BOOKING_SHEET_HEADERS, groupCellsIntoBookings } from './googleSheets.js';
+
+test('booking sheet schema preserves the existing meal columns', () => {
+  assert.deepEqual(BOOKING_SHEET_HEADERS, [
+    'Booking ID', 'Room', 'Guest Name', 'Email', 'Phone',
+    'Check-in', 'Check-out', 'Adults', 'Children', 'Pets',
+    'Veg Meals', 'Non-Veg Meals', 'Total Price', 'Status', 'Payment Status',
+  ]);
+});
 
 test('red sheet cells become one blocked booking range', () => {
   const bookings = groupCellsIntoBookings(

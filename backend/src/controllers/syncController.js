@@ -6,6 +6,7 @@ import Listing from '../models/Listing.js';
 import { calculateBookingPrice } from '../utils/pricing.js';
 import {
   isSheetsConfigured,
+  checkSheetsConnection,
   pushAllBookingsToSheet,
   pushAllFullBookingsToSheet,
   groupCellsIntoBookings,
@@ -32,9 +33,12 @@ const LEGACY_ROOM_MAP = {
 };
 
 // ── GET /api/sync/status ────────────────────────────────────────────────────
-export const getSyncStatus = (req, res) => {
+export const getSyncStatus = async (req, res) => {
+  const connection = await checkSheetsConnection();
   res.json({
     configured: isSheetsConfigured(),
+    connected: connection.connected,
+    connectionError: connection.error,
     appsScriptUrl: process.env.APPS_SCRIPT_WEB_APP_URL
       ? '(set)'
       : null,

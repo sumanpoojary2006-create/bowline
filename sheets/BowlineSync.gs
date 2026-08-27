@@ -4,7 +4,7 @@
 // ──────────────────
 // 1. Open your Google Sheet
 // 2. Extensions → Apps Script → paste this entire file into Code.gs
-// 3. Replace WEBHOOK_URL and WEBHOOK_SECRET with your values
+// 3. Replace WEBHOOK_URL and set WEBHOOK_SECRET in Apps Script project properties
 // 4. Deploy as web app:
 //      Deploy → New deployment → Web app
 //      Execute as: Me | Who has access: Anyone
@@ -32,8 +32,9 @@
 // #e06666  Blocked by admin — room unavailable to guests (red)
 // ───────────────────────────────────────────────────────────────────────────
 
-var WEBHOOK_URL    = 'https://bowline-omega.vercel.app/api/sync/inbound';
-var WEBHOOK_SECRET = 'YOUR_SHEETS_WEBHOOK_SECRET'; // must match SHEETS_WEBHOOK_SECRET env var
+var WEBHOOK_URL = 'https://bowline-omega.vercel.app/api/sync/inbound';
+var WEBHOOK_SECRET = PropertiesService.getScriptProperties().getProperty('WEBHOOK_SECRET') ||
+  'YOUR_SHEETS_WEBHOOK_SECRET'; // set WEBHOOK_SECRET in Apps Script project properties
 
 // Column index → room name (must match Listing names in Bowline database exactly)
 var ROOM_COLUMNS = {
@@ -58,6 +59,7 @@ var DATE_DISPLAY_FORMAT = 'dd-ddd-yyyy';
 // Receives POST from Bowline backend when a booking is created/updated/cancelled.
 // Actions: upsert | clear | bulkUpsert
 function doPost(e) {
+  var lock = null;
   try {
     var data = JSON.parse(e.postData.contents);
 
@@ -66,6 +68,12 @@ function doPost(e) {
         .createTextOutput(JSON.stringify({ ok: false, error: 'Invalid secret' }))
         .setMimeType(ContentService.MimeType.JSON);
     }
+
+    // Vercel can deliver writes from several server instances at once.
+    // Serialize them inside Apps Script so append/update operations cannot
+    // collide and silently lose a booking.
+    lock = LockService.getScriptLock();
+    lock.waitLock(30000);
 
     var result = { ok: true };
 
@@ -115,6 +123,8 @@ function doPost(e) {
     return ContentService
       .createTextOutput(JSON.stringify({ ok: false, error: err.message }))
       .setMimeType(ContentService.MimeType.JSON);
+  } finally {
+    if (lock && lock.hasLock()) lock.releaseLock();
   }
 }
 
@@ -172,7 +182,7 @@ var BOOKINGS_SHEET = 'Bookings';
 var BOOKINGS_HEADERS = [
   'Booking ID', 'Room', 'Guest Name', 'Email', 'Phone',
   'Check-in', 'Check-out', 'Adults', 'Children', 'Pets',
-  'Total Price', 'Status', 'Payment Status'
+  'Veg Meals', 'Non-Veg Meals', 'Total Price', 'Status', 'Payment Status'
 ];
 
 function getBookingsSheet() {
@@ -180,9 +190,11 @@ function getBookingsSheet() {
   var sheet = ss.getSheetByName(BOOKINGS_SHEET);
   if (!sheet) {
     sheet = ss.insertSheet(BOOKINGS_SHEET);
-    sheet.getRange(1, 1, 1, BOOKINGS_HEADERS.length).setValues([BOOKINGS_HEADERS]);
-    sheet.setFrozenRows(1);
   }
+  // Keep existing sheets on the canonical layout too. This repairs older
+  // 13-column installations without moving or deleting historical meal data.
+  sheet.getRange(1, 1, 1, BOOKINGS_HEADERS.length).setValues([BOOKINGS_HEADERS]);
+  sheet.setFrozenRows(1);
   return sheet;
 }
 
@@ -190,12 +202,6 @@ function upsertBookingRow(b) {
   if (!b || !b.bookingId) return;
 
   var sheet = getBookingsSheet();
-  var values = [
-    b.bookingId, b.roomName || '', b.guestName || '', b.email || '', b.phone || '',
-    b.checkIn || '', b.checkOut || '', b.adults, b.children, b.pets,
-    b.totalPrice, b.status || '', b.paymentStatus || ''
-  ];
-
   var lastRow = sheet.getLastRow();
   var row = -1;
   if (lastRow >= 2) {
@@ -204,6 +210,17 @@ function upsertBookingRow(b) {
       if (String(ids[i][0]) === String(b.bookingId)) { row = i + 2; break; }
     }
   }
+
+  // Booking payloads do not currently own the meal counts. Preserve the
+  // values already maintained in columns K/L instead of overwriting them.
+  var existingMeals = row === -1 ? [0, 0] : sheet.getRange(row, 11, 1, 2).getValues()[0];
+  var vegMeals = b.vegMeals === null || b.vegMeals === undefined ? (existingMeals[0] || 0) : b.vegMeals;
+  var nonVegMeals = b.nonVegMeals === null || b.nonVegMeals === undefined ? (existingMeals[1] || 0) : b.nonVegMeals;
+  var values = [
+    b.bookingId, b.roomName || '', b.guestName || '', b.email || '', b.phone || '',
+    b.checkIn || '', b.checkOut || '', b.adults, b.children, b.pets,
+    vegMeals, nonVegMeals, b.totalPrice, b.status || '', b.paymentStatus || ''
+  ];
 
   if (row === -1) {
     sheet.appendRow(values);

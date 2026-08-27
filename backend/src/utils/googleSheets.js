@@ -7,7 +7,9 @@
 //
 // Required env vars:
 //   APPS_SCRIPT_WEB_APP_URL  – the deployed Apps Script web app URL
-//   SHEETS_WEBHOOK_SECRET    – shared secret (same value in Apps Script + here)
+//   SHEETS_WEBHOOK_SECRET    – secret accepted on Sheet → App webhooks
+//   APPS_SCRIPT_OUTBOUND_SECRET – optional separate legacy secret used only
+//                                 for App → Sheet calls
 
 import Booking from '../models/Booking.js';
 
@@ -42,8 +44,14 @@ function getCalendarStatus(booking) {
 }
 
 export function isSheetsConfigured() {
-  return Boolean(process.env.APPS_SCRIPT_WEB_APP_URL);
+  return Boolean(
+    process.env.APPS_SCRIPT_WEB_APP_URL &&
+      (process.env.APPS_SCRIPT_OUTBOUND_SECRET || process.env.SHEETS_WEBHOOK_SECRET)
+  );
 }
+
+const getAppsScriptSecret = () =>
+  process.env.APPS_SCRIPT_OUTBOUND_SECRET || process.env.SHEETS_WEBHOOK_SECRET || '';
 
 // ── Call the Apps Script web app ───────────────────────────────────────────
 // Apps Script has no locking around the spreadsheet, so concurrent doPost
@@ -70,30 +78,62 @@ async function callAppsScript(payload) {
   return enqueueAppsScriptCall(async () => {
     const body = JSON.stringify({
       ...payload,
-      secret: process.env.SHEETS_WEBHOOK_SECRET || '',
+      secret: getAppsScriptSecret(),
     });
 
-    // Apps Script web apps redirect from /exec to /exec?... — follow redirects
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body,
-      redirect: 'follow',
-    });
+    // Every operation is an idempotent upsert/clear, so retrying transient
+    // Apps Script failures is safe. A timeout prevents the admin status page
+    // from hanging indefinitely when Google is unavailable.
+    let lastError;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        // Apps Script web apps redirect from /exec to /exec?... — follow redirects.
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body,
+          redirect: 'follow',
+          signal: AbortSignal.timeout(15000),
+        });
 
-    if (!res.ok) {
-      throw new Error(`Apps Script responded ${res.status}: ${await res.text()}`);
+        if (!res.ok) {
+          throw new Error(`Apps Script responded ${res.status}: ${await res.text()}`);
+        }
+
+        // Apps Script catches its own errors and still replies with HTTP 200.
+        const result = await res.json().catch(() => ({}));
+        if (result.ok === false) {
+          // Authentication and validation errors are permanent; do not retry.
+          throw Object.assign(new Error(result.error || 'Apps Script reported failure'), {
+            permanent: true,
+          });
+        }
+        return result;
+      } catch (error) {
+        lastError = error;
+        if (error.permanent || attempt === 2) break;
+        await new Promise((resolve) => setTimeout(resolve, 250 * 3 ** attempt));
+      }
     }
 
-    // Apps Script's doPost catches its own errors and still replies with
-    // HTTP 200, wrapping the real failure in the JSON body (e.g. a secret
-    // mismatch) — checking res.ok alone treats those as silent success.
-    const result = await res.json().catch(() => ({}));
-    if (result.ok === false) {
-      throw new Error(result.error || 'Apps Script reported failure');
-    }
-    return result;
+    throw lastError;
   });
+}
+
+// A zero-item bulk write is supported by every deployed Bowline Apps Script
+// version and has no sheet side effects. It verifies the URL, deployment and
+// secret instead of merely reporting that environment variables exist.
+export async function checkSheetsConnection() {
+  if (!isSheetsConfigured()) {
+    return { connected: false, error: 'Sheet sync environment variables are incomplete' };
+  }
+
+  try {
+    await callAppsScript({ action: 'bulkUpsert', items: [] });
+    return { connected: true, error: null };
+  } catch (error) {
+    return { connected: false, error: error.message };
+  }
 }
 
 // A block's "guest" is a fake placeholder contact — show the admin's reason
@@ -210,8 +250,8 @@ export async function refreshSheetRange(listing, startDate, endDate) {
 // Column order in the "Bookings" sheet tab (row 1 = headers):
 //   A: Booking ID   B: Room        C: Guest Name   D: Email
 //   E: Phone        F: Check-in    G: Check-out    H: Adults
-//   I: Children     J: Pets        K: Total Price
-//   L: Status       M: Payment Status
+//   I: Children     J: Pets        K: Veg Meals     L: Non-Veg Meals
+//   M: Total Price  N: Status      O: Payment Status
 export const BOOKING_SHEET_NAME = 'Bookings';
 
 export const BOOKING_SHEET_HEADERS = [
@@ -225,6 +265,8 @@ export const BOOKING_SHEET_HEADERS = [
   'Adults',
   'Children',
   'Pets',
+  'Veg Meals',
+  'Non-Veg Meals',
   'Total Price',
   'Status',
   'Payment Status',
@@ -246,6 +288,11 @@ export async function writeFullBookingToSheet(booking) {
       adults: booking.adultGuests ?? booking.guests ?? 1,
       children: booking.childGuests ?? 0,
       pets: booking.pets ?? 0,
+      // These legacy columns still exist in the operational sheet. New app
+      // bookings do not collect meal counts, so the Apps Script preserves
+      // existing values on updates and uses zero only for newly-added rows.
+      vegMeals: null,
+      nonVegMeals: null,
       totalPrice: booking.totalPrice ?? 0,
       status: booking.status,
       paymentStatus: booking.paymentStatus,
@@ -288,6 +335,8 @@ export async function pushAllFullBookingsToSheet(bookings) {
     adults: b.adultGuests ?? b.guests ?? 1,
     children: b.childGuests ?? 0,
     pets: b.pets ?? 0,
+    vegMeals: null,
+    nonVegMeals: null,
     totalPrice: b.totalPrice ?? 0,
     status: b.status,
     paymentStatus: b.paymentStatus,
