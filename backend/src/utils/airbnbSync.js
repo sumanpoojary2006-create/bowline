@@ -3,7 +3,6 @@ import Listing from '../models/Listing.js';
 import AppSetting from '../models/AppSetting.js';
 import { calculateBookingPrice } from './pricing.js';
 import { parseIcsEvents } from './ical.js';
-import { getExistingBookingsForRange } from './availability.js';
 import { isSheetsConfigured, writeFullBookingToSheet, refreshSheetRange } from './googleSheets.js';
 
 // Dormitory is inactive (not bookable standalone) but is still part of the
@@ -17,7 +16,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // Airbnb marks real reservations "Reserved". Everything else in the feed
 // ("Airbnb (Not available)") is a date Airbnb considers unbookable — which
 // includes every date it imported from our own published iCal feed.
-const isBlockEvent = (event) => !/reserved/i.test(event.summary || '');
+export const isAirbnbReservationEvent = (event) => /reserved/i.test(event.summary || '');
+const isBlockEvent = (event) => !isAirbnbReservationEvent(event);
 
 const mergeRanges = (ranges) => {
   const merged = [];
@@ -193,35 +193,14 @@ export const syncListingFromAirbnb = async (listing) => {
   return result;
 };
 
-// Generic placeholders that don't count as evidence of a real guest — seeing
-// the same one of these across several rooms means nothing (it's just our
-// own default text), unlike a real name repeated across rooms.
-const GENERIC_CONTACT_NAMES = new Set([
-  '', 'airbnb guest', 'airbnb block', 'offline booking', 'offline block', 'test', 'bowline admin',
-]);
-
-const isGenericContactName = (name) => {
-  const normalized = String(name || '').trim().toLowerCase();
-  return !normalized || GENERIC_CONTACT_NAMES.has(normalized) || normalized.startsWith('airbnb guest');
-};
-
 const FULLHOUSE_EXTERNAL_ID_RE = /^fullhouse:(.+):([0-9a-fA-F]{24})$/;
 
 // Airbnb sells the whole property as its own separate listing ("Full House")
-// with its own iCal feed, distinct from the per-room feeds above. Its "Not
-// available" blocks are an UNRELIABLE signal though — they fire just as
-// often because several rooms happen to be independently booked by
-// different guests at once (so the bundle can't be sold as a whole) as they
-// do for an actual full-house sale. Blindly blocking every room for every
-// such date risks blocking rooms nobody actually booked.
-//
-// So instead of trusting the feed directly, we only act when our own DB
-// already shows two-or-more rooms independently booked under the SAME real
-// guest name for those dates (e.g. a guest recorded as "Nithin" on 3 of 5
-// rooms) — that's strong evidence of one real full-house guest, and we fill
-// in the remaining unbooked rooms under that same name. If no such name
-// match exists, we leave it alone and flag it for manual review instead of
-// guessing.
+// with its own iCal feed, distinct from the per-room feeds above. Airbnb also
+// echoes dates imported from Bowline back out as "Airbnb (Not available)".
+// Those events only mean the Full House product cannot be sold; they do NOT
+// mean every room was booked. Only Airbnb's own "Reserved" events represent
+// an actual Full House reservation and may fan out across every room.
 export const syncFullHouseFromAirbnb = async () => {
   const result = { listing: 'Full House', created: 0, updated: 0, cancelled: 0, needsReview: [], errors: [] };
 
@@ -239,7 +218,7 @@ export const syncFullHouseFromAirbnb = async () => {
     return result;
   }
 
-  const events = parseIcsEvents(text);
+  const events = parseIcsEvents(text).filter(isAirbnbReservationEvent);
   const feedUids = new Set(events.map((e) => e.uid));
 
   const rooms = await Listing.find({
@@ -257,134 +236,80 @@ export const syncFullHouseFromAirbnb = async () => {
   const touched = [];
 
   for (const event of events) {
-    // A multi-night "not available" block can be fully booked out for
-    // entirely different reasons on different nights (e.g. one guest for
-    // night 1, several unrelated single-room guests for night 2). Evaluate
-    // name evidence per night rather than once for the whole event, so a
-    // guest whose real booking only covers part of the block doesn't get
-    // extrapolated onto nights they were never part of.
-    const nights = [];
-    for (const d = new Date(event.start); d < event.end; d.setDate(d.getDate() + 1)) {
-      nights.push(new Date(d));
-    }
+    for (const room of rooms) {
+      const fhExternalId = `fullhouse:${event.uid}:${room._id}`;
+      const existing = existingFullHouseBookings.find((b) => b.externalId === fhExternalId);
 
-    const nightlyInfo = await Promise.all(
-      nights.map(async (night) => {
-        const nightEnd = new Date(night);
-        nightEnd.setDate(nightEnd.getDate() + 1);
-
-        const nameRoomCounts = new Map();
-        for (const room of rooms) {
-          const bookings = await getExistingBookingsForRange({
-            listingId: room._id,
-            startDate: night,
-            endDate: nightEnd,
-            statuses: ['pending', 'confirmed'],
-          }).then((list) => list.filter((b) => !String(b.externalId || '').startsWith('fullhouse:')));
-
-          const namesInThisRoom = new Set(
-            bookings.map((b) => String(b.contactName || '').trim()).filter((n) => !isGenericContactName(n))
-          );
-          for (const name of namesInThisRoom) {
-            const key = name.toLowerCase();
-            const entry = nameRoomCounts.get(key) || { name, rooms: 0 };
-            entry.rooms += 1;
-            nameRoomCounts.set(key, entry);
-          }
+      if (existing) {
+        if (
+          existing.startDate.getTime() !== event.start.getTime() ||
+          existing.endDate.getTime() !== event.end.getTime()
+        ) {
+          touched.push({ room, start: existing.startDate, end: existing.endDate });
+          existing.startDate = event.start;
+          existing.endDate = event.end;
+          await existing.save();
+          touched.push({ room, start: event.start, end: event.end });
+          result.updated++;
         }
-
-        const best = [...nameRoomCounts.values()].sort((a, b) => b.rooms - a.rooms)[0];
-        return { night, guestName: best && best.rooms >= 2 ? best.name : null };
-      })
-    );
-
-    for (const { night, guestName } of nightlyInfo) {
-      if (guestName) continue;
-      const nightEnd = new Date(night);
-      nightEnd.setDate(nightEnd.getDate() + 1);
-      result.needsReview.push({
-        startDate: night.toISOString().slice(0, 10),
-        endDate: nightEnd.toISOString().slice(0, 10),
-      });
-    }
-
-    // Group consecutive nights confirmed under the same guest name into one
-    // span per room, matching how guests actually book — a run that stops
-    // early (or was never confirmed to begin with) doesn't drag other rooms
-    // in beyond the nights that run actually covers.
-    let i = 0;
-    while (i < nightlyInfo.length) {
-      if (!nightlyInfo[i].guestName) { i++; continue; }
-      const guestName = nightlyInfo[i].guestName;
-      let j = i;
-      while (j + 1 < nightlyInfo.length && nightlyInfo[j + 1].guestName === guestName) j++;
-
-      const spanStart = nightlyInfo[i].night;
-      const spanEnd = new Date(nightlyInfo[j].night);
-      spanEnd.setDate(spanEnd.getDate() + 1);
-
-      for (const room of rooms) {
-        const fhExternalId = `fullhouse:${event.uid}:${room._id}`;
-        const existing = existingFullHouseBookings.find((b) => b.externalId === fhExternalId);
-
-        if (existing) {
-          if (
-            existing.startDate.getTime() !== spanStart.getTime() ||
-            existing.endDate.getTime() !== spanEnd.getTime()
-          ) {
-            touched.push({ room, start: existing.startDate, end: existing.endDate });
-            existing.startDate = spanStart;
-            existing.endDate = spanEnd;
-            await existing.save();
-            touched.push({ room, start: spanStart, end: spanEnd });
-            result.updated++;
-          }
-          continue;
-        }
-
-        const roomBookings = await getExistingBookingsForRange({
-          listingId: room._id,
-          startDate: spanStart,
-          endDate: spanEnd,
-          statuses: ['pending', 'confirmed'],
-        }).then((list) => list.filter((b) => !String(b.externalId || '').startsWith('fullhouse:')));
-
-        if (roomBookings.length) continue; // already independently covered
-
-        const pricing = await calculateBookingPrice({
-          listing: room,
-          bookingType: 'room',
-          startDate: spanStart,
-          endDate: spanEnd,
-          guests: 1,
-          applyGst: false,
-        });
-
-        await Booking.create({
-          bookingType: 'room',
-          listing: room._id,
-          user: null,
-          startDate: spanStart,
-          endDate: spanEnd,
-          guests: 1,
-          unitPrice: pricing.unitPrice,
-          totalPrice: pricing.totalPrice,
-          pricingBreakdown: { basePrice: pricing.basePrice, adjustments: pricing.adjustments },
-          status: 'confirmed',
-          paymentStatus: 'paid',
-          paymentMethod: 'airbnb',
-          contactName: guestName,
-          contactEmail: 'airbnb-sync@bowline.internal',
-          contactPhone: '',
-          specialRequests: 'Synced from Airbnb Full House calendar',
-          source: 'airbnb',
-          externalId: fhExternalId,
-        });
-        touched.push({ room, start: spanStart, end: spanEnd });
-        result.created++;
+        continue;
       }
 
-      i = j + 1;
+      // A real Full House reservation overlapping a Bowline/room-level
+      // booking is a possible double booking. The room is already blocked,
+      // so don't create a duplicate record; surface it for admin review.
+      const conflicts = await Booking.find({
+        listing: room._id,
+        externalId: { $not: /^fullhouse:/ },
+        startDate: { $lt: event.end },
+        endDate: { $gt: event.start },
+        $or: [
+          { status: { $in: ['confirmed', 'blocked'] } },
+          { status: 'pending', paymentStatus: { $in: ['paid', 'partially_paid'] } },
+        ],
+      }).select('_id');
+
+      if (conflicts.length) {
+        result.needsReview.push({
+          room: room.name,
+          startDate: event.start.toISOString().slice(0, 10),
+          endDate: event.end.toISOString().slice(0, 10),
+          reason: 'Full House Airbnb reservation overlaps an existing room booking',
+        });
+        continue;
+      }
+
+      const pricing = await calculateBookingPrice({
+        listing: room,
+        bookingType: 'room',
+        startDate: event.start,
+        endDate: event.end,
+        guests: 1,
+        applyGst: false,
+      });
+
+      await Booking.create({
+        bookingType: 'room',
+        listing: room._id,
+        user: null,
+        startDate: event.start,
+        endDate: event.end,
+        guests: 1,
+        unitPrice: pricing.unitPrice,
+        totalPrice: pricing.totalPrice,
+        pricingBreakdown: { basePrice: pricing.basePrice, adjustments: pricing.adjustments },
+        status: 'confirmed',
+        paymentStatus: 'paid',
+        paymentMethod: 'airbnb',
+        contactName: 'Airbnb Guest',
+        contactEmail: 'airbnb-sync@bowline.internal',
+        contactPhone: '',
+        specialRequests: 'Synced from Airbnb Full House calendar',
+        source: 'airbnb',
+        externalId: fhExternalId,
+      });
+      touched.push({ room, start: event.start, end: event.end });
+      result.created++;
     }
   }
 

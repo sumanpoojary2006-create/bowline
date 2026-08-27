@@ -136,8 +136,21 @@ export const inboundWebhook = async (req, res, next) => {
     const results = { created: 0, updated: 0, cancelled: 0 };
 
     for (const sb of sheetBookings) {
+      // Calendar columns are a view of website/admin/Airbnb bookings, not
+      // their source of truth. Only records originally created from this
+      // sheet may be edited or cancelled by the column webhook. Otherwise a
+      // harmless sheet refresh can rename, downgrade, or cancel a paid web
+      // booking (and can make an Airbnb record disappear/reappear forever).
       const existing = existingBookings.find(
         (b) =>
+          b.source === 'sheet' &&
+          b.startDate.getTime() === sb.startDate.getTime() &&
+          b.endDate.getTime()   === sb.endDate.getTime()
+      );
+
+      const mirroredBooking = existingBookings.find(
+        (b) =>
+          b.source !== 'sheet' &&
           b.startDate.getTime() === sb.startDate.getTime() &&
           b.endDate.getTime()   === sb.endDate.getTime()
       );
@@ -164,7 +177,7 @@ export const inboundWebhook = async (req, res, next) => {
           }
           results.updated++;
         }
-      } else {
+      } else if (!mirroredBooking) {
         const pricing = await calculateBookingPrice({
           listing,
           bookingType: 'room',
@@ -210,7 +223,7 @@ export const inboundWebhook = async (req, res, next) => {
       end:   sb.endDate.getTime(),
     }));
 
-    for (const b of existingBookings) {
+    for (const b of existingBookings.filter((booking) => booking.source === 'sheet')) {
       const stillPresent = sheetRanges.some(
         (r) => r.start === b.startDate.getTime() && r.end === b.endDate.getTime()
       );
