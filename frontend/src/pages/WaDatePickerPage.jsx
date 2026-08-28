@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import api from '../lib/api';
+import { isBookedDay, wouldCheckoutConflict } from '../lib/waDateAvailability';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DAYS   = ['Su','Mo','Tu','We','Th','Fr','Sa'];
@@ -17,7 +19,7 @@ function fmtShort(d) {
   return d.toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
 }
 
-function CalendarGrid({ year, month, start, end, hovered, onDay, onHover }) {
+function CalendarGrid({ year, month, start, end, hovered, step, bookedRanges, loading, onDay, onHover }) {
   const firstDow = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month+1, 0).getDate();
   const today = startOfDay(new Date());
@@ -41,19 +43,31 @@ function CalendarGrid({ year, month, start, end, hovered, onDay, onHover }) {
           const isStart = sameDay(date, start);
           const isEnd   = sameDay(date, end);
           const inRange = start && rangeEnd && date > start && date < rangeEnd;
+          const booked = isBookedDay(date, bookedRanges);
+          const choosingCheckout = step === 'end' && start && date > start;
+          const conflicts = choosingCheckout
+            ? wouldCheckoutConflict(date, start, bookedRanges)
+            : booked;
+          const disabled = isPast || loading || conflicts;
+          const showBooked = booked && !choosingCheckout;
 
           let bg = '';
           if (isStart || isEnd) bg = 'bg-amber-400 text-slate-900 rounded-full';
           else if (inRange)     bg = 'bg-amber-400/20 text-white';
+          else if (showBooked)  bg = 'bg-rose-900/50 text-rose-300 line-through rounded-full';
 
           return (
             <button
               key={date.toISOString()}
-              disabled={isPast}
-              onClick={() => !isPast && onDay(date)}
-              onMouseEnter={() => onHover && onHover(date)}
+              type="button"
+              aria-label={`${fmtFull(date)}${conflicts ? ' — unavailable' : ''}`}
+              disabled={disabled}
+              onClick={() => !disabled && onDay(date)}
+              onMouseEnter={() => !disabled && onHover && onHover(date)}
               className={`h-9 w-full text-sm flex items-center justify-center
-                ${isPast ? 'text-slate-600 cursor-not-allowed' : 'hover:bg-amber-400/30 text-slate-200'}
+                ${disabled && !showBooked ? 'text-slate-600 cursor-not-allowed' : ''}
+                ${disabled && showBooked ? 'cursor-not-allowed' : ''}
+                ${!disabled ? 'hover:bg-amber-400/30 text-slate-200' : ''}
                 ${bg}`}
             >
               {date.getDate()}
@@ -68,6 +82,7 @@ function CalendarGrid({ year, month, start, end, hovered, onDay, onHover }) {
 export default function WaDatePickerPage() {
   const params = new URLSearchParams(window.location.search);
   const room = params.get('room') || 'your room';
+  const requestedListingId = params.get('listingId');
   const BOWLINE_WA = '916360718604';
 
   const today = startOfDay(new Date());
@@ -77,6 +92,51 @@ export default function WaDatePickerPage() {
   const [step, setStep]       = useState('start'); // 'start' | 'end' | 'done' | 'copied'
   const [viewYear, setViewYear]   = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
+  const [bookedRanges, setBookedRanges] = useState([]);
+  const [availabilityLoading, setAvailabilityLoading] = useState(true);
+  const [availabilityError, setAvailabilityError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadAvailability = async () => {
+      setAvailabilityLoading(true);
+      setAvailabilityError('');
+
+      try {
+        let listingId = requestedListingId;
+
+        // Older WhatsApp messages contain only the room name. Keep those
+        // links working while all newly-sent links carry the stable listing ID.
+        if (!listingId) {
+          const { data } = await api.get('/listings', { params: { type: 'room' } });
+          const normalizedRoom = room.trim().toLowerCase();
+          listingId = data.listings?.find(
+            (listing) => listing.name?.trim().toLowerCase() === normalizedRoom
+          )?._id;
+        }
+
+        if (!listingId) throw new Error('Room not found');
+
+        const { data } = await api.get(`/listings/${listingId}/booked-dates`, {
+          params: { months: 12 },
+        });
+
+        if (!cancelled) setBookedRanges(data.bookedRanges || []);
+      } catch {
+        if (!cancelled) {
+          setBookedRanges([]);
+          setAvailabilityError('Live availability could not be loaded. Please retry before selecting dates.');
+        }
+      } finally {
+        if (!cancelled) setAvailabilityLoading(false);
+      }
+    };
+
+    loadAvailability();
+    return () => { cancelled = true; };
+  }, [requestedListingId, room, reloadKey]);
 
   const handleDay = (date) => {
     if (step === 'start' || step === 'done') {
@@ -126,6 +186,24 @@ export default function WaDatePickerPage() {
         {step === 'start' ? '📅 Tap your check-in date' : step === 'end' ? '📅 Tap your check-out date' : '✅ Dates selected — tap any date to change'}
       </p>
 
+      {availabilityLoading && (
+        <p className="mb-4 rounded-xl bg-slate-800 px-3 py-2 text-sm text-slate-300">
+          Checking live availability…
+        </p>
+      )}
+      {availabilityError && (
+        <div className="mb-4 rounded-xl border border-rose-500/40 bg-rose-950/40 px-3 py-3 text-sm text-rose-200">
+          <p>{availabilityError}</p>
+          <button
+            type="button"
+            onClick={() => setReloadKey((key) => key + 1)}
+            className="mt-2 font-semibold text-white underline underline-offset-2"
+          >
+            Retry availability
+          </button>
+        </div>
+      )}
+
       {/* Calendar nav */}
       <div className="flex items-center justify-between mb-4">
         <button onClick={prevMonth} className="p-2 text-slate-300 hover:text-white">
@@ -143,9 +221,17 @@ export default function WaDatePickerPage() {
         start={start}
         end={end}
         hovered={hovered}
+        step={step}
+        bookedRanges={bookedRanges}
+        loading={availabilityLoading || Boolean(availabilityError)}
         onDay={handleDay}
         onHover={step === 'end' ? setHovered : null}
       />
+
+      <div className="mt-4 flex items-center gap-2 text-xs text-slate-400">
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-rose-900/50 text-rose-300 line-through">12</span>
+        <span>Already booked — unavailable</span>
+      </div>
 
       {/* Summary */}
       {start && (
@@ -184,7 +270,7 @@ export default function WaDatePickerPage() {
       ) : (
         <button
           onClick={handleConfirm}
-          disabled={!start || !end}
+          disabled={!start || !end || availabilityLoading || Boolean(availabilityError)}
           className="mt-4 w-full rounded-2xl bg-amber-400 disabled:opacity-30 text-slate-900 font-semibold py-4 text-base"
         >
           Confirm Dates →

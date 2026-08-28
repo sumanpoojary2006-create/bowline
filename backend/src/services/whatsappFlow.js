@@ -365,7 +365,7 @@ const handleRoomSelect = async (session, phone, buttonId) => {
   session.step = 'CHECKIN';
   await session.save();
 
-  const calUrl = `https://bowline-omega.vercel.app/wa-dates?room=${encodeURIComponent(listing.name)}`;
+  const calUrl = `https://bowline-omega.vercel.app/wa-dates?listingId=${listing._id}&room=${encodeURIComponent(listing.name)}`;
   await sendCtaUrl(
     phone,
     `Great choice - *${listing.name}*! 🌿\n\nTap below to pick your check-in and check-out dates from a calendar.`,
@@ -538,7 +538,7 @@ const handleCheckin = async (session, phone, text) => {
       });
 
       if (overlapping.length) {
-        const calUrl = `https://bowline-omega.vercel.app/wa-dates?room=${encodeURIComponent(session.data.listingName)}`;
+        const calUrl = `https://bowline-omega.vercel.app/wa-dates?listingId=${session.data.listingId}&room=${encodeURIComponent(session.data.listingName)}`;
         await sendCtaUrl(
           phone,
           `Sorry, *${session.data.listingName}* is already booked for those dates. Please pick different dates.`,
@@ -560,7 +560,7 @@ const handleCheckin = async (session, phone, text) => {
   const date = parseSingleDateText(text);
 
   if (!date) {
-    const calUrl = `https://bowline-omega.vercel.app/wa-dates?room=${encodeURIComponent(session.data.listingName)}`;
+    const calUrl = `https://bowline-omega.vercel.app/wa-dates?listingId=${session.data.listingId}&room=${encodeURIComponent(session.data.listingName)}`;
     await sendCtaUrl(phone, 'Please use the calendar to pick your dates:', 'Pick Dates 📅', calUrl);
     return;
   }
