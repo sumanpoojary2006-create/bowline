@@ -20,7 +20,11 @@ import { refreshSheetRange, writeFullBookingToSheet } from '../utils/googleSheet
 import { notifyAdmins } from '../utils/notifications.js';
 import { sortRoomsForDisplay } from '../utils/roomOrder.js';
 import { findValidCoupon } from '../utils/coupons.js';
-import { WHATSAPP_QUERY_REPLY, allocateCouponDiscount } from '../utils/whatsappBooking.js';
+import {
+  WHATSAPP_QUERY_REPLY,
+  allocateCouponDiscount,
+  looksLikeCustomerQuery,
+} from '../utils/whatsappBooking.js';
 
 const RESET_WORDS = ['menu', 'hi', 'hello', 'hey', 'start', 'restart'];
 const BUTTON_ONLY_STEPS = new Set([
@@ -1191,6 +1195,11 @@ export const handleIncomingMessage = async (phone, message, profileName) => {
     session.cart = [];
     await session.save();
     await sendMenu(phone, profileName);
+    return;
+  }
+
+  if (!buttonId && looksLikeCustomerQuery(text)) {
+    await sendQueryReply(phone);
     return;
   }
 

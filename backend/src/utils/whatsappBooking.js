@@ -32,3 +32,13 @@ export const getRazorpayCustomerEmail = (payment) => {
   const email = String(payment?.email || '').trim().toLowerCase();
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) ? email : '';
 };
+
+export const looksLikeCustomerQuery = (text) => {
+  const value = String(text || '').trim().toLowerCase();
+  if (!value) return false;
+  if (value.includes('?')) return true;
+
+  return /\b(what|why|how|where|when|who|can|could|would|help|query|contact|price|cost|food|meal|location|address|facility|facilities|amenity|amenities)\b/.test(
+    value
+  );
+};
