@@ -19,8 +19,19 @@ import { calculateRefundPaise } from '../controllers/paymentController.js';
 import { refreshSheetRange, writeFullBookingToSheet } from '../utils/googleSheets.js';
 import { notifyAdmins } from '../utils/notifications.js';
 import { sortRoomsForDisplay } from '../utils/roomOrder.js';
+import { findValidCoupon } from '../utils/coupons.js';
+import { WHATSAPP_QUERY_REPLY, allocateCouponDiscount } from '../utils/whatsappBooking.js';
 
 const RESET_WORDS = ['menu', 'hi', 'hello', 'hey', 'start', 'restart'];
+const BUTTON_ONLY_STEPS = new Set([
+  'ROOM_SELECT',
+  'SUMMARY_CONFIRM',
+  'COUPON',
+  'PAYMENT_TYPE',
+  'MY_BOOKINGS_SELECT',
+  'MY_BOOKING_ACTION',
+  'MY_BOOKING_CANCEL',
+]);
 
 const extractIncoming = (message) => ({
   text: message.text?.body?.trim() || '',
@@ -28,6 +39,7 @@ const extractIncoming = (message) => ({
 });
 
 const formatDate = (date) => dayjs(date).format('D MMM YYYY');
+const sendQueryReply = (phone) => sendText(phone, WHATSAPP_QUERY_REPLY);
 
 const sendMenu = async (phone, profileName) => {
   const greeting = profileName ? `Hi ${profileName}! ` : 'Hi there! ';
@@ -874,12 +886,15 @@ const handleSummaryConfirm = async (session, phone, buttonId) => {
   }
 
   if (buttonId === 'proceed_payment') {
-    session.step = 'EMAIL';
+    session.step = 'COUPON';
     await session.save();
     await sendButtons(
       phone,
-      'Please type your *email address* — we will send your booking receipt there after payment.',
-      [{ id: 'skip_email', title: 'Skip' }]
+      'Do you have a coupon code?',
+      [
+        { id: 'apply_coupon', title: 'Apply Coupon' },
+        { id: 'skip_coupon', title: 'No Coupon' },
+      ]
     );
     return;
   }
@@ -900,30 +915,68 @@ const sendPaymentOptions = (phone) =>
     { id: 'cancel_booking', title: 'Cancel' },
   ]);
 
-const handleEmail = async (session, phone, buttonId, text) => {
-  if (buttonId === 'skip_email') {
-    session.step = 'PAYMENT_TYPE';
-    await session.save();
-    await sendPaymentOptions(phone);
-    return;
-  }
-
-  const email = (text || '').trim();
-
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
-    await sendButtons(
-      phone,
-      "That doesn't look like a valid email address. Please type it again (example: name@gmail.com), or skip.",
-      [{ id: 'skip_email', title: 'Skip' }]
-    );
-    return;
-  }
-
-  session.data = { ...session.data, contactEmail: email.toLowerCase() };
+const continueToPaymentOptions = async (session, phone) => {
   session.step = 'PAYMENT_TYPE';
   await session.save();
-
   await sendPaymentOptions(phone);
+};
+
+const handleCouponChoice = async (session, phone, buttonId) => {
+  if (buttonId === 'skip_coupon') {
+    session.data = { ...session.data, couponCode: '', couponTitle: '', couponDiscount: 0 };
+    await continueToPaymentOptions(session, phone);
+    return;
+  }
+
+  if (buttonId === 'apply_coupon') {
+    session.step = 'COUPON_CODE';
+    await session.save();
+    await sendButtons(phone, 'Please type your *coupon code*:', [
+      { id: 'skip_coupon', title: 'No Coupon' },
+    ]);
+    return;
+  }
+
+  await sendQueryReply(phone);
+};
+
+const handleCouponCode = async (session, phone, buttonId, text) => {
+  if (buttonId === 'skip_coupon') {
+    session.data = { ...session.data, couponCode: '', couponTitle: '', couponDiscount: 0 };
+    await continueToPaymentOptions(session, phone);
+    return;
+  }
+
+  const code = String(text || '').trim();
+  if (!code) {
+    await sendButtons(phone, 'Please type a coupon code, or continue without one.', [
+      { id: 'skip_coupon', title: 'No Coupon' },
+    ]);
+    return;
+  }
+
+  const items = [...(session.cart || []), session.data];
+  const subtotal = items.reduce((sum, item) => sum + Number(item.totalPrice || 0), 0);
+
+  try {
+    const { coupon, discount } = await findValidCoupon(code, subtotal);
+    session.data = {
+      ...session.data,
+      couponCode: coupon.code,
+      couponTitle: coupon.title,
+      couponDiscount: discount,
+    };
+    await session.save();
+    await sendText(
+      phone,
+      `Coupon *${coupon.code}* applied ✅\nSubtotal: Rs ${subtotal}\nDiscount: Rs ${discount}\n*New Total: Rs ${Math.max(subtotal - discount, 0)}*`
+    );
+    await continueToPaymentOptions(session, phone);
+  } catch (error) {
+    await sendButtons(phone, `${error.message}. Please try another code, or continue without one.`, [
+      { id: 'skip_coupon', title: 'No Coupon' },
+    ]);
+  }
 };
 
 const resetSession = async (session) => {
@@ -941,9 +994,30 @@ const finalizeBookings = async (session, phone, profileName, payInFull = false) 
   const contactEmail = session.data.contactEmail || `whatsapp.${phone}@bowline.guest`;
   const contactPhone = `+${phone}`;
 
+  const subtotalBeforeCoupon = items.reduce((sum, item) => sum + Number(item.totalPrice || 0), 0);
+  let coupon = null;
+  let couponDiscount = 0;
+
+  if (session.data.couponCode) {
+    try {
+      const couponResult = await findValidCoupon(session.data.couponCode, subtotalBeforeCoupon);
+      coupon = couponResult.coupon;
+      couponDiscount = couponResult.discount;
+    } catch (error) {
+      session.step = 'COUPON_CODE';
+      await session.save();
+      await sendButtons(phone, `${error.message}. Please try another code, or continue without one.`, [
+        { id: 'skip_coupon', title: 'No Coupon' },
+      ]);
+      return;
+    }
+  }
+
+  const couponAllocations = allocateCouponDiscount(items, couponDiscount);
+
   const bookings = [];
 
-  for (const item of items) {
+  for (const [itemIndex, item] of items.entries()) {
     const { listingId, listingName, startDate, endDate, adultGuests, childGuests, pets } = item;
 
     const listing = await Listing.findById(listingId);
@@ -982,6 +1056,8 @@ const finalizeBookings = async (session, phone, profileName, payInFull = false) 
         contactPhone,
         specialRequests: '',
         payInFullRequested: payInFull,
+        coupon,
+        couponDiscount: couponAllocations[itemIndex],
         deferSideEffects: true,
       });
       bookings.push(booking);
@@ -1008,12 +1084,13 @@ const finalizeBookings = async (session, phone, profileName, payInFull = false) 
   const roomsList = bookings
     .map((b) => `- ${b.listing.name} (${formatDate(b.startDate)} to ${formatDate(b.endDate)}) - Rs ${b.totalPrice}`)
     .join('\n');
+  const couponLine = couponDiscount > 0 ? `\nCoupon ${coupon.code}: -Rs ${couponDiscount}` : '';
   const idsLabel = bookingIds.length > 1 ? 'Booking IDs' : 'Booking ID';
 
   if (!isRazorpayConfigured()) {
     await sendText(
       phone,
-      `Your booking${bookings.length > 1 ? 's have' : ' has'} been received!\n\n${roomsList}\n\n*Total: Rs ${grandTotal}*\n${idsLabel}: ${bookingIds.join(', ')}\n\nOur team will contact you shortly to arrange payment.`
+      `Your booking${bookings.length > 1 ? 's have' : ' has'} been received!\n\n${roomsList}${couponLine}\n\n*Total: Rs ${grandTotal}*\n${idsLabel}: ${bookingIds.join(', ')}\n\nOur team will contact you shortly to arrange payment.`
     );
     for (const booking of bookings) {
       try {
@@ -1054,7 +1131,7 @@ const finalizeBookings = async (session, phone, profileName, payInFull = false) 
 
     await Booking.updateMany({ _id: { $in: bookingIds } }, { razorpayPaymentLinkId: paymentLink.id });
 
-    const successBody = `*Booking Request Received!* ✅\n\n${roomsList}\n\n*Total: Rs ${grandTotal}*\nAmount to pay now: *${depositLabel}*${remainingLabel}\n\n👇 Complete your payment to confirm the booking:\n${paymentLink.short_url}\n\nYou'll receive a confirmation message here once payment is done.`;
+    const successBody = `*Booking Request Received!* ✅\n\n${roomsList}${couponLine}\n\n*Total: Rs ${grandTotal}*\nAmount to pay now: *${depositLabel}*${remainingLabel}\n\n👇 Complete your payment to confirm the booking:\n${paymentLink.short_url}\n\nEnter your contact details once on Razorpay. After payment, your receipt will be emailed to the address entered there, and confirmation will also arrive here.`;
     try {
       // WhatsApp caps button text at 20 chars — keep it short
       await sendCtaUrl(phone, successBody, 'Know More 🌿', 'https://bowlinestays.com/');
@@ -1066,7 +1143,7 @@ const finalizeBookings = async (session, phone, profileName, payInFull = false) 
     console.error('[WA] Razorpay payment link failed:', error?.message, JSON.stringify(error));
     await sendText(
       phone,
-      `*Booking Request Received!* ✅\n\n${roomsList}\n\n*Total: Rs ${grandTotal}*\n${idsLabel}: ${bookingIds.join(', ')}\n\nOur team will contact you shortly to share the payment link.`
+      `*Booking Request Received!* ✅\n\n${roomsList}${couponLine}\n\n*Total: Rs ${grandTotal}*\n${idsLabel}: ${bookingIds.join(', ')}\n\nOur team will contact you shortly to share the payment link.`
     );
   }
 
@@ -1117,6 +1194,11 @@ export const handleIncomingMessage = async (phone, message, profileName) => {
     return;
   }
 
+  if (!buttonId && text && BUTTON_ONLY_STEPS.has(session.step)) {
+    await sendQueryReply(phone);
+    return;
+  }
+
   switch (session.step) {
     case 'ROOM_SELECT':
       return handleRoomSelect(session, phone, buttonId);
@@ -1136,8 +1218,12 @@ export const handleIncomingMessage = async (phone, message, profileName) => {
       return handlePets(session, phone, buttonId, text);
     case 'SUMMARY_CONFIRM':
       return handleSummaryConfirm(session, phone, buttonId);
+    case 'COUPON':
+      return handleCouponChoice(session, phone, buttonId);
+    case 'COUPON_CODE':
+      return handleCouponCode(session, phone, buttonId, text);
     case 'EMAIL':
-      return handleEmail(session, phone, buttonId, text);
+      return continueToPaymentOptions(session, phone);
     case 'PAYMENT_TYPE':
       return handlePaymentType(session, phone, buttonId, profileName);
     case 'MY_BOOKINGS_SELECT':
@@ -1147,7 +1233,9 @@ export const handleIncomingMessage = async (phone, message, profileName) => {
     case 'MY_BOOKING_CANCEL':
       return handleMyBookingCancel(session, phone, buttonId, profileName);
     case 'MENU':
-    default:
+      if (!buttonId) return sendQueryReply(phone);
       return handleMenu(session, phone, buttonId, profileName);
+    default:
+      return sendQueryReply(phone);
   }
 };

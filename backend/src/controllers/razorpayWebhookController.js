@@ -11,6 +11,7 @@ import {
 } from '../utils/notifications.js';
 import { writeBookingToSheet, writeFullBookingToSheet, isSheetsConfigured } from '../utils/googleSheets.js';
 import { sendBookingConfirmationEmail } from '../utils/bookingConfirmationEmail.js';
+import { getRazorpayCustomerEmail } from '../utils/whatsappBooking.js';
 
 function syncToSheet(booking) {
   if (!isSheetsConfigured()) return Promise.resolve();
@@ -73,6 +74,11 @@ export const handleRazorpayWebhook = async (req, res, next) => {
 
     const payment = event.payload?.payment?.entity;
     const paymentId = payment?.id;
+    const razorpayCustomerEmail = getRazorpayCustomerEmail({
+      email:
+        payment?.email ||
+        event.payload?.payment_link?.entity?.customer?.email,
+    });
     const paymentLinkId = event.payload?.payment_link?.entity?.id || payment?.notes?.payment_link_id;
     const bookingIdsNote = payment?.notes?.bookingIds;
     const bookingIdNote = payment?.notes?.bookingId;
@@ -119,6 +125,7 @@ export const handleRazorpayWebhook = async (req, res, next) => {
       booking.paymentMethod = 'razorpay';
       booking.razorpayPaymentId = paymentId;
       booking.payInFullRequested = false;
+      if (razorpayCustomerEmail) booking.contactEmail = razorpayCustomerEmail;
       await booking.save();
     }
 

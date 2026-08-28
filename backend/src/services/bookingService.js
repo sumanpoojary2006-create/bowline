@@ -27,6 +27,8 @@ export const createRoomBooking = async ({
   contactPhone,
   specialRequests = '',
   payInFullRequested = false,
+  coupon = null,
+  couponDiscount = 0,
   user = null,
   deferSideEffects = false,
 }) => {
@@ -67,12 +69,22 @@ export const createRoomBooking = async ({
     childGuests,
     pets,
     unitPrice: pricing.unitPrice,
-    totalPrice: pricing.totalPrice,
+    totalPrice: Math.max(pricing.totalPrice - couponDiscount, 0),
     pricingBreakdown: {
       basePrice: pricing.basePrice,
-      adjustments: pricing.adjustments,
+      adjustments:
+        couponDiscount > 0
+          ? [...pricing.adjustments, `Coupon ${coupon.code}: -₹${couponDiscount}`]
+          : pricing.adjustments,
       subtotal: pricing.subtotal,
       gstAmount: pricing.gstAmount,
+      coupon: coupon
+        ? {
+            code: coupon.code,
+            title: coupon.title,
+            discount: couponDiscount,
+          }
+        : undefined,
     },
     paymentMethod: 'manual',
     status: 'pending',
