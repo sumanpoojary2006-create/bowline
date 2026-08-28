@@ -42,3 +42,13 @@ export const looksLikeCustomerQuery = (text) => {
     value
   );
 };
+
+export const excludeSelectedRooms = (rooms, cart) => {
+  const selectedIds = new Set(
+    (cart || [])
+      .map((item) => String(item?.listingId || ''))
+      .filter(Boolean)
+  );
+
+  return (rooms || []).filter((room) => !selectedIds.has(String(room?._id || '')));
+};

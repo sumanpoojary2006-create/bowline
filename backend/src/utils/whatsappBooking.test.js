@@ -5,6 +5,7 @@ import {
   allocateCouponDiscount,
   getRazorpayCustomerEmail,
   looksLikeCustomerQuery,
+  excludeSelectedRooms,
 } from './whatsappBooking.js';
 
 test('coupon discount is distributed across every room without changing the total discount', () => {
@@ -31,4 +32,21 @@ test('questions are distinguished from expected booking values', () => {
   assert.equal(looksLikeCustomerQuery('Can I bring a pet'), true);
   assert.equal(looksLikeCustomerQuery('2 Sep to 4 Sep'), false);
   assert.equal(looksLikeCustomerQuery('SUMMER20'), false);
+});
+
+test('rooms already added to the WhatsApp cart are excluded from the next room list', () => {
+  const rooms = [
+    { _id: 'pent-house', name: 'Pent House' },
+    { _id: 'cozy-1', name: 'Cozy 1' },
+    { _id: 'cozy-2', name: 'Cozy 2' },
+    { _id: 'cozy-mini', name: 'Cozy Mini' },
+  ];
+
+  assert.deepEqual(
+    excludeSelectedRooms(rooms, [
+      { listingId: 'pent-house' },
+      { listingId: 'cozy-2' },
+    ]).map((room) => room.name),
+    ['Cozy 1', 'Cozy Mini']
+  );
 });

@@ -24,6 +24,7 @@ import {
   WHATSAPP_QUERY_REPLY,
   allocateCouponDiscount,
   looksLikeCustomerQuery,
+  excludeSelectedRooms,
 } from '../utils/whatsappBooking.js';
 
 const RESET_WORDS = ['menu', 'hi', 'hello', 'hey', 'start', 'restart'];
@@ -65,10 +66,32 @@ const sendMenu = async (phone, profileName) => {
 };
 
 const startRoomSelect = async (session, phone, { resetCart = true } = {}) => {
-  const rooms = sortRoomsForDisplay(await Listing.find({ type: 'room', active: true }));
+  const activeRooms = sortRoomsForDisplay(await Listing.find({ type: 'room', active: true }));
+  const rooms = resetCart
+    ? activeRooms
+    : excludeSelectedRooms(activeRooms, session.cart);
+
+  if (!activeRooms.length) {
+    await sendText(phone, 'Sorry, no rooms are available right now. Please check back later.');
+    return;
+  }
 
   if (!rooms.length) {
-    await sendText(phone, 'Sorry, no rooms are available right now. Please check back later.');
+    // The current room was pushed into the cart immediately before this
+    // function was called. Move it back into session.data so finalization's
+    // [...cart, data] shape still contains each room exactly once.
+    const cart = [...(session.cart || [])];
+    const currentRoom = cart.pop();
+    session.cart = cart;
+    if (currentRoom) session.data = currentRoom;
+    session.step = 'SUMMARY_CONFIRM';
+    await session.save();
+
+    await sendText(phone, 'All available rooms have already been added to this booking.');
+    await sendButtons(phone, 'Please continue to payment or cancel this booking.', [
+      { id: 'proceed_payment', title: 'Proceed to Payment' },
+      { id: 'cancel_booking', title: 'Cancel' },
+    ]);
     return;
   }
 
@@ -366,6 +389,13 @@ const handleRoomSelect = async (session, phone, buttonId) => {
   }
 
   const listingId = buttonId.replace('room_', '');
+
+  if (!excludeSelectedRooms([{ _id: listingId }], session.cart).length) {
+    await sendText(phone, 'That room is already included in this booking. Please choose another room.');
+    await startRoomSelect(session, phone, { resetCart: false });
+    return;
+  }
+
   const listing = await Listing.findById(listingId);
 
   if (!listing || !listing.active) {
