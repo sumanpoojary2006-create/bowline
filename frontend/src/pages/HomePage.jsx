@@ -347,7 +347,13 @@ function HomePage() {
         })
       );
 
-      setSearchResults({ days, timelineDays, rooms: results });
+      setSearchResults({
+        days,
+        timelineDays,
+        rooms: results.sort(
+          (a, b) => getRoomDisplayOrder(a.room) - getRoomDisplayOrder(b.room)
+        ),
+      });
     } catch (error) {
       toast.error('Unable to check availability right now');
     } finally {

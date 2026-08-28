@@ -11,7 +11,7 @@ import { addDays, ensureCheckoutDate, formatDateParam, parseDateParam } from '..
 import ListingCard from '../components/ListingCard';
 import PageLoader from '../components/PageLoader';
 import RoomCalendar from '../components/RoomCalendar';
-import { petFee, getRoomRate } from '../lib/roomRates';
+import { petFee, getRoomRate, getRoomDisplayOrder } from '../lib/roomRates';
 
 const increment = (value, amount, min = 0, max = 20) => Math.max(min, Math.min(max, Number(value || 0) + amount));
 
@@ -80,7 +80,9 @@ function ListingDetailPage({ bookingFirst = false }) {
           setListing(listingRes.data.listing);
           setRelated(listingRes.data.related);
           setRecommendedRooms(
-            roomsRes.data.listings.filter((room) => room._id !== listingRes.data.listing._id)
+            roomsRes.data.listings
+              .filter((room) => room._id !== listingRes.data.listing._id)
+              .sort((a, b) => getRoomDisplayOrder(a) - getRoomDisplayOrder(b))
           );
           document.title = `Bowline | ${listingRes.data.listing.name}`;
           return;

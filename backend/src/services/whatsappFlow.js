@@ -18,6 +18,7 @@ import { getCancellationRefundPercent } from '../utils/bookingPolicy.js';
 import { calculateRefundPaise } from '../controllers/paymentController.js';
 import { refreshSheetRange, writeFullBookingToSheet } from '../utils/googleSheets.js';
 import { notifyAdmins } from '../utils/notifications.js';
+import { sortRoomsForDisplay } from '../utils/roomOrder.js';
 
 const RESET_WORDS = ['menu', 'hi', 'hello', 'hey', 'start', 'restart'];
 
@@ -48,7 +49,7 @@ const sendMenu = async (phone, profileName) => {
 };
 
 const startRoomSelect = async (session, phone, { resetCart = true } = {}) => {
-  const rooms = await Listing.find({ type: 'room', active: true }).sort({ price: 1 });
+  const rooms = sortRoomsForDisplay(await Listing.find({ type: 'room', active: true }));
 
   if (!rooms.length) {
     await sendText(phone, 'Sorry, no rooms are available right now. Please check back later.');
@@ -408,7 +409,7 @@ const handleGroupGuests = async (session, phone, buttonId, text) => {
     return;
   }
 
-  const rooms = await Listing.find({ type: 'room', active: true }).sort({ price: 1 });
+  const rooms = sortRoomsForDisplay(await Listing.find({ type: 'room', active: true }));
 
   const groupRooms = guests >= 15 ? rooms : rooms.filter((room) => room.slug !== 'pent-house');
 

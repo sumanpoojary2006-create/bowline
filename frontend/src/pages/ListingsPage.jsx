@@ -7,6 +7,7 @@ import PageLoader from '../components/PageLoader';
 import SectionHeader from '../components/SectionHeader';
 import { addDays, formatDateParam } from '../lib/dateUtils';
 import { formatDateRange } from '../lib/formatters';
+import { getRoomDisplayOrder } from '../lib/roomRates';
 
 const pageConfig = {
   room: {
@@ -64,7 +65,13 @@ function ListingsPage({ type }) {
       setLoading(true);
       try {
         const { data } = await api.get('/listings', { params: query });
-        setListings(data.listings);
+        setListings(
+          type === 'room'
+            ? [...data.listings].sort(
+                (a, b) => getRoomDisplayOrder(a) - getRoomDisplayOrder(b)
+              )
+            : data.listings
+        );
       } finally {
         setLoading(false);
       }

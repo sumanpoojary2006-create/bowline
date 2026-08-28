@@ -6,6 +6,7 @@ import { useBookingCart } from '../context/BookingCartContext';
 import api from '../lib/api';
 import { addDays, ensureCheckoutDate, formatDateParam, parseDateParam } from '../lib/dateUtils';
 import { formatCurrency, formatDate } from '../lib/formatters';
+import { getRoomDisplayOrder } from '../lib/roomRates';
 import PageLoader from '../components/PageLoader';
 
 function StatusBadge({ available }) {
@@ -55,7 +56,9 @@ function BrowseRoomsPage() {
           endDate: formatDateParam(currentFilters.endDate),
         },
       });
-      setRooms(data.rooms);
+      setRooms(
+        [...data.rooms].sort((a, b) => getRoomDisplayOrder(a) - getRoomDisplayOrder(b))
+      );
     } finally {
       setLoading(false);
     }

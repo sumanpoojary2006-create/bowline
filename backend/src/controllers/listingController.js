@@ -3,6 +3,7 @@ import { slugify } from '../utils/slugify.js';
 import { calculateBookingPrice } from '../utils/pricing.js';
 import { validateListingAvailability, getBookedDateRanges, getNextAvailableWindow, getNextAvailableWindowMulti, getBlockingListingIds } from '../utils/availability.js';
 import { persistUploadedFiles } from '../utils/upload.js';
+import { sortRoomsForDisplay } from '../utils/roomOrder.js';
 
 const parseArray = (value) => {
   if (Array.isArray(value)) {
@@ -234,7 +235,9 @@ export const getRoomsWithAvailability = async (req, res, next) => {
       throw new Error('startDate and endDate are required');
     }
 
-    const rooms = await Listing.find({ type: 'room', active: true }).sort({ featured: -1 });
+    const rooms = sortRoomsForDisplay(
+      await Listing.find({ type: 'room', active: true }).sort({ featured: -1 })
+    );
 
     const start = new Date(startDate);
     const end = new Date(endDate);
