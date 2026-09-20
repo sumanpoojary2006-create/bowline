@@ -8,17 +8,28 @@ import PageLoader from '../components/PageLoader';
 import SectionHeader from '../components/SectionHeader';
 import EmptyState from '../components/EmptyState';
 
+const getBookingAmountPaid = (booking) => {
+  if (booking.paymentStatus === 'paid') return booking.totalPrice;
+  if (booking.paymentStatus === 'partially_paid') return Math.round(booking.totalPrice / 2);
+
+  if (['refunded', 'partially_refunded'].includes(booking.paymentStatus)) {
+    const refundPercentage = Number(booking.refundPercentage || 0);
+    if (booking.refundAmount > 0 && refundPercentage > 0) {
+      return Math.round(booking.refundAmount / (refundPercentage / 100));
+    }
+    if (booking.paymentStatus === 'refunded') return booking.totalPrice;
+  }
+
+  return 0;
+};
+
 function CancelRefundDialog({ booking, onClose, onDone }) {
   const [refundPercent, setRefundPercent] = useState(100);
   const [loading, setLoading] = useState(false);
   const isFullyPaid = booking.paymentStatus === 'paid';
   const isPartiallyPaid = booking.paymentStatus === 'partially_paid';
   const hasRefundablePayment = isFullyPaid || isPartiallyPaid;
-  const amountPaid = isFullyPaid
-    ? booking.totalPrice
-    : isPartiallyPaid
-      ? Math.round(booking.totalPrice / 2)
-      : 0;
+  const amountPaid = getBookingAmountPaid(booking);
   const refundAmount = hasRefundablePayment ? Math.round(amountPaid * refundPercent / 100) : 0;
 
   const handleSubmit = async () => {
@@ -782,9 +793,26 @@ function AdminBookingsPage() {
                         </div>
                         <div className="space-y-3">
                           <div className="rounded-[1.5rem] bg-slate-900/70 p-4">
-                            <p className="text-sm text-slate-400">Estimated value</p>
-                            <p className="mt-2 text-xl font-semibold text-lime-200">{formatCurrency(booking.totalPrice)}</p>
-                            <p className="mt-2 text-sm capitalize text-slate-400">{booking.status}</p>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <p className="text-sm text-slate-400">Booking total</p>
+                                <p className="mt-1 text-xl font-semibold text-lime-200">{formatCurrency(booking.totalPrice)}</p>
+                              </div>
+                              <div>
+                                <p className="text-sm text-slate-400">Amount paid</p>
+                                <p className="mt-1 text-xl font-semibold text-emerald-300">
+                                  {formatCurrency(getBookingAmountPaid(booking))}
+                                </p>
+                              </div>
+                            </div>
+                            {booking.status !== 'cancelled' ? (
+                              <p className="mt-3 text-sm text-slate-400">
+                                Balance due: {formatCurrency(Math.max(booking.totalPrice - getBookingAmountPaid(booking), 0))}
+                              </p>
+                            ) : null}
+                            <p className="mt-1 text-sm capitalize text-slate-400">
+                              {booking.status} · {booking.paymentStatus?.replace('_', ' ')}
+                            </p>
                           </div>
 
                           {section.key === 'pending' ? (
