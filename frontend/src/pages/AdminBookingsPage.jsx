@@ -11,14 +11,27 @@ import EmptyState from '../components/EmptyState';
 function CancelRefundDialog({ booking, onClose, onDone }) {
   const [refundPercent, setRefundPercent] = useState(100);
   const [loading, setLoading] = useState(false);
-  const isPaid = booking.paymentStatus === 'paid';
-  const refundAmount = isPaid ? Math.round(booking.totalPrice * refundPercent / 100) : 0;
+  const isFullyPaid = booking.paymentStatus === 'paid';
+  const isPartiallyPaid = booking.paymentStatus === 'partially_paid';
+  const hasRefundablePayment = isFullyPaid || isPartiallyPaid;
+  const amountPaid = isFullyPaid
+    ? booking.totalPrice
+    : isPartiallyPaid
+      ? Math.round(booking.totalPrice / 2)
+      : 0;
+  const refundAmount = hasRefundablePayment ? Math.round(amountPaid * refundPercent / 100) : 0;
 
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      await api.post(`/bookings/admin/${booking._id}/cancel-refund`, { refundPercent: isPaid ? refundPercent : 0 });
-      toast.success(isPaid && refundPercent > 0 ? `Booking cancelled · ₹${refundAmount} refund initiated` : 'Booking cancelled');
+      await api.post(`/bookings/admin/${booking._id}/cancel-refund`, {
+        refundPercent: hasRefundablePayment ? refundPercent : 0,
+      });
+      toast.success(
+        hasRefundablePayment && refundPercent > 0
+          ? `Booking cancelled · ₹${refundAmount} refund initiated`
+          : 'Booking cancelled'
+      );
       onDone();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Unable to cancel booking');
@@ -32,9 +45,14 @@ function CancelRefundDialog({ booking, onClose, onDone }) {
       <div className="w-full max-w-md rounded-[2rem] border border-lime-100/10 bg-[#0d1710] p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-xl font-semibold text-white">Cancel booking</h3>
         <p className="mt-1 text-sm text-slate-400">{booking.contactName} · {booking.listing?.name}</p>
-        <p className="mt-1 text-sm text-slate-400">Total paid: {formatCurrency(booking.totalPrice)} · Status: {booking.paymentStatus}</p>
+        <p className="mt-1 text-sm text-slate-400">
+          Booking total: {formatCurrency(booking.totalPrice)} · Status: {booking.paymentStatus?.replace('_', ' ')}
+        </p>
+        {hasRefundablePayment ? (
+          <p className="mt-1 text-sm text-slate-300">Amount paid: {formatCurrency(amountPaid)}</p>
+        ) : null}
 
-        {isPaid ? (
+        {hasRefundablePayment ? (
           <div className="mt-5 space-y-3">
             <label className="text-sm font-semibold text-white">Refund percentage</label>
             <div className="flex gap-2">
@@ -71,7 +89,11 @@ function CancelRefundDialog({ booking, onClose, onDone }) {
         <div className="mt-6 grid grid-cols-2 gap-3">
           <button className="btn-secondary" onClick={onClose} disabled={loading}>Back</button>
           <button className="btn-primary bg-rose-600 hover:bg-rose-500" onClick={handleSubmit} disabled={loading}>
-            {loading ? 'Processing…' : isPaid && refundPercent > 0 ? `Cancel & refund ${refundPercent}%` : 'Cancel booking'}
+            {loading
+              ? 'Processing…'
+              : hasRefundablePayment && refundPercent > 0
+                ? `Cancel & refund ${refundPercent}%`
+                : 'Cancel booking'}
           </button>
         </div>
       </div>
