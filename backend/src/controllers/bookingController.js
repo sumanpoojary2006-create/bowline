@@ -963,6 +963,90 @@ export const updateBookingStatus = async (req, res, next) => {
   }
 };
 
+export const updateBookingDates = async (req, res, next) => {
+  try {
+    const booking = await Booking.findById(req.params.id)
+      .populate('listing')
+      .populate('user', 'name email');
+
+    if (!booking) {
+      res.status(404);
+      throw new Error('Booking not found');
+    }
+
+    if (booking.status === 'cancelled' || booking.status === 'blocked') {
+      res.status(400);
+      throw new Error('Only active bookings can have their dates changed');
+    }
+
+    const normalizedStart = new Date(req.body.startDate);
+    const normalizedEnd = new Date(req.body.endDate);
+
+    if (
+      Number.isNaN(normalizedStart.getTime()) ||
+      Number.isNaN(normalizedEnd.getTime()) ||
+      normalizedEnd <= normalizedStart
+    ) {
+      res.status(400);
+      throw new Error('Check-out must be after check-in');
+    }
+
+    if (booking.listing?.type === 'room') {
+      const overlappingBookings = await getExistingBookingsForRange({
+        listingId: booking.listing._id,
+        startDate: normalizedStart,
+        endDate: normalizedEnd,
+        statuses: ['confirmed', 'blocked'],
+        excludeBookingId: booking._id,
+      });
+
+      if (overlappingBookings.length) {
+        res.status(400);
+        throw new Error('Room is fully booked for the selected dates');
+      }
+    }
+
+    const previousStartDate = booking.startDate;
+    const previousEndDate = booking.endDate;
+    booking.startDate = normalizedStart;
+    booking.endDate = normalizedEnd;
+    booking.rescheduled = true;
+    await booking.save();
+
+    if (isSheetsConfigured()) {
+      // Keep these writes ordered: the sheet integration has no locking, so
+      // refreshing the old range and writing the new one concurrently can
+      // leave the moved booking on the wrong date.
+      await refreshSheetRange(booking.listing, previousStartDate, previousEndDate).catch(() => {});
+    }
+    await syncToSheet(booking);
+
+    if (booking.user) {
+      createNotification({
+        userId: booking.user._id,
+        title: 'Booking dates updated',
+        message: `Your booking for ${booking.listing.name} has been moved to the new dates requested.`,
+        type: 'booking',
+      }).catch(() => {});
+    }
+
+    if (booking.contactEmail && isEmailConfigured('booking')) {
+      sendMail({
+        to: booking.contactEmail,
+        subject: `Booking Dates Updated — ${booking.listing.name}`,
+        text: `Hi ${booking.contactName},\n\nYour booking for ${booking.listing.name} has been updated to ${new Date(
+          booking.startDate
+        ).toDateString()} - ${new Date(booking.endDate).toDateString()}.\n\nBowline Nature Stay`,
+        kind: 'booking',
+      }).catch(() => {});
+    }
+
+    res.json({ booking });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Airbnb's iCal export never includes the guest's name (confirmed by direct
 // inspection of the feed), so synced bookings default to a placeholder name.
 // This lets an admin fill in the real name once they know it (e.g. from the
@@ -1044,7 +1128,7 @@ const serializeGuestBooking = (booking) => {
     cancellationRefundPercent,
     rescheduleAllowed: !booking.rescheduled && booking.status !== 'cancelled' && rescheduleFeePercent !== null,
     rescheduleFeePercent: rescheduleFeePercent ?? 0,
-    cancellationAllowed: !booking.rescheduled && booking.status !== 'cancelled',
+    cancellationAllowed: booking.status !== 'cancelled',
   };
 };
 
@@ -1120,11 +1204,6 @@ export const cancelGuestBooking = async (req, res, next) => {
     if (booking.status === 'cancelled') {
       res.status(400);
       throw new Error('This booking is already cancelled');
-    }
-
-    if (booking.rescheduled) {
-      res.status(400);
-      throw new Error('This booking has been rescheduled and can no longer be cancelled');
     }
 
     const refundPercent = getCancellationRefundPercent(booking.startDate);
@@ -1417,7 +1496,7 @@ export const confirmReschedule = async (req, res, next) => {
           booking.startDate
         ).toDateString()} - ${new Date(booking.endDate).toDateString()}.${
           quote.feeAmount > 0 ? ` A rescheduling fee of Rs ${quote.feeAmount} was charged.` : ''
-        } Please note this booking can no longer be cancelled.\n\nBowline Nature Stay`,
+        } The usual cancellation and refund policy continues to apply.\n\nBowline Nature Stay`,
         kind: 'booking',
       }).catch(() => {});
     }

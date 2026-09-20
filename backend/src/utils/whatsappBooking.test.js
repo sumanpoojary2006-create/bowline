@@ -1,11 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { calculateBookingPrice } from './pricing.js';
 import {
   WHATSAPP_QUERY_REPLY,
   allocateCouponDiscount,
   getRazorpayCustomerEmail,
   looksLikeCustomerQuery,
   excludeSelectedRooms,
+  distributeGroupGuests,
+  getWhatsAppGroupTier,
 } from './whatsappBooking.js';
 
 test('coupon discount is distributed across every room without changing the total discount', () => {
@@ -49,4 +52,48 @@ test('rooms already added to the WhatsApp cart are excluded from the next room l
     ]).map((room) => room.name),
     ['Cozy 1', 'Cozy Mini']
   );
+});
+
+test('15 guests use Group Booking and 16 guests use Full House', () => {
+  assert.equal(getWhatsAppGroupTier(15).key, 'except-pent-house');
+  assert.equal(getWhatsAppGroupTier(16).key, 'full-house');
+});
+
+test('group guests are distributed without exceeding room capacities', () => {
+  const rooms = [
+    { minOccupancy: 2, capacity: 4 },
+    { minOccupancy: 2, capacity: 4 },
+    { minOccupancy: 1, capacity: 3 },
+    { minOccupancy: 1, capacity: 5 },
+  ];
+
+  const distribution = distributeGroupGuests(15, rooms);
+  assert.equal(distribution.reduce((sum, count) => sum + count, 0), 15);
+  assert.deepEqual(distribution, [4, 4, 3, 4]);
+});
+
+test('15-person WhatsApp Group Booking uses the website group tariff', async () => {
+  const rooms = [
+    { type: 'room', price: 1999, minOccupancy: 2, capacity: 4 },
+    { type: 'room', price: 1999, minOccupancy: 2, capacity: 4 },
+    { type: 'room', price: 1799, minOccupancy: 1, capacity: 3 },
+    { type: 'room', price: 1399, minOccupancy: 1, capacity: 5 },
+  ];
+  const tier = getWhatsAppGroupTier(15);
+  const distribution = distributeGroupGuests(15, rooms);
+  const prices = await Promise.all(
+    rooms.map((listing, index) =>
+      calculateBookingPrice({
+        listing,
+        bookingType: 'room',
+        startDate: new Date('2026-09-26'),
+        endDate: new Date('2026-09-27'),
+        guests: distribution[index],
+        adultGuests: distribution[index],
+        groupRate: { weekday: tier.weekday, weekend: tier.weekend },
+      })
+    )
+  );
+
+  assert.equal(prices.reduce((sum, price) => sum + price.subtotal, 0), 28485);
 });

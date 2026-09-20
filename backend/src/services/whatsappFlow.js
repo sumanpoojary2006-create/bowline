@@ -1,4 +1,5 @@
 import dayjs from 'dayjs';
+import { randomUUID } from 'crypto';
 import WhatsAppSession from '../models/WhatsAppSession.js';
 import Listing from '../models/Listing.js';
 import Booking from '../models/Booking.js';
@@ -25,6 +26,8 @@ import {
   allocateCouponDiscount,
   looksLikeCustomerQuery,
   excludeSelectedRooms,
+  distributeGroupGuests,
+  getWhatsAppGroupTier,
 } from '../utils/whatsappBooking.js';
 
 const RESET_WORDS = ['menu', 'hi', 'hello', 'hey', 'start', 'restart'];
@@ -45,6 +48,20 @@ const extractIncoming = (message) => ({
 
 const formatDate = (date) => dayjs(date).format('D MMM YYYY');
 const sendQueryReply = (phone) => sendText(phone, WHATSAPP_QUERY_REPLY);
+const DORMITORY_SLUG = 'dormitory-open-loft';
+
+const getRoomsForGroupTier = async (tier) => {
+  const rooms = sortRoomsForDisplay(
+    await Listing.find({
+      type: 'room',
+      $or: [{ active: true }, { slug: DORMITORY_SLUG }],
+    })
+  );
+
+  return tier.excludePentHouse
+    ? rooms.filter((room) => room.slug !== 'pent-house')
+    : rooms;
+};
 
 const sendMenu = async (phone, profileName) => {
   const greeting = profileName ? `Hi ${profileName}! ` : 'Hi there! ';
@@ -237,12 +254,6 @@ const handleMyBookingAction = async (session, phone, buttonId, profileName) => {
 
     if (!booking || booking.status === 'cancelled') {
       await sendText(phone, 'This booking is already cancelled. Type "menu" to go back.');
-      await resetSession(session);
-      return;
-    }
-
-    if (booking.rescheduled) {
-      await sendText(phone, 'This booking has been rescheduled and can no longer be cancelled. Please contact us for help. Type "menu" to go back.');
       await resetSession(session);
       return;
     }
@@ -455,9 +466,8 @@ const handleGroupGuests = async (session, phone, buttonId, text) => {
     return;
   }
 
-  const rooms = sortRoomsForDisplay(await Listing.find({ type: 'room', active: true }));
-
-  const groupRooms = guests >= 15 ? rooms : rooms.filter((room) => room.slug !== 'pent-house');
+  const tier = getWhatsAppGroupTier(guests);
+  const groupRooms = await getRoomsForGroupTier(tier);
 
   if (!groupRooms.length) {
     await sendText(phone, 'Sorry, no rooms are available for group booking right now. Type "menu" to go back.');
@@ -465,23 +475,32 @@ const handleGroupGuests = async (session, phone, buttonId, text) => {
     return;
   }
 
-  const label = guests >= 15 ? 'Full house' : 'All rooms except Pent House';
+  const label = tier.label;
 
   session.data = {
     groupGuests: guests,
     groupRoomIds: groupRooms.map((room) => room._id.toString()),
+    groupTier: tier.key,
   };
   session.step = 'GROUP_DATES';
   await session.save();
 
-  await sendText(
+  const calendarParams = new URLSearchParams({
+    listingIds: groupRooms.map((room) => room._id.toString()).join(','),
+    room: label,
+  });
+  const calUrl = `https://bowline-omega.vercel.app/wa-dates?${calendarParams.toString()}`;
+  await sendCtaUrl(
     phone,
-    `*${label}* (${groupRooms.length} room${groupRooms.length > 1 ? 's' : ''}): ${groupRooms.map((room) => room.name).join(', ')}\n\nPlease enter your check-in and check-out dates.\nFormat: DD Mon - DD Mon\nExample: 12 Jul - 14 Jul`
+    `*${label}* (${groupRooms.length} room${groupRooms.length > 1 ? 's' : ''}): ${groupRooms.map((room) => room.name).join(', ')}\n\nTap below to choose dates that are available across the entire bundle.`,
+    'Pick Dates 📅',
+    calUrl
   );
 };
 
 const handleGroupDates = async (session, phone, text) => {
-  const range = parseDateRange(text);
+  const calendarMatch = text.match(/^dates?:\s*(.+)/i);
+  const range = parseDateRange(calendarMatch ? calendarMatch[1].trim() : text);
 
   if (!range) {
     await sendText(
@@ -496,8 +515,15 @@ const handleGroupDates = async (session, phone, text) => {
     return;
   }
 
-  const { groupGuests, groupRoomIds } = session.data;
-  const listings = await Listing.find({ _id: { $in: groupRoomIds }, active: true });
+  const { groupGuests } = session.data;
+  const tier = getWhatsAppGroupTier(groupGuests);
+  const listings = await getRoomsForGroupTier(tier);
+
+  if (!listings.length) {
+    await sendText(phone, 'The group rooms are no longer available. Please type "menu" and start again.');
+    await resetSession(session);
+    return;
+  }
 
   const unavailable = [];
 
@@ -521,12 +547,12 @@ const handleGroupDates = async (session, phone, text) => {
     return;
   }
 
-  const guestsPerRoom = Math.ceil(groupGuests / listings.length);
+  const guestsForRoom = distributeGroupGuests(groupGuests, listings);
 
   const items = [];
 
-  for (const listing of listings) {
-    const adultGuests = Math.min(guestsPerRoom, listing.capacity);
+  for (const [index, listing] of listings.entries()) {
+    const adultGuests = guestsForRoom[index];
 
     const pricing = await calculateBookingPrice({
       listing,
@@ -537,6 +563,7 @@ const handleGroupDates = async (session, phone, text) => {
       adultGuests,
       childGuests: 0,
       pets: 0,
+      groupRate: { weekday: tier.weekday, weekend: tier.weekend },
     });
 
     items.push({
@@ -549,8 +576,12 @@ const handleGroupDates = async (session, phone, text) => {
       adultGuests,
       childGuests: 0,
       pets: 0,
+      groupRate: { weekday: tier.weekday, weekend: tier.weekend },
+      groupName: tier.label,
       totalPrice: pricing.totalPrice,
       unitPrice: pricing.unitPrice,
+      pricingSubtotal: pricing.subtotal,
+      gstAmount: pricing.gstAmount,
     });
   }
 
@@ -824,7 +855,7 @@ const sendSummary = async (session, phone) => {
 
   const listing = await Listing.findById(listingId);
 
-  if (!listing || !listing.active) {
+  if (!listing || (!listing.active && !(session.flow === 'group' && listing.slug === DORMITORY_SLUG))) {
     await sendText(phone, 'Sorry, that room is no longer available. Type "menu" to start over.');
     session.step = 'MENU';
     session.data = {};
@@ -860,9 +891,16 @@ const sendSummary = async (session, phone) => {
     adultGuests,
     childGuests,
     pets,
+    groupRate: session.data.groupRate || null,
   });
 
-  session.data = { ...session.data, totalPrice: pricing.totalPrice, unitPrice: pricing.unitPrice };
+  session.data = {
+    ...session.data,
+    totalPrice: pricing.totalPrice,
+    unitPrice: pricing.unitPrice,
+    pricingSubtotal: pricing.subtotal,
+    gstAmount: pricing.gstAmount,
+  };
   session.step = 'SUMMARY';
   await session.save();
 
@@ -883,14 +921,18 @@ const sendSummary = async (session, phone) => {
     lines.push(`Adjustments: ${pricing.adjustments.join(', ')}`);
   }
 
-  lines.push(``, `Subtotal: Rs ${pricing.totalPrice}`);
-
   const cart = session.cart || [];
+  const cartTotal = cart.reduce((sum, item) => sum + Number(item.totalPrice || 0), 0);
+  const cartPreTax = cart.reduce(
+    (sum, item) => sum + Number(item.pricingSubtotal ?? item.totalPrice ?? 0),
+    0
+  );
+  const cartGst = cart.reduce((sum, item) => sum + Number(item.gstAmount || 0), 0);
+  const grandTotal = cartTotal + pricing.totalPrice;
+  const preTaxTotal = cartPreTax + pricing.subtotal;
+  const gstTotal = cartGst + pricing.gstAmount;
 
   if (cart.length) {
-    const cartTotal = cart.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
-    const grandTotal = cartTotal + pricing.totalPrice;
-
     lines.push(``, `*Other rooms in this booking:*`);
     cart.forEach((item) => {
       const itemNights = dayjs(item.endDate).diff(dayjs(item.startDate), 'day');
@@ -898,18 +940,30 @@ const sendSummary = async (session, phone) => {
         `- ${item.listingName} (${formatDate(item.startDate)} to ${formatDate(item.endDate)}, ${itemNights} night${itemNights > 1 ? 's' : ''}) - Rs ${item.totalPrice}`
       );
     });
-    lines.push(``, `*Grand Total: Rs ${grandTotal}*`);
   }
+
+  lines.push(
+    ``,
+    `Subtotal: Rs ${preTaxTotal}`,
+    `GST (5%): Rs ${gstTotal}`,
+    `*Grand Total: Rs ${grandTotal}*`
+  );
 
   session.step = 'SUMMARY_CONFIRM';
   await session.save();
 
   await sendText(phone, lines.join('\n'));
-  await sendButtons(phone, 'Would you like to add another room or continue with this booking?', [
-    { id: 'add_room', title: 'Book Another Room' },
-    { id: 'proceed_payment', title: 'Proceed to Payment' },
-    { id: 'cancel_booking', title: 'Cancel' },
-  ]);
+  const actions = session.flow === 'group'
+    ? [
+        { id: 'proceed_payment', title: 'Proceed to Payment' },
+        { id: 'cancel_booking', title: 'Cancel' },
+      ]
+    : [
+        { id: 'add_room', title: 'Book Another Room' },
+        { id: 'proceed_payment', title: 'Proceed to Payment' },
+        { id: 'cancel_booking', title: 'Cancel' },
+      ];
+  await sendButtons(phone, 'Continue with this booking?', actions);
 };
 
 const handleSummaryConfirm = async (session, phone, buttonId) => {
@@ -1023,6 +1077,8 @@ const resetSession = async (session) => {
 
 const finalizeBookings = async (session, phone, profileName, payInFull = false) => {
   const items = [...(session.cart || []), session.data];
+  const isGroupBooking = session.flow === 'group';
+  const groupId = isGroupBooking ? randomUUID() : null;
 
   const contactName = profileName || 'WhatsApp Guest';
   const contactEmail = session.data.contactEmail || `whatsapp.${phone}@bowline.guest`;
@@ -1056,7 +1112,7 @@ const finalizeBookings = async (session, phone, profileName, payInFull = false) 
 
     const listing = await Listing.findById(listingId);
 
-    if (!listing || !listing.active) {
+    if (!listing || (!listing.active && !(isGroupBooking && listing.slug === DORMITORY_SLUG))) {
       await sendText(phone, `Sorry, *${listingName}* is no longer available. Type "menu" to start over.`);
       await resetSession(session);
       return;
@@ -1092,6 +1148,10 @@ const finalizeBookings = async (session, phone, profileName, payInFull = false) 
         payInFullRequested: payInFull,
         coupon,
         couponDiscount: couponAllocations[itemIndex],
+        groupRate: item.groupRate || null,
+        groupId,
+        groupName: item.groupName || '',
+        isGroupBooking,
         deferSideEffects: true,
       });
       bookings.push(booking);

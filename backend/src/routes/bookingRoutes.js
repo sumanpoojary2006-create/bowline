@@ -18,6 +18,7 @@ import {
   lookupBookings,
   unblockRoomDates,
   updateBookingContact,
+  updateBookingDates,
   updateBookingStatus,
   validateCoupon,
 } from '../controllers/bookingController.js';
@@ -42,6 +43,7 @@ router.get('/admin/all', protect, authorize('admin'), getAllBookings);
 router.get('/admin/calendar', protect, authorize('admin'), getCalendarBookings);
 router.post('/admin/manual-room', protect, authorize('admin'), createAdminManualRoomBooking);
 router.post('/admin/manual-group', protect, authorize('admin'), createAdminGroupBooking);
+router.patch('/admin/:id/dates', protect, authorize('admin'), updateBookingDates);
 router.patch('/admin/:id', protect, authorize('admin'), updateBookingStatus);
 router.patch('/admin/:id/contact', protect, authorize('admin'), updateBookingContact);
 router.post('/admin/:id/cancel-refund', protect, authorize('admin'), adminCancelWithRefund);

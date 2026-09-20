@@ -83,6 +83,7 @@ export default function WaDatePickerPage() {
   const params = new URLSearchParams(window.location.search);
   const room = params.get('room') || 'your room';
   const requestedListingId = params.get('listingId');
+  const requestedListingIds = params.get('listingIds');
   const BOWLINE_WA = '916360718604';
 
   const today = startOfDay(new Date());
@@ -105,23 +106,31 @@ export default function WaDatePickerPage() {
       setAvailabilityError('');
 
       try {
-        let listingId = requestedListingId;
+        let listingIds = String(requestedListingIds || requestedListingId || '')
+          .split(',')
+          .map((id) => id.trim())
+          .filter(Boolean);
 
         // Older WhatsApp messages contain only the room name. Keep those
         // links working while all newly-sent links carry the stable listing ID.
-        if (!listingId) {
+        if (!listingIds.length) {
           const { data } = await api.get('/listings', { params: { type: 'room' } });
           const normalizedRoom = room.trim().toLowerCase();
-          listingId = data.listings?.find(
+          const listingId = data.listings?.find(
             (listing) => listing.name?.trim().toLowerCase() === normalizedRoom
           )?._id;
+          if (listingId) listingIds = [listingId];
         }
 
-        if (!listingId) throw new Error('Room not found');
+        if (!listingIds.length) throw new Error('Room not found');
 
-        const { data } = await api.get(`/listings/${listingId}/booked-dates`, {
-          params: { months: 12 },
-        });
+        const { data } = listingIds.length > 1
+          ? await api.get('/listings/availability/booked-dates', {
+              params: { ids: listingIds.join(','), months: 12 },
+            })
+          : await api.get(`/listings/${listingIds[0]}/booked-dates`, {
+              params: { months: 12 },
+            });
 
         if (!cancelled) setBookedRanges(data.bookedRanges || []);
       } catch {
@@ -136,7 +145,7 @@ export default function WaDatePickerPage() {
 
     loadAvailability();
     return () => { cancelled = true; };
-  }, [requestedListingId, room, reloadKey]);
+  }, [requestedListingId, requestedListingIds, room, reloadKey]);
 
   const handleDay = (date) => {
     if (step === 'start' || step === 'done') {

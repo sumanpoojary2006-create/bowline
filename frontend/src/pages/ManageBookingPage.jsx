@@ -360,9 +360,7 @@ function BookingCard({ booking, onUpdated }) {
 
       {!booking.cancellationAllowed && booking.status !== 'cancelled' ? (
         <p className="mt-3 text-xs text-slate-400">
-          {booking.rescheduled
-            ? 'This booking has already been rescheduled, so cancellation is no longer available.'
-            : 'This booking is no longer eligible for cancellation (less than 7 days before check-in).'}
+          This booking can no longer be cancelled online. Please contact Bowline for assistance.
         </p>
       ) : null}
 

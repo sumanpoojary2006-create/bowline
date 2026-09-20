@@ -79,6 +79,76 @@ function CancelRefundDialog({ booking, onClose, onDone }) {
   );
 }
 
+function EditDatesDialog({ booking, onClose, onDone }) {
+  const [startDate, setStartDate] = useState(formatDateParam(new Date(booking.startDate)));
+  const [endDate, setEndDate] = useState(formatDateParam(new Date(booking.endDate)));
+  const [loading, setLoading] = useState(false);
+
+  const handleStartChange = (event) => {
+    const nextStart = event.target.value;
+    const minimumCheckout = formatDateParam(addDays(new Date(nextStart), 1));
+    setStartDate(nextStart);
+    if (endDate < minimumCheckout) setEndDate(minimumCheckout);
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setLoading(true);
+    try {
+      await api.patch(`/bookings/admin/${booking._id}/dates`, { startDate, endDate });
+      toast.success('Booking dates updated');
+      onDone();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Unable to update booking dates');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
+      <form
+        className="w-full max-w-md rounded-[2rem] border border-lime-100/10 bg-[#0d1710] p-6 shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+        onSubmit={handleSubmit}
+      >
+        <h3 className="text-xl font-semibold text-white">Change booking dates</h3>
+        <p className="mt-1 text-sm text-slate-400">{booking.contactName} · {booking.listing?.name}</p>
+        <p className="mt-1 text-sm text-slate-400">Current: {formatDateRange(booking.startDate, booking.endDate)}</p>
+
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          <label className="text-sm font-semibold text-white">
+            Check-in
+            <input className="input mt-2" type="date" value={startDate} onChange={handleStartChange} required />
+          </label>
+          <label className="text-sm font-semibold text-white">
+            Check-out
+            <input
+              className="input mt-2"
+              type="date"
+              value={endDate}
+              min={formatDateParam(addDays(new Date(startDate), 1))}
+              onChange={(event) => setEndDate(event.target.value)}
+              required
+            />
+          </label>
+        </div>
+
+        <p className="mt-4 text-xs text-slate-400">
+          Availability will be checked. The existing price and payment details will be kept, and the guest will be notified.
+        </p>
+
+        <div className="mt-6 grid grid-cols-2 gap-3">
+          <button className="btn-secondary" type="button" onClick={onClose} disabled={loading}>Back</button>
+          <button className="btn-primary" type="submit" disabled={loading}>
+            {loading ? 'Updating…' : 'Update dates'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 const SOURCE_LABELS = {
   website: 'Website',
   airbnb: 'Airbnb',
@@ -101,6 +171,7 @@ function AdminBookingsPage() {
   const [loading, setLoading] = useState(true);
   const [creatingManualBooking, setCreatingManualBooking] = useState(false);
   const [cancelTarget, setCancelTarget] = useState(null);
+  const [dateEditTarget, setDateEditTarget] = useState(null);
   const [filters, setFilters] = useState({
     type: '',
     status: '',
@@ -350,6 +421,13 @@ function AdminBookingsPage() {
           booking={cancelTarget}
           onClose={() => setCancelTarget(null)}
           onDone={() => { setCancelTarget(null); fetchBookings(); }}
+        />
+      )}
+      {dateEditTarget && (
+        <EditDatesDialog
+          booking={dateEditTarget}
+          onClose={() => setDateEditTarget(null)}
+          onDone={() => { setDateEditTarget(null); fetchBookings(); }}
         />
       )}
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -688,7 +766,10 @@ function AdminBookingsPage() {
                           </div>
 
                           {section.key === 'pending' ? (
-                            <div className="grid gap-3 md:grid-cols-2">
+                            <div className="grid gap-3 md:grid-cols-3">
+                              <button className="btn-secondary" onClick={() => setDateEditTarget(booking)}>
+                                Change dates
+                              </button>
                               <button className="btn-primary" onClick={() => updateBooking(booking._id, { status: 'confirmed' })}>
                                 Confirm
                               </button>
@@ -697,12 +778,17 @@ function AdminBookingsPage() {
                               </button>
                             </div>
                           ) : section.key === 'confirmed' ? (
-                            <button
-                              className="btn-secondary w-full border-rose-500/40 text-rose-300 hover:border-rose-400 hover:text-rose-200"
-                              onClick={() => setCancelTarget(booking)}
-                            >
-                              Cancel &amp; Refund
-                            </button>
+                            <div className="grid gap-3 md:grid-cols-2">
+                              <button className="btn-secondary" onClick={() => setDateEditTarget(booking)}>
+                                Change dates
+                              </button>
+                              <button
+                                className="btn-secondary border-rose-500/40 text-rose-300 hover:border-rose-400 hover:text-rose-200"
+                                onClick={() => setCancelTarget(booking)}
+                              >
+                                Cancel &amp; Refund
+                              </button>
+                            </div>
                           ) : (
                             <div className="rounded-[1.25rem] border border-lime-100/10 bg-[#0d1710]/70 px-4 py-3 text-sm text-[#c4cec0]">
                               This booking is archived under cancelled bookings.

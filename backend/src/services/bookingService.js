@@ -29,6 +29,10 @@ export const createRoomBooking = async ({
   payInFullRequested = false,
   coupon = null,
   couponDiscount = 0,
+  groupRate = null,
+  groupId = null,
+  groupName = '',
+  isGroupBooking = false,
   user = null,
   deferSideEffects = false,
 }) => {
@@ -56,6 +60,7 @@ export const createRoomBooking = async ({
     adultGuests,
     childGuests,
     pets,
+    groupRate,
   });
 
   const booking = await Booking.create({
@@ -94,6 +99,10 @@ export const createRoomBooking = async ({
     contactEmail,
     contactPhone,
     specialRequests,
+    groupId,
+    groupName,
+    isGroupBooking,
+    source: 'whatsapp',
   });
 
   if (user) {

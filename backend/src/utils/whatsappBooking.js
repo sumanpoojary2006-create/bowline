@@ -52,3 +52,46 @@ export const excludeSelectedRooms = (rooms, cart) => {
 
   return (rooms || []).filter((room) => !selectedIds.has(String(room?._id || '')));
 };
+
+export const WHATSAPP_GROUP_TIERS = {
+  group: {
+    key: 'except-pent-house',
+    label: 'Group Booking',
+    weekday: 1699,
+    weekend: 1899,
+    excludePentHouse: true,
+  },
+  fullHouse: {
+    key: 'full-house',
+    label: 'Full House',
+    weekday: 1599,
+    weekend: 1699,
+    excludePentHouse: false,
+  },
+};
+
+export const getWhatsAppGroupTier = (guestCount) =>
+  Number(guestCount) >= 16 ? WHATSAPP_GROUP_TIERS.fullHouse : WHATSAPP_GROUP_TIERS.group;
+
+// Match the website bundle allocation: give every room its minimum occupancy,
+// then spread the remaining guests without exceeding room capacity.
+export const distributeGroupGuests = (guestCount, rooms) => {
+  const counts = rooms.map((room) => Math.min(room.minOccupancy || 1, room.capacity || 1));
+  let remaining = Number(guestCount) - counts.reduce((sum, count) => sum + count, 0);
+
+  while (remaining > 0) {
+    let madeProgress = false;
+
+    for (let index = 0; index < rooms.length && remaining > 0; index += 1) {
+      if (counts[index] < (rooms[index].capacity || 1)) {
+        counts[index] += 1;
+        remaining -= 1;
+        madeProgress = true;
+      }
+    }
+
+    if (!madeProgress) break;
+  }
+
+  return counts;
+};

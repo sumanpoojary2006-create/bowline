@@ -1264,7 +1264,7 @@ function HomePage() {
                           <li>No charges for rescheduling if done more than 14 days before check-in date.</li>
                           <li>A 10% fee will apply on the total stay cost for rescheduling made between 7 to 14 days before check-in date.</li>
                           <li>Rescheduling is not permitted within 7 days of the check-in date.</li>
-                          <li>Post-rescheduling cancellation: once a booking is rescheduled, the option to cancel the booking will no longer be available.</li>
+                          <li>If a rescheduled booking is cancelled, the standard refund policy applies to its updated check-in date.</li>
                         </ul>
                       </div>
                     </div>
