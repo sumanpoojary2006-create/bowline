@@ -32,6 +32,10 @@ const attendanceSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    autoSignedOut: {
+      type: Boolean,
+      default: false,
+    },
     checklist: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ChecklistSubmission',

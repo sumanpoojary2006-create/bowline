@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import employeeApi from '../../lib/employeeApi';
 import { useEmployeeAuth } from '../../context/EmployeeAuthContext';
 import PageLoader from '../../components/PageLoader';
@@ -115,7 +115,6 @@ function TodaysTasks({ employee, todayTasks }) {
 
 function EmployeeDashboardPage() {
   const { employee, summary, refresh, logout, loading } = useEmployeeAuth();
-  const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [showLateWarning, setShowLateWarning] = useState(false);
 
@@ -136,6 +135,20 @@ function EmployeeDashboardPage() {
       await refresh();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Unable to sign in');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleCheckOut = async () => {
+    setBusy(true);
+    try {
+      const { data } = await employeeApi.post('/employee/checkout');
+      const dayType = data?.attendance?.dayType === 'full' ? 'full day' : 'half day';
+      toast.success(`Signed out — recorded as a ${dayType}.`);
+      await refresh();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Unable to sign out');
     } finally {
       setBusy(false);
     }
@@ -206,16 +219,16 @@ function EmployeeDashboardPage() {
           <>
             <StatusRing progress={1} tone="lime">
               <button
-                className="flex h-[170px] w-[170px] flex-col items-center justify-center rounded-full bg-gradient-to-br from-lime-200 to-lime-400 text-slate-950 shadow-glow transition active:scale-95"
-                onClick={() => navigate('/employee/checkout')}
+                className="flex h-[170px] w-[170px] flex-col items-center justify-center rounded-full bg-gradient-to-br from-lime-200 to-lime-400 text-slate-950 shadow-glow transition active:scale-95 disabled:opacity-60"
+                disabled={busy}
+                onClick={handleCheckOut}
               >
-                <span className="text-lg font-bold uppercase tracking-wide">Sign Out</span>
-                <span className="mt-1 text-xs font-medium opacity-70">Shift complete</span>
+                <span className="text-lg font-bold uppercase tracking-wide">{busy ? '...' : 'Sign Out'}</span>
+                <span className="mt-1 text-xs font-medium opacity-70">Tap to end shift</span>
               </button>
             </StatusRing>
             <p className="mt-6 text-center text-sm text-slate-400">
-              Signed in at {checkInTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Fill out
-              the checklist to finish.
+              Signed in at {checkInTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.
             </p>
           </>
         ) : (

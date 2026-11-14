@@ -1,19 +1,20 @@
 import dayjs from 'dayjs';
 import Attendance from '../models/Attendance.js';
-import ChecklistSubmission from '../models/ChecklistSubmission.js';
 import Leave from '../models/Leave.js';
 import LaundrySubmission from '../models/LaundrySubmission.js';
-import { resolveChecklistFields } from '../utils/checklistFields.js';
-import { buildChecklistResponses, computeChecklistScore } from '../utils/scoring.js';
 import { getClientIp } from '../utils/network.js';
 import { writeAttendanceToSheet, writeSalarySummaryToSheet } from '../utils/googleSheets.js';
-import { computeMonthlySalary, isFullDayCheckout } from '../utils/salary.js';
+import { computeMonthlySalary, getDayType } from '../utils/salary.js';
 import { buildAttendanceCalendar } from '../utils/attendanceCalendar.js';
 import { istTimeOfDay } from '../utils/istTime.js';
+import { autoSignOutForgottenShifts } from '../jobs/autoSignOutJob.js';
 
 // Check-in after this hour (IST) is flagged as late — a warning only, never
 // a block, since staff must always be able to check in.
 const LATE_CHECK_IN_HOUR = 7;
+// Signing out before a shift has run this long is blocked outright — the
+// day genuinely can't be scored as even a half day yet.
+const MIN_SIGNOUT_HOURS = 5;
 // Falls back to this when an admin hasn't set a specific leave allowance for
 // an employee yet (Employee.leavesPerMonth defaults to 0, which would
 // otherwise read as "no leave allowed at all").
@@ -91,9 +92,7 @@ export const getMe = async (req, res, next) => {
             lateCheckIn: todayAttendance.lateCheckIn,
             dayType:
               todayAttendance.status === 'checked-out' && todayAttendance.checkOutAt
-                ? isFullDayCheckout(todayAttendance.checkOutAt)
-                  ? 'full'
-                  : 'half'
+                ? getDayType(todayAttendance.checkInAt, todayAttendance.checkOutAt)
                 : null,
           }
         : null,
@@ -159,18 +158,6 @@ export const checkIn = async (req, res, next) => {
   }
 };
 
-export const getChecklistTemplateForEmployee = async (req, res, next) => {
-  try {
-    const fields = await resolveChecklistFields(req.employee.role);
-    res.json({
-      type: req.employee.role,
-      fields,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
 export const checkOut = async (req, res, next) => {
   try {
     const date = todayKey();
@@ -181,29 +168,17 @@ export const checkOut = async (req, res, next) => {
       throw new Error('No active sign-in found for today');
     }
 
-    const { answers } = req.body;
-
-    if (!answers || typeof answers !== 'object') {
-      res.status(400);
-      throw new Error('Checklist answers are required to sign out');
+    const elapsedHours = dayjs().diff(dayjs(attendance.checkInAt), 'minute') / 60;
+    if (elapsedHours < MIN_SIGNOUT_HOURS) {
+      const remainingMinutes = Math.ceil((MIN_SIGNOUT_HOURS - elapsedHours) * 60);
+      res.status(403);
+      throw new Error(
+        `You can sign out after ${remainingMinutes} more minute(s) (minimum ${MIN_SIGNOUT_HOURS}-hour shift)`
+      );
     }
-
-    const fields = await resolveChecklistFields(req.employee.role);
-    const responses = buildChecklistResponses(fields, answers);
-    const totalScore = computeChecklistScore(responses);
-
-    const checklist = await ChecklistSubmission.create({
-      attendance: attendance._id,
-      employee: req.employee._id,
-      type: req.employee.role,
-      responses,
-      totalScore,
-    });
 
     attendance.checkOutAt = new Date();
     attendance.status = 'checked-out';
-    attendance.checklist = checklist._id;
-    attendance.score = totalScore;
     await attendance.save();
 
     // Awaited for the same reason as in checkIn — a serverless function can
@@ -227,9 +202,8 @@ export const checkOut = async (req, res, next) => {
         status: attendance.status,
         checkInAt: attendance.checkInAt,
         checkOutAt: attendance.checkOutAt,
-        dayType: isFullDayCheckout(attendance.checkOutAt) ? 'full' : 'half',
+        dayType: getDayType(attendance.checkInAt, attendance.checkOutAt),
       },
-      score: totalScore,
     });
   } catch (error) {
     next(error);
@@ -252,6 +226,21 @@ export const getAttendanceHistory = async (req, res, next) => {
 export const getAttendanceCalendar = async (req, res, next) => {
   try {
     const result = await buildAttendanceCalendar(req.employee._id, req.query.month);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const autoSignOutCron = async (req, res, next) => {
+  try {
+    const auth = req.headers.authorization || '';
+    if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
+      res.status(401);
+      throw new Error('Invalid cron secret');
+    }
+
+    const result = await autoSignOutForgottenShifts();
     res.json(result);
   } catch (error) {
     next(error);

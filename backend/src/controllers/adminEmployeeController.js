@@ -11,9 +11,10 @@ import { buildAttendanceCalendar } from '../utils/attendanceCalendar.js';
 import { istWallTimeToDate } from '../utils/istTime.js';
 
 const ATTENDANCE_WINDOW_DAYS = 30;
-// Checkout clock-times (IST) that land each override on the correct side of
-// salary.js's full/half cutoffs (before 8pm = half, 10pm or later = full).
-const ADMIN_OVERRIDE_CHECKOUT_HOUR = { full: 22, half: 13 };
+// Checkout clock-times (IST), paired with a fixed 9am check-in, that land
+// each override on the correct side of salary.js's full/half threshold:
+// full needs more than a 10-hour shift, half needs 5-10 hours.
+const ADMIN_OVERRIDE_CHECKOUT_HOUR = { full: 20, half: 15 };
 
 const CHECKLIST_ROLES = ['housekeeping', 'kitchen'];
 const CHECKLIST_FIELD_TYPES = ['boolean', 'status', 'number', 'text'];

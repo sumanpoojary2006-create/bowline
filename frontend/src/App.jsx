@@ -34,7 +34,6 @@ const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
 const WaDatePickerPage = lazy(() => import('./pages/WaDatePickerPage'));
 const EmployeeLoginPage = lazy(() => import('./pages/employee/EmployeeLoginPage'));
 const EmployeeDashboardPage = lazy(() => import('./pages/employee/EmployeeDashboardPage'));
-const EmployeeChecklistPage = lazy(() => import('./pages/employee/EmployeeChecklistPage'));
 const AdminEmployeesPage = lazy(() => import('./pages/AdminEmployeesPage'));
 const AdminAttendancePage = lazy(() => import('./pages/AdminAttendancePage'));
 const AdminStaffCalendarPage = lazy(() => import('./pages/AdminStaffCalendarPage'));
@@ -88,14 +87,6 @@ function App() {
             element={
               <EmployeeProtectedRoute>
                 <EmployeeDashboardPage />
-              </EmployeeProtectedRoute>
-            }
-          />
-          <Route
-            path="/employee/checkout"
-            element={
-              <EmployeeProtectedRoute>
-                <EmployeeChecklistPage />
               </EmployeeProtectedRoute>
             }
           />
