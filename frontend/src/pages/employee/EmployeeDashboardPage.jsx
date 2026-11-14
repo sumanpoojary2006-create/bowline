@@ -73,6 +73,37 @@ function StatusRing({ progress, children, tone = 'lime' }) {
   );
 }
 
+function LeavePieChart({ score }) {
+  const value = score != null ? Math.max(0, Math.min(100, score)) : 100;
+  const radius = 38;
+  const stroke = 10;
+  const normalizedRadius = radius - stroke / 2;
+  const circumference = normalizedRadius * 2 * Math.PI;
+  const offset = circumference - (value / 100) * circumference;
+  const color = value >= 100 ? '#bef264' : value > 0 ? '#fcd34d' : '#fb7185';
+
+  return (
+    <div className="relative mx-auto mt-2 flex h-[92px] w-[92px] items-center justify-center">
+      <svg height={radius * 2} width={radius * 2} className="pointer-events-none absolute -rotate-90">
+        <circle stroke="rgba(255,255,255,0.08)" fill="transparent" strokeWidth={stroke} r={normalizedRadius} cx={radius} cy={radius} />
+        <circle
+          stroke={color}
+          fill="transparent"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={`${circumference} ${circumference}`}
+          strokeDashoffset={offset}
+          r={normalizedRadius}
+          cx={radius}
+          cy={radius}
+          style={{ transition: 'stroke-dashoffset 0.6s ease' }}
+        />
+      </svg>
+      <span className="text-lg font-bold text-white">{Math.round(value)}%</span>
+    </div>
+  );
+}
+
 function TodaysTasks({ employee, todayTasks }) {
   const laundryDone = Boolean(todayTasks?.laundryDone);
 
@@ -261,12 +292,11 @@ function EmployeeDashboardPage() {
           <p className="text-xs text-slate-400">days this month</p>
         </div>
         <div className="glass rounded-[1.5rem] p-4 text-center">
-          <p className="text-xs uppercase tracking-[0.25em] text-lime-200/60">Score</p>
-          <p className="mt-2 text-2xl font-bold text-white">
-            {summary?.score != null ? summary.score : '—'}
-            <span className="text-base text-slate-400">/100</span>
+          <p className="text-xs uppercase tracking-[0.25em] text-lime-200/60">Leave usage</p>
+          <LeavePieChart score={summary?.leaveScore} />
+          <p className="mt-2 text-xs text-slate-400">
+            {summary?.leaveAllowance != null ? `${summary.leaveAllowance} leaves/month allowed` : 'this month'}
           </p>
-          <p className="text-xs text-slate-400">overall</p>
         </div>
       </div>
     </div>

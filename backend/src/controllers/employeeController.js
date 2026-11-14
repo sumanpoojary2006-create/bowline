@@ -11,7 +11,10 @@ import { computeMonthlySalary } from '../utils/salary.js';
 import { buildAttendanceCalendar } from '../utils/attendanceCalendar.js';
 
 const MIN_SHIFT_HOURS = 5;
-const ATTENDANCE_WINDOW_DAYS = 30;
+// Falls back to this when an admin hasn't set a specific leave allowance for
+// an employee yet (Employee.leavesPerMonth defaults to 0, which would
+// otherwise read as "no leave allowed at all").
+const DEFAULT_LEAVES_PER_MONTH = 4;
 
 const todayKey = () => dayjs().format('YYYY-MM-DD');
 
@@ -26,40 +29,33 @@ const getTodayTaskStatus = async (employee, date) => {
   return { laundryRequired: true, laundryDone: Boolean(laundryDone) };
 };
 
-const getAttendanceSummary = async (employeeId) => {
-  const since = dayjs().subtract(ATTENDANCE_WINDOW_DAYS, 'day').format('YYYY-MM-DD');
-
-  const daysPresent = await Attendance.countDocuments({
-    employee: employeeId,
-    date: { $gte: since },
-  });
+// Reuses the same monthly tally the salary calculator uses, so "days this
+// month" and the leave score are always consistent with the payroll numbers
+// the admin sees for the same employee.
+const getMonthlyAttendanceStats = async (employee) => {
+  const monthly = await computeMonthlySalary(employee, dayjs().format('YYYY-MM'));
+  const leaveAllowance = employee.leavesPerMonth > 0 ? employee.leavesPerMonth : DEFAULT_LEAVES_PER_MONTH;
+  const leaveUnitsUsed = monthly.leaveDays + monthly.halfDays * 0.5;
+  const leaveScore =
+    leaveUnitsUsed <= leaveAllowance
+      ? 100
+      : Math.max(0, Math.round(100 - ((leaveUnitsUsed - leaveAllowance) / leaveAllowance) * 100));
 
   return {
-    daysPresent,
-    daysInPeriod: ATTENDANCE_WINDOW_DAYS,
+    attendanceSummary: {
+      daysPresent: monthly.fullDays + monthly.halfDays,
+      daysInPeriod: monthly.daysInMonth,
+    },
+    leaveScore,
+    leaveAllowance,
   };
-};
-
-const getCurrentScore = async (employeeId) => {
-  const submissions = await ChecklistSubmission.find({ employee: employeeId })
-    .sort({ createdAt: -1 })
-    .limit(ATTENDANCE_WINDOW_DAYS)
-    .select('totalScore');
-
-  if (!submissions.length) {
-    return null;
-  }
-
-  const total = submissions.reduce((sum, item) => sum + item.totalScore, 0);
-  return Math.round(total / submissions.length);
 };
 
 export const getMe = async (req, res, next) => {
   try {
     const date = todayKey();
-    const [attendanceSummary, score, todayAttendance, todayLeave, todayTasks] = await Promise.all([
-      getAttendanceSummary(req.employee._id),
-      getCurrentScore(req.employee._id),
+    const [attendanceStats, todayAttendance, todayLeave, todayTasks] = await Promise.all([
+      getMonthlyAttendanceStats(req.employee),
       Attendance.findOne({ employee: req.employee._id, date }),
       Leave.findOne({ employee: req.employee._id, date }),
       getTodayTaskStatus(req.employee, date),
@@ -74,8 +70,9 @@ export const getMe = async (req, res, next) => {
         role: req.employee.role,
         joinDate: req.employee.joinDate,
       },
-      attendanceSummary,
-      score,
+      attendanceSummary: attendanceStats.attendanceSummary,
+      leaveScore: attendanceStats.leaveScore,
+      leaveAllowance: attendanceStats.leaveAllowance,
       today: todayAttendance
         ? {
             status: todayAttendance.status,

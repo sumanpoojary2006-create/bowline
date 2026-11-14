@@ -14,7 +14,8 @@ export function EmployeeAuthProvider({ children }) {
     setEmployee(data.employee);
     setSummary({
       attendanceSummary: data.attendanceSummary,
-      score: data.score,
+      leaveScore: data.leaveScore,
+      leaveAllowance: data.leaveAllowance,
       today: data.today,
       isOnLeaveToday: data.isOnLeaveToday,
       todayTasks: data.todayTasks,
