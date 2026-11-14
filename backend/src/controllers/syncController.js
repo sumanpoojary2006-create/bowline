@@ -6,6 +6,7 @@ import Listing from '../models/Listing.js';
 import { calculateBookingPrice } from '../utils/pricing.js';
 import {
   isSheetsConfigured,
+  isAttendanceSheetsConfigured,
   checkSheetsConnection,
   pushAllBookingsToSheet,
   pushAllFullBookingsToSheet,
@@ -40,6 +41,10 @@ export const getSyncStatus = async (req, res) => {
     connected: connection.connected,
     connectionError: connection.error,
     appsScriptUrl: process.env.APPS_SCRIPT_WEB_APP_URL
+      ? '(set)'
+      : null,
+    attendanceConfigured: isAttendanceSheetsConfigured(),
+    attendanceAppsScriptUrl: process.env.ATTENDANCE_APPS_SCRIPT_WEB_APP_URL
       ? '(set)'
       : null,
   });
