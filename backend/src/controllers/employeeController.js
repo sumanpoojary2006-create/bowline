@@ -11,7 +11,6 @@ import { computeMonthlySalary } from '../utils/salary.js';
 import { buildAttendanceCalendar } from '../utils/attendanceCalendar.js';
 import { istTimeOfDay } from '../utils/istTime.js';
 
-const MIN_SHIFT_HOURS = 5;
 // Check-in after this hour (IST) is flagged as late — a warning only, never
 // a block, since staff must always be able to check in.
 const LATE_CHECK_IN_HOUR = 7;
@@ -167,16 +166,6 @@ export const checkOut = async (req, res, next) => {
     if (!attendance || attendance.status !== 'checked-in') {
       res.status(400);
       throw new Error('No active check-in found for today');
-    }
-
-    const elapsedHours = dayjs().diff(dayjs(attendance.checkInAt), 'minute') / 60;
-
-    if (elapsedHours < MIN_SHIFT_HOURS) {
-      const remainingMinutes = Math.ceil((MIN_SHIFT_HOURS - elapsedHours) * 60);
-      res.status(403);
-      throw new Error(
-        `You can check out after ${remainingMinutes} more minute(s) (minimum ${MIN_SHIFT_HOURS}-hour shift)`
-      );
     }
 
     const taskStatus = await getTodayTaskStatus(req.employee, date);

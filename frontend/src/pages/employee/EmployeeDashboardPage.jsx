@@ -6,29 +6,10 @@ import { useEmployeeAuth } from '../../context/EmployeeAuthContext';
 import PageLoader from '../../components/PageLoader';
 import AttendanceCalendar from '../../components/employee/AttendanceCalendar';
 
-const MIN_SHIFT_HOURS = 5;
 const ROLE_LABELS = {
   housekeeping: 'Housekeeping',
   kitchen: 'Kitchen Assistant',
 };
-
-function useNow(intervalMs) {
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), intervalMs);
-    return () => clearInterval(timer);
-  }, [intervalMs]);
-
-  return now;
-}
-
-function formatDuration(minutes) {
-  const h = Math.floor(minutes / 60);
-  const m = Math.round(minutes % 60);
-  if (h <= 0) return `${m}m`;
-  return `${h}h ${m}m`;
-}
 
 function StatusRing({ progress, children, tone = 'lime' }) {
   const radius = 110;
@@ -137,16 +118,12 @@ function EmployeeDashboardPage() {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [showLateWarning, setShowLateWarning] = useState(false);
-  const now = useNow(30000);
 
   useEffect(() => {
     document.title = 'Bowline Staff';
   }, []);
 
   const checkInTime = summary?.today?.checkInAt ? new Date(summary.today.checkInAt) : null;
-  const elapsedHours = checkInTime ? (now - checkInTime.getTime()) / (1000 * 60 * 60) : 0;
-  const remainingMinutes = checkInTime ? Math.max(0, Math.ceil((MIN_SHIFT_HOURS - elapsedHours) * 60)) : 0;
-  const canCheckOut = checkInTime && elapsedHours >= MIN_SHIFT_HOURS;
   const tasksComplete = !summary?.todayTasks || !summary.todayTasks.laundryRequired || summary.todayTasks.laundryDone;
 
   const handleCheckIn = async () => {
@@ -227,47 +204,32 @@ function EmployeeDashboardPage() {
             </StatusRing>
           </>
         ) : status === 'checked-in' ? (
-          canCheckOut ? (
-            tasksComplete ? (
-              <>
-                <StatusRing progress={1} tone="lime">
-                  <button
-                    className="flex h-[170px] w-[170px] flex-col items-center justify-center rounded-full bg-gradient-to-br from-lime-200 to-lime-400 text-slate-950 shadow-glow transition active:scale-95"
-                    onClick={() => navigate('/employee/checkout')}
-                  >
-                    <span className="text-lg font-bold uppercase tracking-wide">Check Out</span>
-                    <span className="mt-1 text-xs font-medium opacity-70">Shift complete</span>
-                  </button>
-                </StatusRing>
-                <p className="mt-6 text-center text-sm text-slate-400">
-                  Checked in at {checkInTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Fill out
-                  the checklist to finish.
-                </p>
-              </>
-            ) : (
-              <>
-                <StatusRing progress={1} tone="amber">
-                  <span className="text-3xl">📝</span>
-                  <span className="mt-2 text-sm font-semibold uppercase tracking-wide text-amber-200/80">
-                    Finish your tasks
-                  </span>
-                </StatusRing>
-                <p className="mt-6 max-w-xs text-center text-sm text-slate-400">
-                  Complete today's laundry dashboard below before you can check out.
-                </p>
-              </>
-            )
-          ) : (
+          tasksComplete ? (
             <>
-              <StatusRing progress={elapsedHours / MIN_SHIFT_HOURS} tone="amber">
-                <span className="text-3xl font-bold text-white">{formatDuration(remainingMinutes)}</span>
-                <span className="mt-1 text-xs font-medium uppercase tracking-wide text-amber-200/80">
-                  until check out
-                </span>
+              <StatusRing progress={1} tone="lime">
+                <button
+                  className="flex h-[170px] w-[170px] flex-col items-center justify-center rounded-full bg-gradient-to-br from-lime-200 to-lime-400 text-slate-950 shadow-glow transition active:scale-95"
+                  onClick={() => navigate('/employee/checkout')}
+                >
+                  <span className="text-lg font-bold uppercase tracking-wide">Check Out</span>
+                  <span className="mt-1 text-xs font-medium opacity-70">Shift complete</span>
+                </button>
               </StatusRing>
               <p className="mt-6 text-center text-sm text-slate-400">
-                On shift since {checkInTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • min{' '}
-                {MIN_SHIFT_HOURS}h shift
+                Checked in at {checkInTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Fill out
+                the checklist to finish.
+              </p>
+            </>
+          ) : (
+            <>
+              <StatusRing progress={1} tone="amber">
+                <span className="text-3xl">📝</span>
+                <span className="mt-2 text-sm font-semibold uppercase tracking-wide text-amber-200/80">
+                  Finish your tasks
+                </span>
+              </StatusRing>
+              <p className="mt-6 max-w-xs text-center text-sm text-slate-400">
+                Complete today's laundry dashboard below before you can check out.
               </p>
             </>
           )
