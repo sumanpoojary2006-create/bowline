@@ -1,55 +1,23 @@
-.laundry-staff-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.laundry-staff-stats > div:last-child { background: linear-gradient(135deg, rgba(159, 186, 119, .22), rgba(183, 207, 143, .08)); border-color: rgba(183, 207, 143, .3); }
 .laundry-arrow { color: #86efac; font-size: 1.25em; font-weight: 800; line-height: 1; }
-.laundry-staff-table th:not(:first-child), .laundry-staff-table td:not(:first-child) { text-align: center; }
-.laundry-staff-table select { min-width: 88px; }
-.laundry-previously-sent { display: inline-flex; min-width: 64px; justify-content: center; color: #fde68a; background: rgba(250, 204, 21, .14); border-radius: 999px; padding: 8px 12px; }
-.laundry-in-house { display: inline-flex; min-width: 78px; justify-content: center; border-radius: 999px; background: rgba(134, 239, 172, .14); color: #86efac; padding: 8px 12px; }
+
+/* A real table at every width, not a stacked-card list — keeps the item
+   name and its sent/received controls on one row so staff aren't
+   scrolling vertically through dozens of tall cards. table-layout:fixed
+   plus percentage columns guarantees the row never needs to scroll
+   sideways either. */
+.laundry-staff-table { table-layout: fixed; width: 100%; }
+.laundry-staff-table th, .laundry-staff-table td { padding: 10px 6px; white-space: normal; }
+.laundry-staff-table th:first-child, .laundry-staff-table td:first-child { width: 40%; text-align: left; }
+.laundry-staff-table th:not(:first-child), .laundry-staff-table td:not(:first-child) { width: 20%; text-align: center; }
+.laundry-staff-table td:first-child { font-size: 13px; font-weight: 500; word-break: break-word; }
+.laundry-number { display: block; font-size: 10px; color: var(--text-muted); margin-bottom: 2px; }
+
+.laundry-staff-table select { width: 100%; min-width: 0; padding: 6px 2px; font-size: 13px; text-align: center; text-align-last: center; }
+.laundry-in-house { display: inline-flex; min-width: 0; max-width: 100%; justify-content: center; border-radius: 999px; background: rgba(134, 239, 172, .14); color: #86efac; padding: 6px 8px; font-size: 13px; }
 
 @media (max-width: 700px) {
-  .laundry-staff-stats { grid-template-columns: 1fr; }
-
-  /* Below this width a 5-column table no longer fits the screen, so each
-     row becomes a stacked card instead of forcing horizontal scrolling. */
-  .laundry-table-wrap { overflow-x: visible; }
-  .laundry-staff-table thead { display: none; }
-  .laundry-staff-table, .laundry-staff-table tbody, .laundry-staff-table tr, .laundry-staff-table td {
-    display: block;
-    width: 100%;
-  }
-  .laundry-staff-table tr {
-    margin-bottom: 12px;
-    padding: 6px 14px;
-    border: 1px solid var(--border-soft);
-    border-radius: 14px;
-    background: var(--surface-strong);
-  }
-  .laundry-staff-table tr:last-child { margin-bottom: 0; }
-  .laundry-staff-table td {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--border-soft);
-    text-align: right;
-    white-space: normal;
-    min-width: 0;
-  }
-  .laundry-staff-table td:last-child { border-bottom: none; }
-  .laundry-staff-table td::before {
-    content: attr(data-label);
-    font-size: 11px;
-    font-weight: 500;
-    color: var(--text-muted);
-    text-align: left;
-  }
-  .laundry-staff-table td:first-child {
-    min-width: 0;
-    font-size: 15px;
-    font-weight: 600;
-    justify-content: flex-start;
-  }
-  .laundry-staff-table td:first-child::before { content: none; }
-  .laundry-staff-table select { width: auto; min-width: 72px; }
+  .laundry-staff-table th, .laundry-staff-table td { padding: 8px 3px; font-size: 11px; }
+  .laundry-staff-table td:first-child { font-size: 12px; }
+  .laundry-staff-table select { padding: 5px 0; font-size: 12px; }
+  .laundry-in-house { padding: 5px 6px; font-size: 12px; }
 }

@@ -23,14 +23,6 @@ export default function LaundryPage() {
 
   const rows = data?.stock || [];
   const availability = Object.fromEntries((data?.availability || []).map((item) => [item.id, item]));
-  const totals = rows.reduce((result, item) => {
-    const entry = entries[item.id] || { sent: 0, received: 0 };
-    const limits = availability[item.id] || { inHouse: item.stock || 0 };
-    result.sent += entry.sent;
-    result.received += entry.received;
-    result.inHouse += limits.inHouse - entry.sent + entry.received;
-    return result;
-  }, { sent: 0, received: 0, inHouse: 0 });
 
   const change = (id, field, rawValue) => {
     const value = Number(rawValue);
@@ -84,30 +76,23 @@ export default function LaundryPage() {
       <div className="laundry-date">{new Intl.DateTimeFormat('en-IN', { dateStyle: 'long', timeZone: 'Asia/Kolkata' }).format(new Date())}<small>Daily laundry record · IST</small></div>
     </header>
 
-    <div className="laundry-stats laundry-staff-stats">
-      <div><span>Send <b className="laundry-arrow">↑</b></span><strong>{totals.sent}<small> pieces</small></strong></div>
-      <div><span>Received <b className="laundry-arrow">↓</b></span><strong>{totals.received}<small> pieces</small></strong></div>
-      <div><span>🏠 In-house stock</span><strong>{totals.inHouse}<small> pieces</small></strong></div>
-    </div>
-
     {message && <div role="status" className="laundry-notice">{message}</div>}
     {!data ? <p>Loading inventory…</p> : <>
       {!data.sheetsConfigured && <div className="laundry-notice">Google Sheets connection pending. Records are saved in Bowline until the connection is configured.</div>}
       <section className="laundry-panel">
-        <div className="laundry-panel-head"><div><h2>Daily laundry movement</h2><p>Previously Sent Stock updates after every report and sets the maximum quantity that can be received.</p></div></div>
+        <div className="laundry-panel-head"><div><h2>Daily laundry movement</h2><p>Set what's sent and received for each item, then submit.</p></div></div>
         <div className="laundry-table-wrap">
           <table className="laundry-staff-table">
-            <thead><tr><th>Item</th><th>Previously Sent Stock</th><th>Send <span className="laundry-arrow">↑</span></th><th>Received <span className="laundry-arrow">↓</span></th><th>🏠 In-house stock</th></tr></thead>
+            <thead><tr><th>Item</th><th>Sent <span className="laundry-arrow">↑</span></th><th>Received <span className="laundry-arrow">↓</span></th><th>🏠 In-house</th></tr></thead>
             <tbody>{rows.map((item, index) => {
               const entry = entries[item.id] || { sent: 0, received: 0 };
               const limits = availability[item.id] || { inHouse: item.stock || 0, previouslySent: 0, availableToSend: item.stock || 0, availableToReceive: 0 };
               const inHouse = item.stock === null ? null : limits.inHouse - entry.sent + entry.received;
               return <tr key={item.id}>
                 <td data-label="Item"><span className="laundry-number">{String(index + 1).padStart(2, '0')}</span>{item.name}</td>
-                <td data-label="Previously sent"><strong className="laundry-previously-sent">{limits.previouslySent}</strong></td>
-                <td data-label="Send ↑"><select disabled={busy || item.stock === null} aria-label={`Send ${item.name}`} title={`${limits.availableToSend} currently in-house and available to send`} value={entry.sent} onChange={(event) => change(item.id, 'sent', event.target.value)}>{Array.from({ length: limits.availableToSend + 1 }, (_, value) => <option key={value} value={value}>{value}</option>)}</select></td>
+                <td data-label="Sent ↑"><select disabled={busy || item.stock === null} aria-label={`Sent ${item.name}`} title={`${limits.availableToSend} currently in-house and available to send`} value={entry.sent} onChange={(event) => change(item.id, 'sent', event.target.value)}>{Array.from({ length: limits.availableToSend + 1 }, (_, value) => <option key={value} value={value}>{value}</option>)}</select></td>
                 <td data-label="Received ↓"><select disabled={busy || item.stock === null || limits.availableToReceive === 0} aria-label={`Received ${item.name}`} title={`Maximum ${limits.availableToReceive} can be received`} value={entry.received} onChange={(event) => change(item.id, 'received', event.target.value)}>{Array.from({ length: limits.availableToReceive + 1 }, (_, value) => <option key={value} value={value}>{value}</option>)}</select></td>
-                <td data-label="In-house stock"><strong className="laundry-in-house">{inHouse ?? 'Not set by admin'}</strong></td>
+                <td data-label="In-house"><strong className="laundry-in-house">{inHouse ?? '—'}</strong></td>
               </tr>;
             })}</tbody>
           </table>
