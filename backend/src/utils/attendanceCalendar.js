@@ -1,11 +1,12 @@
 import dayjs from 'dayjs';
 import Attendance from '../models/Attendance.js';
 import Leave from '../models/Leave.js';
-import { FULL_SHIFT_HOURS } from './salary.js';
+import { isFullDayCheckout } from './salary.js';
 
-// One status per calendar day: 'full' (green), 'partial' (yellow), or
-// 'leave'/'absent' (both rendered red — on leave or no check-in at all).
-// Days in the future with no leave applied are omitted (status unknown yet).
+// One status per calendar day: 'full' (dark green), 'partial' (light
+// green — half day), or 'leave'/'absent' (both rendered red — on leave or
+// no check-in at all). Days in the future with no leave applied are
+// omitted (status unknown yet).
 export async function buildAttendanceCalendar(employeeId, monthParam) {
   const month = /^\d{4}-\d{2}$/.test(monthParam) ? monthParam : dayjs().format('YYYY-MM');
   const start = `${month}-01`;
@@ -31,12 +32,9 @@ export async function buildAttendanceCalendar(employeeId, monthParam) {
     } else {
       const record = attendanceByDate.get(date);
       if (record) {
-        if (record.status === 'checked-out' && record.checkOutAt) {
-          const hours = dayjs(record.checkOutAt).diff(dayjs(record.checkInAt), 'minute') / 60;
-          status = hours >= FULL_SHIFT_HOURS ? 'full' : 'partial';
-        } else {
-          status = 'partial';
-        }
+        status = record.status === 'checked-out' && record.checkOutAt && isFullDayCheckout(record.checkOutAt)
+          ? 'full'
+          : 'partial';
       } else if (date <= today) {
         status = 'absent';
       }
