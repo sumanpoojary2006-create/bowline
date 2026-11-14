@@ -1,3 +1,10 @@
+import {
+  addLaundryStockItem,
+  getLaundry,
+  retryLaundrySync,
+  setLaundryStaffPin,
+  updateLaundryStockItem,
+} from '../controllers/laundryController.js';
 import { Router } from 'express';
 import {
   createPricingRule,
@@ -74,5 +81,11 @@ router.delete('/checklist-items/:id', deleteChecklistItem);
 
 router.get('/settings/wifi', getWifiSetting);
 router.put('/settings/wifi', updateWifiSetting);
+
+router.get('/laundry', getLaundry);
+router.post('/laundry/stock', addLaundryStockItem);
+router.patch('/laundry/stock/:id', updateLaundryStockItem);
+router.put('/laundry/staff/:employeeId/pin', setLaundryStaffPin);
+router.post('/laundry/:id/sync', retryLaundrySync);
 
 export default router;

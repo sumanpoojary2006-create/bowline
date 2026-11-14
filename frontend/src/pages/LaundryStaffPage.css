@@ -1,0 +1,13 @@
+.laundry-staff-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.laundry-staff-stats > div:last-child { background: #203f37; color: #fff; }
+.laundry-arrow { color: #21a45a; font-size: 1.25em; font-weight: 800; line-height: 1; }
+.laundry-staff-table th:not(:first-child), .laundry-staff-table td:not(:first-child) { text-align: center; }
+.laundry-staff-table select { min-width: 88px; }
+.laundry-previously-sent { display: inline-flex; min-width: 64px; justify-content: center; color: #6a4d1f; background: #fff4d9; border-radius: 999px; padding: 8px 12px; }
+.laundry-in-house { display: inline-flex; min-width: 78px; justify-content: center; border-radius: 999px; background: #eaf4e9; color: #205a35; padding: 8px 12px; }
+
+@media (max-width: 700px) {
+  .laundry-staff-stats { grid-template-columns: 1fr; }
+  .laundry-staff-table th, .laundry-staff-table td { padding: 12px 9px; }
+  .laundry-staff-table td:first-child { min-width: 170px; }
+}

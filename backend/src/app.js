@@ -15,6 +15,7 @@ import paymentRoutes from './routes/paymentRoutes.js';
 import whatsappRoutes from './routes/whatsappRoutes.js';
 import webhookRoutes from './routes/webhookRoutes.js';
 import employeeRoutes from './routes/employeeRoutes.js';
+import reportRoutes from './routes/reportRoutes.js';
 import { errorHandler, notFound } from './middleware/error.js';
 
 dotenv.config();
@@ -82,6 +83,7 @@ app.get('/api/health', (_, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/listings', listingRoutes);
+app.use('/api/reports', reportRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/notifications', notificationRoutes);

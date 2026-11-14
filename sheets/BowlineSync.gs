@@ -77,7 +77,11 @@ function doPost(e) {
 
     var result = { ok: true };
 
-    if (data.action === 'upsert') {
+    if (data.action === 'upsertLaundry') {
+      upsertLaundrySubmission(data.submission);
+      result.action = 'upsertLaundry';
+
+    } else if (data.action === 'upsert') {
       upsertBookingCells(data.roomName, data.startDate, data.endDate, data.guestName, data.status, data.color);
       result.action = 'upsert';
 
@@ -567,4 +571,24 @@ function getRowForDate(sheet, date) {
     if (cellDate === target) return i + 2; // 1-indexed, offset by header row
   }
   return -1;
+}
+
+// Laundry records share this spreadsheet and the existing authenticated endpoint.
+function upsertLaundrySubmission(record) {
+    if (!record || !record.requestId || !/^\d{4}-\d{2}-\d{2}$/.test(record.date) || !Array.isArray(record.rows) || !record.rows.length) throw new Error('Invalid submission');
+    var book = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = book.getSheetByName('Laundry ' + record.date) || book.insertSheet('Laundry ' + record.date);
+    if (!sheet.getLastRow()) {
+      sheet.appendRow(['Submission ID','Date (IST)','Staff name','Item','Admin total stock','Send ↑','Received ↓','In-house stock','Submitted at']);
+      sheet.setFrozenRows(1);
+      sheet.getRange(1,1,1,9).setBackground('#203f37').setFontColor('#ffffff').setFontWeight('bold');
+    }
+    // An acknowledged or timed-out submission can be retried without duplicates.
+    if (sheet.getLastRow() > 1 && sheet.getRange(2,1,sheet.getLastRow()-1,1).createTextFinder(record.requestId).matchEntireCell(true).findNext()) return;
+    var safeText = function(s) { return /^[=+@\-]/.test(String(s)) ? "'" + s : String(s); };
+    var values = record.rows.map(function(r) {
+      return [record.requestId,record.date,safeText(record.staffName),safeText(r.name),r.stock,r.sent,r.received,r.summary,record.createdAt];
+    });
+    var start = sheet.getLastRow()+1;
+    sheet.getRange(start,1,values.length,9).setValues(values);
 }

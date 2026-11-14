@@ -40,6 +40,9 @@ const AdminChecklistsPage = lazy(() => import('./pages/AdminChecklistsPage'));
 const AdminChecklistTemplatesPage = lazy(() => import('./pages/AdminChecklistTemplatesPage'));
 const AdminEmployeeSettingsPage = lazy(() => import('./pages/AdminEmployeeSettingsPage'));
 
+const LaundryPage = lazy(() => import('./pages/LaundryPage'));
+const AdminLaundryPage = lazy(() => import('./pages/AdminLaundryPage'));
+
 function App() {
   return (
     <BookingCartProvider>
@@ -64,6 +67,7 @@ function App() {
         </Route>
 
         <Route element={<EmployeeLayout />}>
+          <Route path="/employee/laundry" element={<EmployeeProtectedRoute><LaundryPage /></EmployeeProtectedRoute>} />
           <Route path="/employee/login" element={<EmployeeLoginPage />} />
           <Route
             path="/employee/dashboard"
@@ -92,6 +96,7 @@ function App() {
           }
         >
           <Route index element={<Navigate to="overview" replace />} />
+          <Route path="laundry" element={<AdminLaundryPage />} />
           <Route path="overview" element={<AdminDashboardPage />} />
           <Route path="listings" element={<AdminListingsPage />} />
           <Route path="block-rooms" element={<AdminBlockRoomsPage />} />

@@ -25,6 +25,11 @@ const employeeSchema = new mongoose.Schema(
       required: true,
       minlength: 6,
     },
+    laundryPinHash: {
+      type: String,
+      default: '',
+      select: false,
+    },
     role: {
       type: String,
       enum: ['housekeeping', 'kitchen'],

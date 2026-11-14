@@ -1,3 +1,4 @@
+import { getLaundry, submitLaundry } from '../controllers/laundryController.js';
 import { Router } from 'express';
 import { login } from '../controllers/employeeAuthController.js';
 import {
@@ -17,5 +18,8 @@ router.post('/checkin', protectEmployee, checkIn);
 router.post('/checkout', protectEmployee, checkOut);
 router.get('/attendance', protectEmployee, getAttendanceHistory);
 router.get('/checklist-template', protectEmployee, getChecklistTemplateForEmployee);
+
+router.get('/laundry', protectEmployee, getLaundry);
+router.post('/laundry', protectEmployee, submitLaundry);
 
 export default router;
