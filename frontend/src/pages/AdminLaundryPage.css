@@ -1,38 +1,47 @@
 .laundry-admin-page { max-width: 1500px; margin: 0 auto; }
-.laundry-success { background: #e9f5e9; color: #216938; }
-.laundry-error { background: #feeaea; color: #a92929; }
-.laundry-loading { padding: 40px; text-align: center; color: #6c7c72; }
+.laundry-loading { padding: 40px; text-align: center; color: var(--text-muted); }
+
 .laundry-admin-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-.laundry-admin-summary > div { background: #fff; border: 1px solid #e1e7dc; border-radius: 12px; padding: 18px; }
-.laundry-admin-summary span { display: block; color: #718076; font-size: 11px; }
-.laundry-admin-summary strong { display: block; margin-top: 8px; font-size: 28px; font-weight: 600; }
-.laundry-admin-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(330px, .75fr); gap: 18px; align-items: start; }
+.laundry-admin-summary > div { background: var(--surface); border: 1px solid var(--border-soft); border-radius: 16px; padding: 18px; }
+.laundry-admin-summary span { display: block; color: var(--text-muted); font-size: 11px; }
+.laundry-admin-summary strong { display: block; margin-top: 8px; font-size: 26px; font-weight: 600; color: #fff; }
+
+.laundry-admin-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr); gap: 18px; align-items: start; }
 .laundry-admin-side { display: grid; gap: 18px; }
-.laundry-inventory-list { padding: 0 20px 20px; }
-.laundry-inventory-row { display: grid; grid-template-columns: 30px minmax(150px, 1fr) 110px 130px 110px; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid #edf0ea; }
-.laundry-inventory-row label { display: flex; align-items: center; gap: 7px; }
-.laundry-inventory-row label span { font-size: 10px; color: #7a877e; }
-.laundry-inventory-row input { width: 70px; }
-.laundry-inventory-row .laundry-reason { display: grid; gap: 4px; }
-.laundry-inventory-row .laundry-reason select { width: 120px; }
-.laundry-reason-placeholder { min-height: 1px; }
-.laundry-inventory-row button { padding: 9px 11px; }
+
+.laundry-inventory-list { padding: 4px 20px 20px; display: grid; gap: 2px; }
+.laundry-inventory-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 14px 0; border-top: 1px solid var(--border-soft); }
+.laundry-inventory-row .laundry-number { font-size: 10px; color: var(--text-muted); flex: 0 0 auto; }
+.laundry-inventory-row strong { flex: 1 1 150px; min-width: 0; color: #fff; font-weight: 600; font-size: 14px; }
+.laundry-inventory-row label { display: flex; flex-direction: column; gap: 5px; flex: 0 1 110px; }
+.laundry-inventory-row label span { font-size: 10px; color: var(--text-muted); }
+.laundry-inventory-row input { width: 100%; min-width: 78px; }
+.laundry-inventory-row .laundry-reason { flex: 0 1 150px; }
+.laundry-inventory-row .laundry-reason select { width: 100%; }
+.laundry-reason-placeholder { flex: 0 0 0; width: 0; }
+.laundry-inventory-row button { flex: 0 0 auto; padding: 10px 14px; margin-left: auto; }
+
 .laundry-add-panel form { display: grid; gap: 14px; padding: 0 24px 24px; }
-.laundry-add-panel label { font-size: 11px; color: #607269; }
+.laundry-add-panel label { font-size: 11px; color: var(--text-muted); }
 .laundry-add-panel input { display: block; width: 100%; margin-top: 7px; }
-.laundry-pin-list { padding: 0 24px 24px; }
-.laundry-pin-list > div { display: grid; grid-template-columns: minmax(0, 1fr) 68px 90px; gap: 8px; align-items: center; padding: 12px 0; border-top: 1px solid #edf0ea; }
-.laundry-pin-list small { display: block; color: #7a877e; text-transform: capitalize; font-size: 10px; margin-top: 3px; }
-.laundry-pin-list input { width: 68px; text-align: center; letter-spacing: .18em; }
-.laundry-pin-list button { padding: 9px 10px; }
-.laundry-pin-panel .laundry-panel-head, .laundry-add-panel .laundry-panel-head { padding-bottom: 18px; }
-.laundry-adjustment-empty { padding: 0 24px 24px; }
-.laundry-adjustment-list { padding: 0 24px 20px; }
-.laundry-adjustment-list > div { display: grid; grid-template-columns: minmax(0, 1fr) 90px 60px; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid #edf0ea; }
-.laundry-adjustment-list small { display: block; color: #7a877e; font-size: 10px; margin-top: 3px; }
-.laundry-adjustment-reason { text-transform: capitalize; text-align: center; border-radius: 999px; padding: 6px 9px; font-size: 10px; }
-.laundry-adjustment-reason.lost { background: #fff1d6; color: #8a5b09; }
-.laundry-adjustment-reason.damaged { background: #feeaea; color: #a92929; }
+
+.laundry-pin-list { padding: 0 24px 24px; display: grid; gap: 2px; }
+.laundry-pin-list > div { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px 0; border-top: 1px solid var(--border-soft); }
+.laundry-pin-list span { flex: 1 1 140px; min-width: 0; color: #fff; }
+.laundry-pin-list small { display: block; color: var(--text-muted); text-transform: capitalize; font-size: 10px; margin-top: 3px; }
+.laundry-pin-list input { width: 76px; text-align: center; letter-spacing: .18em; flex: 0 0 auto; }
+.laundry-pin-list button { padding: 9px 12px; flex: 0 0 auto; }
+.laundry-pin-panel .laundry-panel-head, .laundry-add-panel .laundry-panel-head { padding-bottom: 16px; }
+
+.laundry-adjustment-empty { padding: 0 24px 24px; color: var(--text-muted); }
+.laundry-adjustment-list { padding: 0 24px 20px; display: grid; gap: 2px; }
+.laundry-adjustment-list > div { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px 0; border-top: 1px solid var(--border-soft); }
+.laundry-adjustment-list span { flex: 1 1 160px; min-width: 0; color: #fff; }
+.laundry-adjustment-list small { display: block; color: var(--text-muted); font-size: 10px; margin-top: 3px; }
+.laundry-adjustment-reason { text-transform: capitalize; text-align: center; border-radius: 999px; padding: 6px 11px; font-size: 10px; font-weight: 600; flex: 0 0 auto; }
+.laundry-adjustment-reason.lost { background: rgba(250, 204, 21, .14); color: #fde68a; }
+.laundry-adjustment-reason.damaged { background: rgba(252, 165, 165, .16); color: #fca5a5; }
+.laundry-adjustment-list > div > strong:last-child { flex: 0 0 auto; color: #fff; }
 
 @media (max-width: 1050px) {
   .laundry-admin-grid { grid-template-columns: 1fr; }
@@ -42,12 +51,12 @@
 @media (max-width: 720px) {
   .laundry-admin-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .laundry-admin-side { grid-template-columns: 1fr; }
-  .laundry-inventory-row { grid-template-columns: 24px minmax(110px, 1fr) 82px; }
-  .laundry-inventory-row .laundry-reason, .laundry-inventory-row .laundry-reason-placeholder { grid-column: 2 / 4; }
-  .laundry-inventory-row .laundry-reason select { width: 100%; }
-  .laundry-inventory-row button { grid-column: 2 / 4; width: 100%; }
-  .laundry-inventory-row label span { display: none; }
-  .laundry-inventory-row input { width: 82px; }
-  .laundry-pin-list > div { grid-template-columns: minmax(0, 1fr) 62px; }
-  .laundry-pin-list button { grid-column: 1 / 3; width: 100%; }
+  .laundry-inventory-row { gap: 10px; }
+  .laundry-inventory-row strong { flex-basis: 100%; }
+  .laundry-inventory-row label { flex: 1 1 120px; }
+  .laundry-inventory-row .laundry-reason { flex: 1 1 100%; }
+  .laundry-inventory-row button { flex-basis: 100%; width: 100%; margin-left: 0; }
+  .laundry-pin-list > div { align-items: flex-start; }
+  .laundry-pin-list button { flex-basis: 100%; width: 100%; }
+  .laundry-adjustment-list > div { align-items: flex-start; }
 }
