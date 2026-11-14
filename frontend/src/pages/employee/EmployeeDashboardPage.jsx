@@ -190,9 +190,6 @@ function EmployeeDashboardPage() {
                 <span className="mt-1 text-xs font-medium opacity-70">Tap to start shift</span>
               </button>
             </StatusRing>
-            <p className="mt-6 max-w-xs text-center text-sm text-slate-400">
-              Make sure you're connected to the homestay WiFi before checking in.
-            </p>
             <button
               type="button"
               className="mt-6 text-xs font-semibold text-lime-200 underline"

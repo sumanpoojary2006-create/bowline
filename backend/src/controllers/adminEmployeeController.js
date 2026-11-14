@@ -2,11 +2,9 @@ import Employee from '../models/Employee.js';
 import Attendance from '../models/Attendance.js';
 import ChecklistSubmission from '../models/ChecklistSubmission.js';
 import ChecklistItem from '../models/ChecklistItem.js';
-import AppSetting from '../models/AppSetting.js';
 import Leave from '../models/Leave.js';
 import { getChecklistTemplate } from '../config/checklistTemplates.js';
 import { slugify } from '../utils/slugify.js';
-import { isValidIpRule } from '../utils/network.js';
 import { computeMonthlySalary } from '../utils/salary.js';
 
 const ATTENDANCE_WINDOW_DAYS = 30;
@@ -201,42 +199,6 @@ export const reviewChecklistSubmission = async (req, res, next) => {
     await submission.save();
 
     res.json({ submission });
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const getWifiSetting = async (req, res, next) => {
-  try {
-    const setting = await AppSetting.findOne({ key: 'employee_wifi' });
-    res.json({ allowedIps: setting?.allowedIps || [] });
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const updateWifiSetting = async (req, res, next) => {
-  try {
-    const { allowedIps } = req.body;
-
-    if (!Array.isArray(allowedIps)) {
-      res.status(400);
-      throw new Error('allowedIps must be an array of IP addresses');
-    }
-
-    const cleanedIps = [...new Set(allowedIps.map((ip) => String(ip).trim()).filter(Boolean))];
-    if (cleanedIps.some((ip) => !isValidIpRule(ip))) {
-      res.status(400);
-      throw new Error('Enter valid IPv4, IPv6, or network range values');
-    }
-
-    const setting = await AppSetting.findOneAndUpdate(
-      { key: 'employee_wifi' },
-      { allowedIps: cleanedIps },
-      { upsert: true, new: true }
-    );
-
-    res.json({ allowedIps: setting.allowedIps });
   } catch (error) {
     next(error);
   }

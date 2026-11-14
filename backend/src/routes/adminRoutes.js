@@ -37,12 +37,10 @@ import {
   getChecklistSubmissions,
   getEmployeeSalary,
   getEmployees,
-  getWifiSetting,
   reorderChecklistItems,
   reviewChecklistSubmission,
   updateChecklistItem,
   updateEmployee,
-  updateWifiSetting,
 } from '../controllers/adminEmployeeController.js';
 
 const router = Router();
@@ -85,9 +83,6 @@ router.post('/checklist-items', createChecklistItem);
 router.put('/checklist-items/reorder', reorderChecklistItems);
 router.put('/checklist-items/:id', updateChecklistItem);
 router.delete('/checklist-items/:id', deleteChecklistItem);
-
-router.get('/settings/wifi', getWifiSetting);
-router.put('/settings/wifi', updateWifiSetting);
 
 router.get('/laundry', getLaundry);
 router.post('/laundry/stock', addLaundryStockItem);

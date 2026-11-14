@@ -1,12 +1,11 @@
 import dayjs from 'dayjs';
 import Attendance from '../models/Attendance.js';
 import ChecklistSubmission from '../models/ChecklistSubmission.js';
-import AppSetting from '../models/AppSetting.js';
 import Leave from '../models/Leave.js';
 import LaundrySubmission from '../models/LaundrySubmission.js';
 import { resolveChecklistFields } from '../utils/checklistFields.js';
 import { buildChecklistResponses, computeChecklistScore } from '../utils/scoring.js';
-import { getClientIp, isAllowedIp } from '../utils/network.js';
+import { getClientIp } from '../utils/network.js';
 import { writeAttendanceToSheet, writeSalarySummaryToSheet } from '../utils/googleSheets.js';
 import { computeMonthlySalary, FULL_SHIFT_HOURS } from '../utils/salary.js';
 
@@ -112,13 +111,6 @@ export const checkIn = async (req, res, next) => {
     }
 
     const clientIp = getClientIp(req);
-    const setting = await AppSetting.findOne({ key: 'employee_wifi' });
-    const allowedIps = setting?.allowedIps || [];
-
-    if (!allowedIps.length || !isAllowedIp(clientIp, allowedIps)) {
-      res.status(403);
-      throw new Error('Connect to the homestay WiFi to check in');
-    }
 
     const attendance = await Attendance.create({
       employee: req.employee._id,
