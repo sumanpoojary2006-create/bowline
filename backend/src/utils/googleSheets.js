@@ -55,19 +55,18 @@ export function isSheetsConfigured() {
 }
 
 // The staff attendance spreadsheet is a separate Apps Script deployment from
-// the main bookings/laundry one, so booking/laundry writes never touch it
-// and vice versa.
-// Deliberately ignores APPS_SCRIPT_OUTBOUND_SECRET — that var exists only to
-// migrate the main sheet's older receiver secret, and would otherwise take
-// priority over SHEETS_WEBHOOK_SECRET for this unrelated spreadsheet too.
+// the main bookings/laundry one, with its own secret — ATTENDANCE_SHEETS_WEBHOOK_SECRET
+// — so it never depends on (or is silently overridden by) whatever value
+// SHEETS_WEBHOOK_SECRET or the legacy APPS_SCRIPT_OUTBOUND_SECRET hold for
+// the unrelated main sheet.
 export function isAttendanceSheetsConfigured() {
-  return Boolean(process.env.ATTENDANCE_APPS_SCRIPT_WEB_APP_URL && process.env.SHEETS_WEBHOOK_SECRET);
+  return Boolean(process.env.ATTENDANCE_APPS_SCRIPT_WEB_APP_URL && process.env.ATTENDANCE_SHEETS_WEBHOOK_SECRET);
 }
 
 const getAppsScriptSecret = () =>
   process.env.APPS_SCRIPT_OUTBOUND_SECRET || process.env.SHEETS_WEBHOOK_SECRET || '';
 
-const getAttendanceAppsScriptSecret = () => process.env.SHEETS_WEBHOOK_SECRET || '';
+const getAttendanceAppsScriptSecret = () => process.env.ATTENDANCE_SHEETS_WEBHOOK_SECRET || '';
 
 // ── Call the Apps Script web app ───────────────────────────────────────────
 // Apps Script has no locking around the spreadsheet, so concurrent doPost
