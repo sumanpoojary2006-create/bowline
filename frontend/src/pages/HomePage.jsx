@@ -159,7 +159,7 @@ function HomePage() {
           <img
             src={guestFavouriteBadge}
             alt="Rated 5.0 — Guest favourite, one of the most loved stays on Airbnb"
-            className="mb-6 h-auto w-[190px] max-w-[65vw] shrink-0 object-contain mix-blend-screen sm:mb-7 sm:w-[230px] lg:w-[250px]"
+            className="mb-4 h-auto w-[90px] max-w-[30vw] shrink-0 object-contain sm:mb-5 sm:w-[110px] lg:w-[120px]"
           />
           <div className="max-w-4xl">
             <h1 className="font-display text-[2.7rem] font-extrabold leading-[0.98] tracking-[-0.045em] !text-white drop-shadow-[0_4px_28px_rgba(0,0,0,0.75)] sm:text-7xl lg:text-[5.5rem]">
@@ -175,11 +175,9 @@ function HomePage() {
             </div>
           </div>
         </div>
-      </section>
 
-      <div className="px-4 py-5 text-center">
         <a
-          className="inline-flex items-center justify-center gap-2 text-xs font-semibold leading-5 !text-[#dbe6d8] transition hover:!text-lime-200 sm:text-sm"
+          className="absolute inset-x-0 bottom-6 z-10 inline-flex items-center justify-center gap-2 text-xs font-semibold leading-5 !text-white drop-shadow transition hover:!text-lime-200 sm:bottom-9 sm:text-sm"
           href={inquiryWhatsappUrl}
           target="_blank"
           rel="noreferrer"
@@ -187,7 +185,7 @@ function HomePage() {
           <WhatsAppIcon className="h-4 w-4 shrink-0 text-[#25D366]" />
           Chat with us
         </a>
-      </div>
+      </section>
 
       <section id="stay" className="section-shell py-16 sm:py-20">
         <div className="flex items-end justify-between gap-5">
