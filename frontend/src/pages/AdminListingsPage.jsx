@@ -1,8 +1,13 @@
+import roomImage from '../assets/marketing/room.jpg';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
+import { ArrowLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import api from '../lib/api';
 import SectionHeader from '../components/SectionHeader';
 import PageLoader from '../components/PageLoader';
+
+const PRICE_UNIT_LABELS = { night: 'per night', person: 'per person', package: 'package price' };
+const AVAILABILITY_LABELS = { available: 'Available', limited: 'Limited availability', 'sold-out': 'Sold out', inactive: 'Inactive' };
 
 const emptyForm = {
   type: 'room',
@@ -78,6 +83,9 @@ function AdminListingsPage() {
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState(null);
+  const [search, setSearch] = useState('');
   const [activeType, setActiveType] = useState('room');
   const [form, setForm] = useState(emptyForm);
   const [files, setFiles] = useState([]);
@@ -89,8 +97,8 @@ function AdminListingsPage() {
   );
 
   const filteredListings = useMemo(
-    () => listings.filter((listing) => listing.type === activeType),
-    [listings, activeType]
+    () => listings.filter((listing) => listing.type === activeType && listing.name.toLowerCase().includes(search.toLowerCase())),
+    [listings, activeType, search]
   );
 
   const exportFeedUrl = useMemo(() => {
@@ -150,6 +158,7 @@ function AdminListingsPage() {
     setSelectedId(null);
     setFiles([]);
     setImageUrlDraft('');
+    setActiveSection(null);
     setForm({ ...emptyForm, type });
   };
 
@@ -208,6 +217,7 @@ function AdminListingsPage() {
         resetForm(activeType);
       }
 
+      setEditorOpen(false);
       fetchListings();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Unable to save listing');
@@ -233,12 +243,74 @@ function AdminListingsPage() {
 
   const config = typeConfig[activeType];
 
+  const editorSections = [
+    {
+      key: 'photos',
+      title: 'Photo tour',
+      subtitle: `${form.existingImages.length} photo${form.existingImages.length === 1 ? '' : 's'}${
+        files.length ? ` · ${files.length} new pending` : ''
+      }`,
+    },
+    {
+      key: 'title',
+      title: 'Title & location',
+      subtitle: form.name ? `${form.name}${form.location ? ` · ${form.location}` : ''}` : 'Add a title',
+    },
+    {
+      key: 'description',
+      title: 'Description',
+      subtitle: form.shortDescription
+        ? form.shortDescription.slice(0, 60) + (form.shortDescription.length > 60 ? '…' : '')
+        : 'Add a description',
+    },
+    {
+      key: 'pricing',
+      title: 'Pricing',
+      subtitle: form.price
+        ? `₹${Number(form.manualPriceOverride || form.price).toLocaleString('en-IN')} ${PRICE_UNIT_LABELS[form.priceUnit] || ''}`
+        : 'Set a price',
+    },
+    {
+      key: 'availability',
+      title: 'Availability & status',
+      subtitle: AVAILABILITY_LABELS[form.availabilityStatus] || form.availabilityStatus,
+    },
+    activeType === 'room' && {
+      key: 'details',
+      title: 'Guests & amenities',
+      subtitle: `${form.maxOccupancy || 0} guests · ${form.amenities ? form.amenities.split(',').filter(Boolean).length : 0} amenities`,
+    },
+    activeType === 'trek' && {
+      key: 'details',
+      title: 'Trek details',
+      subtitle: [form.difficulty, form.duration].filter(Boolean).join(' · ') || 'Add details',
+    },
+    activeType === 'camp' && {
+      key: 'details',
+      title: 'Camp details',
+      subtitle: form.duration || 'Add details',
+    },
+    { key: 'seo', title: 'SEO', subtitle: form.metaTitle || 'Not set' },
+    {
+      key: 'visibility',
+      title: 'Visibility',
+      subtitle: `${form.featured ? 'Featured · ' : ''}${form.active ? 'Active' : 'Inactive'}`,
+    },
+    selectedId &&
+      activeType === 'room' && {
+        key: 'airbnb',
+        title: 'Airbnb sync',
+        subtitle: 'Export feed & manual sync',
+      },
+  ].filter(Boolean);
+
   return (
     <div className="space-y-6">
       <SectionHeader
         eyebrow="Inventory Management"
-        title="Rooms first, treks and camps in their own lanes"
-        description="The admin listing flow is now split by inventory type so room creation stays front and center while camp and trek setup remain available when needed."
+        title="Your listings"
+        description="Beautiful stays. Memorable experiences. All in one place."
+        action={<button className="btn-primary" onClick={() => { resetForm(activeType); setActiveSection(null); setEditorOpen(true); }}>+ Create listing</button>}
       />
 
       <div className="flex flex-wrap gap-3">
@@ -256,280 +328,248 @@ function AdminListingsPage() {
         ))}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
-        <div className="glass rounded-[2rem] p-6">
-          <div className="rounded-[1.75rem] border border-lime-100/10 bg-[#0d1710]/80 p-5">
-            <p className="text-xs uppercase tracking-[0.28em] text-lime-200/80">{config.label}</p>
-            <h2 className="mt-3 text-2xl font-semibold text-white">{config.singular} inventory</h2>
-            <p className="mt-3 text-sm leading-7 text-[#c1cbbd]">{config.description}</p>
-          </div>
-
-          <div className="mb-5 mt-6 flex items-center justify-between">
-            <h3 className="text-xl font-semibold text-white">Active {config.label.toLowerCase()}</h3>
-            <button className="btn-secondary" onClick={() => resetForm(activeType)} type="button">
-              New {config.singular}
+      <input className="input" aria-label="Search listings" placeholder="Search your listings" value={search} onChange={e => setSearch(e.target.value)} />
+      <div className="host-listing-grid">
+        {filteredListings.map(listing => <button key={listing._id} className="host-listing-card" onClick={() => { setSelectedId(listing._id); setActiveSection(null); setEditorOpen(true); setTimeout(() => document.getElementById('listing-editor')?.scrollIntoView({ behavior: 'smooth' }), 0); }}>
+          <div className="host-listing-photo"><img src={listing.images?.[0] || roomImage} alt={listing.name} /><span className={`host-listing-status ${listing.active ? '' : 'off'}`}><i />{listing.active ? 'Listed' : 'Unlisted'}</span></div>
+          <h3>{listing.name}</h3><p>{listing.location}</p><div className="host-listing-meta"><span>₹{Number(listing.manualPriceOverride || listing.price).toLocaleString('en-IN')} / {listing.priceUnit || 'night'}</span><span>Edit listing ↗</span></div>
+        </button>)}
+      </div>
+      {!filteredListings.length && <div className="host-empty">No listings match. Try another search or create a listing.</div>}
+      {editorOpen && <div id="listing-editor" className="host-editor">
+        <form onSubmit={handleSubmit}>
+          <div className="host-editor-top">
+            <button
+              type="button"
+              className="host-icon-button"
+              aria-label={activeSection ? 'Back to listing editor' : 'Close editor'}
+              onClick={() => (activeSection ? setActiveSection(null) : setEditorOpen(false))}
+            >
+              <ArrowLeftIcon />
             </button>
-          </div>
-
-          <div className="space-y-4">
-            {filteredListings.length ? (
-              filteredListings.map((listing) => (
-                <div key={listing._id} className="rounded-[1.5rem] bg-[#0f1912]/90 p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-lime-100/45">{config.singular}</p>
-                      <h3 className="mt-2 text-lg font-semibold text-white">{listing.name}</h3>
-                      <p className="mt-1 text-sm text-[#b7c2b2]">{listing.location}</p>
-                    </div>
-                    <span className="rounded-full border border-lime-100/10 px-3 py-1 text-xs text-[#c3cebf]">
-                      {listing.availabilityStatus}
-                    </span>
-                  </div>
-                  <div className="mt-4 flex gap-3">
-                    <button className="btn-secondary" onClick={() => setSelectedId(listing._id)} type="button">
-                      Edit
-                    </button>
-                    <button
-                      className="rounded-full border border-rose-400/30 px-4 py-3 text-sm font-semibold text-rose-300"
-                      onClick={() => archiveListing(listing._id)}
-                      type="button"
-                    >
-                      Archive
-                    </button>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="rounded-[1.5rem] border border-dashed border-lime-100/10 bg-[#0d1710]/70 p-5 text-sm text-[#c1cbbd]">
-                No {config.label.toLowerCase()} created yet.
-              </div>
-            )}
-          </div>
-        </div>
-
-        <form className="glass rounded-[2rem] p-6" onSubmit={handleSubmit}>
-          <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-xs uppercase tracking-[0.28em] text-lime-200/80">{config.label}</p>
-              <h2 className="mt-2 text-2xl font-semibold text-white">
-                {selectedId ? `Edit ${config.singular}` : `Create ${config.singular}`}
+              <p className="host-eyebrow">{config.label.toUpperCase()}</p>
+              <h2>
+                {activeSection
+                  ? editorSections.find((section) => section.key === activeSection)?.title
+                  : form.name || (selectedId ? `Edit ${config.singular}` : `Create ${config.singular}`)}
               </h2>
             </div>
-            <button className="btn-secondary" onClick={() => resetForm(activeType)} type="button">
-              Clear form
-            </button>
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <input className="input" placeholder={`${config.singular} name`} value={form.name} onChange={(event) => setField('name', event.target.value)} />
-            <input className="input" placeholder="Slug" value={form.slug} onChange={(event) => setField('slug', event.target.value)} />
-            <input className="input" placeholder="Location" value={form.location} onChange={(event) => setField('location', event.target.value)} />
-            <input className="input" placeholder="Price" type="number" value={form.price} onChange={(event) => setField('price', event.target.value)} />
-
-            <select className="input" value={form.priceUnit} onChange={(event) => setField('priceUnit', event.target.value)}>
-              <option value="night">Per night</option>
-              <option value="person">Per person</option>
-              <option value="package">Package</option>
-            </select>
-
-            <select className="input" value={form.availabilityStatus} onChange={(event) => setField('availabilityStatus', event.target.value)}>
-              <option value="available">Available</option>
-              <option value="limited">Limited</option>
-              <option value="sold-out">Sold Out</option>
-              <option value="inactive">Inactive</option>
-            </select>
-
-            {activeType === 'room' ? (
-              <>
-                <input
-                  className="input"
-                  placeholder="Max occupancy"
-                  type="number"
-                  value={form.maxOccupancy}
-                  onChange={(event) => setField('maxOccupancy', event.target.value)}
-                />
-                <input
-                  className="input"
-                  placeholder="Rooms available / capacity"
-                  type="number"
-                  value={form.capacity}
-                  onChange={(event) => setField('capacity', event.target.value)}
-                />
-                <input
-                  className="input md:col-span-2"
-                  placeholder="Amenities (comma separated)"
-                  value={form.amenities}
-                  onChange={(event) => setField('amenities', event.target.value)}
-                />
-                <input
-                  className="input md:col-span-2"
-                  placeholder="Airbnb calendar export URL (iCal)"
-                  value={form.airbnbIcalUrl}
-                  onChange={(event) => setField('airbnbIcalUrl', event.target.value)}
-                />
-              </>
-            ) : null}
-
-            {activeType === 'trek' ? (
-              <>
-                <input className="input" placeholder="Difficulty" value={form.difficulty} onChange={(event) => setField('difficulty', event.target.value)} />
-                <input className="input" placeholder="Duration" value={form.duration} onChange={(event) => setField('duration', event.target.value)} />
-                <input
-                  className="input"
-                  placeholder="Group capacity"
-                  type="number"
-                  value={form.capacity}
-                  onChange={(event) => setField('capacity', event.target.value)}
-                />
-                <input
-                  className="input md:col-span-2"
-                  placeholder="Facilities or inclusions (comma separated)"
-                  value={form.facilities}
-                  onChange={(event) => setField('facilities', event.target.value)}
-                />
-              </>
-            ) : null}
-
-            {activeType === 'camp' ? (
-              <>
-                <input className="input" placeholder="Camp duration" value={form.duration} onChange={(event) => setField('duration', event.target.value)} />
-                <input
-                  className="input"
-                  placeholder="Camp capacity"
-                  type="number"
-                  value={form.capacity}
-                  onChange={(event) => setField('capacity', event.target.value)}
-                />
-                <input
-                  className="input md:col-span-2"
-                  placeholder="Facilities (comma separated)"
-                  value={form.facilities}
-                  onChange={(event) => setField('facilities', event.target.value)}
-                />
-              </>
-            ) : null}
-
-            <input
-              className="input md:col-span-2"
-              placeholder="Available dates (YYYY-MM-DD, comma separated)"
-              value={form.availableDates}
-              onChange={(event) => setField('availableDates', event.target.value)}
-            />
-            <input
-              className="input"
-              placeholder="Manual price override"
-              type="number"
-              value={form.manualPriceOverride}
-              onChange={(event) => setField('manualPriceOverride', event.target.value)}
-            />
-            <input className="input" placeholder="SEO meta title" value={form.metaTitle} onChange={(event) => setField('metaTitle', event.target.value)} />
-
-            <div className="md:col-span-2">
-              <textarea
-                className="input min-h-28"
-                placeholder="Short description"
-                value={form.shortDescription}
-                onChange={(event) => setField('shortDescription', event.target.value)}
-              />
-            </div>
-            <div className="md:col-span-2">
-              <textarea
-                className="input min-h-32"
-                placeholder="Full description"
-                value={form.description}
-                onChange={(event) => setField('description', event.target.value)}
-              />
-            </div>
-            <div className="md:col-span-2 space-y-3">
-              <label className="label">Listing images</label>
-              {form.existingImages.length ? (
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {form.existingImages.map((image) => (
-                    <div key={image} className="rounded-2xl border border-lime-100/10 bg-[#0d1710]/80 p-2">
-                      <img src={image} alt="Listing preview" className="h-24 w-full rounded-xl object-cover" />
-                      <button
-                        type="button"
-                        className="mt-2 w-full rounded-full border border-rose-400/30 px-3 py-2 text-xs font-semibold text-rose-300"
-                        onClick={() => removeExistingImage(image)}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="rounded-2xl border border-dashed border-lime-100/12 bg-[#0d1710]/70 px-4 py-3 text-sm text-[#c1cbbd]">
-                  No images added yet.
-                </p>
-              )}
-
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <input
-                  className="input flex-1"
-                  placeholder="Paste image URL and click Add"
-                  value={imageUrlDraft}
-                  onChange={(event) => setImageUrlDraft(event.target.value)}
-                />
-                <button type="button" className="btn-secondary" onClick={addImageUrl}>
-                  Add URL
+          {!activeSection ? (
+            <div className="host-editor-list">
+              {editorSections.map((section) => (
+                <button key={section.key} type="button" className="host-editor-row" onClick={() => setActiveSection(section.key)}>
+                  <div className="host-editor-row-text">
+                    <p>{section.title}</p>
+                    <p>{section.subtitle}</p>
+                  </div>
+                  <ChevronRightIcon />
                 </button>
-              </div>
-            </div>
-            <div className="md:col-span-2">
-              <label className="label">Upload images</label>
-              <input className="input" type="file" multiple onChange={(event) => setFiles(Array.from(event.target.files || []))} />
-            </div>
-            <div className="md:col-span-2">
-              <textarea
-                className="input min-h-24"
-                placeholder="SEO meta description"
-                value={form.metaDescription}
-                onChange={(event) => setField('metaDescription', event.target.value)}
-              />
-            </div>
-          </div>
+              ))}
 
-          <div className="mt-5 flex flex-wrap gap-4">
-            <label className="flex items-center gap-3 text-sm text-[#c3cebf]">
-              <input type="checkbox" checked={form.featured} onChange={(event) => setField('featured', event.target.checked)} />
-              Featured
-            </label>
-            <label className="flex items-center gap-3 text-sm text-[#c3cebf]">
-              <input type="checkbox" checked={form.active} onChange={(event) => setField('active', event.target.checked)} />
-              Active
-            </label>
-          </div>
-
-          <button className="btn-primary mt-6" type="submit">
-            {selectedId ? `Update ${config.singular}` : `Create ${config.singular}`}
-          </button>
-
-          {selectedId && activeType === 'room' ? (
-            <div className="mt-6 space-y-3 rounded-[1.5rem] border border-lime-100/10 bg-[#0d1710]/70 p-4">
-              <p className="text-sm font-semibold text-white">Airbnb sync</p>
-              <div>
-                <label className="label">Export feed (paste into Airbnb &rarr; Import calendar)</label>
-                <div className="mt-2 flex flex-col gap-3 sm:flex-row">
-                  <input className="input flex-1" readOnly value={exportFeedUrl} onClick={(event) => event.target.select()} />
+              <div className="host-editor-actions">
+                <button className="btn-primary" type="submit">
+                  {selectedId ? 'Save changes' : `Create ${config.singular}`}
+                </button>
+                {selectedId && (
                   <button
                     type="button"
                     className="btn-secondary"
                     onClick={() => {
-                      navigator.clipboard.writeText(exportFeedUrl);
-                      toast.success('Feed URL copied');
+                      if (window.confirm('Archive this listing? It will no longer be available to book.')) {
+                        archiveListing(selectedId);
+                        setEditorOpen(false);
+                      }
                     }}
                   >
-                    Copy
+                    Archive listing
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="host-editor-panel">
+              {activeSection === 'photos' && (
+                <div className="host-editor-fields">
+                  {form.existingImages.length ? (
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {form.existingImages.map((image) => (
+                        <div key={image} className="rounded-2xl border border-[#e5e5e5] p-2">
+                          <img src={image} alt="Listing preview" className="h-24 w-full rounded-xl object-cover" />
+                          <button type="button" className="btn-secondary mt-2 w-full" onClick={() => removeExistingImage(image)}>
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="host-editor-hint">No images added yet.</p>
+                  )}
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <input
+                      className="input flex-1"
+                      placeholder="Paste image URL and click Add"
+                      value={imageUrlDraft}
+                      onChange={(event) => setImageUrlDraft(event.target.value)}
+                    />
+                    <button type="button" className="btn-secondary" onClick={addImageUrl}>
+                      Add URL
+                    </button>
+                  </div>
+                  <div>
+                    <label className="label">Upload images</label>
+                    <input className="input" type="file" multiple onChange={(event) => setFiles(Array.from(event.target.files || []))} />
+                  </div>
+                </div>
+              )}
+
+              {activeSection === 'title' && (
+                <div className="host-editor-fields">
+                  <input className="input" placeholder={`${config.singular} name`} value={form.name} onChange={(event) => setField('name', event.target.value)} />
+                  <input className="input" placeholder="Location" value={form.location} onChange={(event) => setField('location', event.target.value)} />
+                  <input className="input" placeholder="Slug" value={form.slug} onChange={(event) => setField('slug', event.target.value)} />
+                  <p className="host-editor-hint">Used in the listing's public URL.</p>
+                </div>
+              )}
+
+              {activeSection === 'description' && (
+                <div className="host-editor-fields">
+                  <div>
+                    <label className="label">Short description</label>
+                    <textarea className="input min-h-24 mt-2" value={form.shortDescription} onChange={(event) => setField('shortDescription', event.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Full description</label>
+                    <textarea className="input min-h-32 mt-2" value={form.description} onChange={(event) => setField('description', event.target.value)} />
+                  </div>
+                </div>
+              )}
+
+              {activeSection === 'pricing' && (
+                <div className="host-editor-fields">
+                  <div className="host-editor-fields two-col">
+                    <input className="input" placeholder="Base price" type="number" value={form.price} onChange={(event) => setField('price', event.target.value)} />
+                    <select className="input" value={form.priceUnit} onChange={(event) => setField('priceUnit', event.target.value)}>
+                      <option value="night">Per night</option>
+                      <option value="person">Per person</option>
+                      <option value="package">Package</option>
+                    </select>
+                  </div>
+                  <input
+                    className="input"
+                    placeholder="Manual price override"
+                    type="number"
+                    value={form.manualPriceOverride}
+                    onChange={(event) => setField('manualPriceOverride', event.target.value)}
+                  />
+                  <p className="host-editor-hint">Overrides the calculated price on the public site when set.</p>
+                </div>
+              )}
+
+              {activeSection === 'availability' && (
+                <div className="host-editor-fields">
+                  <select className="input" value={form.availabilityStatus} onChange={(event) => setField('availabilityStatus', event.target.value)}>
+                    <option value="available">Available</option>
+                    <option value="limited">Limited</option>
+                    <option value="sold-out">Sold Out</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                  <input
+                    className="input"
+                    placeholder="Available dates (YYYY-MM-DD, comma separated)"
+                    value={form.availableDates}
+                    onChange={(event) => setField('availableDates', event.target.value)}
+                  />
+                </div>
+              )}
+
+              {activeSection === 'details' && activeType === 'room' && (
+                <div className="host-editor-fields">
+                  <div className="host-editor-fields two-col">
+                    <input className="input" placeholder="Max occupancy" type="number" value={form.maxOccupancy} onChange={(event) => setField('maxOccupancy', event.target.value)} />
+                    <input className="input" placeholder="Rooms available / capacity" type="number" value={form.capacity} onChange={(event) => setField('capacity', event.target.value)} />
+                  </div>
+                  <input className="input" placeholder="Amenities (comma separated)" value={form.amenities} onChange={(event) => setField('amenities', event.target.value)} />
+                  <input className="input" placeholder="Import availability from Airbnb (iCal URL)" value={form.airbnbIcalUrl} onChange={(event) => setField('airbnbIcalUrl', event.target.value)} />
+                </div>
+              )}
+
+              {activeSection === 'details' && activeType === 'trek' && (
+                <div className="host-editor-fields">
+                  <div className="host-editor-fields two-col">
+                    <input className="input" placeholder="Difficulty" value={form.difficulty} onChange={(event) => setField('difficulty', event.target.value)} />
+                    <input className="input" placeholder="Duration" value={form.duration} onChange={(event) => setField('duration', event.target.value)} />
+                  </div>
+                  <input className="input" placeholder="Group capacity" type="number" value={form.capacity} onChange={(event) => setField('capacity', event.target.value)} />
+                  <input className="input" placeholder="Facilities or inclusions (comma separated)" value={form.facilities} onChange={(event) => setField('facilities', event.target.value)} />
+                </div>
+              )}
+
+              {activeSection === 'details' && activeType === 'camp' && (
+                <div className="host-editor-fields">
+                  <div className="host-editor-fields two-col">
+                    <input className="input" placeholder="Camp duration" value={form.duration} onChange={(event) => setField('duration', event.target.value)} />
+                    <input className="input" placeholder="Camp capacity" type="number" value={form.capacity} onChange={(event) => setField('capacity', event.target.value)} />
+                  </div>
+                  <input className="input" placeholder="Facilities (comma separated)" value={form.facilities} onChange={(event) => setField('facilities', event.target.value)} />
+                </div>
+              )}
+
+              {activeSection === 'seo' && (
+                <div className="host-editor-fields">
+                  <input className="input" placeholder="SEO meta title" value={form.metaTitle} onChange={(event) => setField('metaTitle', event.target.value)} />
+                  <textarea className="input min-h-24" placeholder="SEO meta description" value={form.metaDescription} onChange={(event) => setField('metaDescription', event.target.value)} />
+                </div>
+              )}
+
+              {activeSection === 'visibility' && (
+                <div className="host-editor-fields">
+                  <label className="flex items-center gap-3 text-sm">
+                    <input type="checkbox" checked={form.featured} onChange={(event) => setField('featured', event.target.checked)} />
+                    Featured on the homepage
+                  </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <input type="checkbox" checked={form.active} onChange={(event) => setField('active', event.target.checked)} />
+                    Active &amp; bookable
+                  </label>
+                </div>
+              )}
+
+              {activeSection === 'airbnb' && (
+                <div className="host-editor-fields">
+                  <div>
+                    <label className="label">Export feed (paste into Airbnb &rarr; Import calendar)</label>
+                    <div className="mt-2 flex flex-col gap-3 sm:flex-row">
+                      <input className="input flex-1" readOnly value={exportFeedUrl} onClick={(event) => event.target.select()} />
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={() => {
+                          navigator.clipboard.writeText(exportFeedUrl);
+                          toast.success('Feed URL copied');
+                        }}
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                  <button type="button" className="btn-secondary" onClick={() => syncAirbnbNow(selectedId)}>
+                    Sync Airbnb now
                   </button>
                 </div>
+              )}
+
+              <div className="host-editor-actions">
+                <button type="button" className="btn-primary" onClick={() => setActiveSection(null)}>
+                  Done
+                </button>
               </div>
-              <button type="button" className="btn-secondary" onClick={() => syncAirbnbNow(selectedId)}>
-                Sync Airbnb now
-              </button>
             </div>
-          ) : null}
+          )}
         </form>
-      </div>
+      </div>}
     </div>
   );
 }

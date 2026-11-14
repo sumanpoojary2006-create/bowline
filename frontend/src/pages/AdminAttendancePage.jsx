@@ -41,7 +41,7 @@ function AdminAttendancePage() {
       />
 
       <div className="glass overflow-x-auto rounded-[2rem] p-6">
-        <table className="w-full min-w-[640px] text-left text-sm text-slate-200">
+        <table className="host-mobile-records w-full min-w-[640px] text-left text-sm text-slate-200">
           <thead className="text-xs uppercase tracking-[0.25em] text-lime-200/70">
             <tr>
               <th className="pb-3">Date</th>
@@ -63,13 +63,13 @@ function AdminAttendancePage() {
             ) : (
               attendance.map((record) => (
                 <tr key={record._id} className="border-t border-white/5">
-                  <td className="py-3">{record.date}</td>
-                  <td className="py-3">{record.employee?.name}</td>
-                  <td className="py-3 capitalize">{record.employee?.role}</td>
-                  <td className="py-3">{formatTime(record.checkInAt)}</td>
-                  <td className="py-3">{formatTime(record.checkOutAt)}</td>
-                  <td className="py-3 capitalize">{record.status.replace('-', ' ')}</td>
-                  <td className="py-3">{record.score != null ? `${record.score} / 100` : '—'}</td>
+                  <td data-label="Date" className="py-3">{record.date}</td>
+                  <td data-label="Employee" className="py-3">{record.employee?.name}</td>
+                  <td data-label="Role" className="py-3 capitalize">{record.employee?.role}</td>
+                  <td data-label="Check-in" className="py-3">{formatTime(record.checkInAt)}</td>
+                  <td data-label="Check-out" className="py-3">{formatTime(record.checkOutAt)}</td>
+                  <td data-label="Status" className="py-3 capitalize">{record.status.replace('-', ' ')}</td>
+                  <td data-label="Score" className="py-3">{record.score != null ? `${record.score} / 100` : '—'}</td>
                 </tr>
               ))
             )}

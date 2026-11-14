@@ -7,8 +7,8 @@ import SectionHeader from '../components/SectionHeader';
 const DAY_NAMES = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
 const STATUS_STYLES = {
-  full: 'bg-emerald-500/80 text-slate-950',
-  partial: 'bg-amber-400/80 text-slate-950',
+  full: 'bg-emerald-800/90 text-white',
+  partial: 'bg-emerald-300/80 text-slate-950',
   leave: 'bg-rose-500/80 text-white',
   absent: 'bg-rose-500/80 text-white',
 };
@@ -203,8 +203,8 @@ function AdminStaffCalendarPage() {
           </div>
 
           <div className="mt-4 flex items-center gap-3 text-[11px] text-slate-400">
-            <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> Full day</span>
-            <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-amber-400" /> Half day</span>
+            <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-emerald-800" /> Full day</span>
+            <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-emerald-300" /> Half day</span>
             <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-rose-500" /> Leave / absent</span>
           </div>
 

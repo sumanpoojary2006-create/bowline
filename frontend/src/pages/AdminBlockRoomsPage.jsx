@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import api from '../lib/api';
 import SectionHeader from '../components/SectionHeader';
 import PageLoader from '../components/PageLoader';
+import { CheckIcon, HomeModernIcon } from '@heroicons/react/24/outline';
 
 const emptyForm = { startDate: '', endDate: '', note: '' };
 
@@ -112,51 +113,35 @@ function AdminBlockRoomsPage() {
       />
 
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="glass rounded-[2rem] p-6">
-          <div className="flex items-center justify-between gap-4">
-            <h3 className="text-xl font-semibold text-white">1. Select rooms</h3>
-            <button type="button" className="btn-secondary" onClick={clearRoomSelection}>
-              Clear
-            </button>
+        <div className="glass host-block-room-panel rounded-[2rem] p-6">
+          <div className="host-block-room-heading">
+            <div>
+              <h3 className="text-xl font-semibold text-white">1. Select rooms</h3>
+              <p>{selectedRoomIds.length ? `${selectedRoomIds.length} of ${rooms.length} rooms selected` : 'Choose one or more rooms'}</p>
+            </div>
+            <div className="host-block-room-actions">
+              <button type="button" className="btn-secondary" onClick={toggleFullHouse} disabled={!rooms.length}>
+                {fullHouseSelected ? 'Unselect all' : 'Select all'}
+              </button>
+              {selectedRoomIds.length > 0 && <button type="button" className="host-text-button" onClick={clearRoomSelection}>Clear</button>}
+            </div>
           </div>
 
-          <label
-            className={`mt-4 flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm font-semibold transition ${
-              fullHouseSelected
-                ? 'border-lime-400 bg-lime-400/10 text-lime-100'
-                : 'border-white/10 text-slate-300 hover:border-white/30'
-            }`}
-          >
-            <input
-              type="checkbox"
-              className="accent-lime-400"
-              checked={fullHouseSelected}
-              onChange={toggleFullHouse}
-            />
-            Full House — block every room
-          </label>
-
           {rooms.length ? (
-            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <div className="host-room-picker" role="group" aria-label="Rooms to block">
               {rooms.map((room) => {
                 const checked = selectedRoomIds.includes(room._id);
                 return (
-                  <label
+                  <button
+                    type="button"
                     key={room._id}
-                    className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm transition ${
-                      checked
-                        ? 'border-lime-400 bg-lime-400/10 text-lime-100'
-                        : 'border-white/10 text-slate-300 hover:border-white/30'
-                    }`}
+                    className={`host-room-choice ${checked ? 'is-selected' : ''}`}
+                    aria-pressed={checked}
+                    onClick={() => toggleRoom(room._id)}
                   >
-                    <input
-                      type="checkbox"
-                      className="accent-lime-400"
-                      checked={checked}
-                      onChange={() => toggleRoom(room._id)}
-                    />
-                    {room.name}
-                  </label>
+                    <span className="host-room-choice-icon">{checked ? <CheckIcon /> : <HomeModernIcon />}</span>
+                    <span><strong>{room.name}</strong><small>{checked ? 'Selected' : 'Tap to select'}</small></span>
+                  </button>
                 );
               })}
             </div>
@@ -208,13 +193,15 @@ function AdminBlockRoomsPage() {
 
             <button
               type="button"
-              className="btn-secondary w-full border-rose-400/30 text-rose-300"
+              className="btn-primary host-block-submit w-full"
               onClick={submitBlock}
-              disabled={submitting}
+              disabled={submitting || !selectedRoomIds.length}
             >
               {submitting
                 ? 'Blocking…'
-                : `Block ${selectedRoomIds.length || ''} room${selectedRoomIds.length === 1 ? '' : 's'}`.trim()}
+                : selectedRoomIds.length
+                  ? `Block ${selectedRoomIds.length} room${selectedRoomIds.length === 1 ? '' : 's'}`
+                  : 'Select rooms to continue'}
             </button>
           </div>
         </div>

@@ -7,3 +7,6 @@ backend/uploads/*
 .vercel
 .claude/settings.local.json
 .claude/worktrees/
+
+# Generated self-contained admin design preview
+frontend/admin-preview.html

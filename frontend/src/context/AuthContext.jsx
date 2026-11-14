@@ -10,6 +10,11 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const bootstrap = async () => {
+      if (import.meta.env.DEV && import.meta.env.VITE_ADMIN_PREVIEW === 'true') {
+        setUser({ _id: 'preview-host', name: 'Suman', role: 'admin' });
+        setLoading(false);
+        return;
+      }
       const token = localStorage.getItem('bowline_token');
 
       if (!token) {

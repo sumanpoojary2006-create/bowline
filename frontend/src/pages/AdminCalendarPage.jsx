@@ -1,449 +1,95 @@
-import { ChevronLeftIcon, ChevronRightIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { ChevronLeftIcon, ChevronRightIcon, XMarkIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import api from '../lib/api';
 import { formatCurrency, formatDate } from '../lib/formatters';
-import PageLoader from '../components/PageLoader';
-import SectionHeader from '../components/SectionHeader';
+import roomImage from '../assets/marketing/room.jpg';
+import { calendarDateKey, calendarNightRate } from '../lib/hostCalendar';
 
-const STATUS_STYLES = {
-  confirmed: {
-    bar: 'bg-lime-500/80 border-lime-400/60 text-slate-900',
-    dot: 'bg-lime-400',
-    label: 'Confirmed',
-  },
-  pending: {
-    bar: 'bg-amber-500/80 border-amber-400/60 text-slate-900',
-    dot: 'bg-amber-400',
-    label: 'Pending',
-  },
-  cancelled: {
-    bar: 'bg-slate-600/60 border-slate-500/40 text-slate-300 line-through',
-    dot: 'bg-slate-500',
-    label: 'Cancelled',
-  },
-};
-
-function toYearMonth(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function parseYearMonth(str) {
-  const [y, m] = str.split('-').map(Number);
-  return new Date(y, m - 1, 1);
-}
-
-function daysInMonth(year, month) {
-  return new Date(year, month + 1, 0).getDate();
-}
-
-function dayKey(date) {
-  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-}
-
-function BookingDetail({ booking, onClose, anchorRef }) {
-  const nights = Math.max(
-    Math.round((new Date(booking.endDate) - new Date(booking.startDate)) / 86400000),
-    1
-  );
-  const style = STATUS_STYLES[booking.status] || STATUS_STYLES.pending;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div
-        className="relative z-10 w-full max-w-sm rounded-[2rem] border border-white/10 bg-[#0d1710] p-6 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          onClick={onClose}
-          className="absolute right-4 top-4 rounded-full p-1 text-slate-400 hover:text-white"
-        >
-          <XMarkIcon className="h-5 w-5" />
-        </button>
-
-        <div className="mb-1 flex items-center gap-2">
-          <span className={`h-2.5 w-2.5 rounded-full ${style.dot}`} />
-          <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            {style.label}
-          </span>
-        </div>
-
-        <h3 className="mt-2 text-xl font-bold text-white">{booking.listing?.name}</h3>
-
-        <div className="mt-4 space-y-2 text-sm text-slate-300">
-          <div className="flex justify-between">
-            <span className="text-slate-500">Guest</span>
-            <span>{booking.contactName || booking.user?.name}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-slate-500">Email</span>
-            <span className="truncate ml-4 text-right">{booking.contactEmail || booking.user?.email}</span>
-          </div>
-          {booking.contactPhone && (
-            <div className="flex justify-between">
-              <span className="text-slate-500">Phone</span>
-              <span>{booking.contactPhone}</span>
-            </div>
-          )}
-          <div className="flex justify-between">
-            <span className="text-slate-500">Check-in</span>
-            <span>{formatDate(booking.startDate)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-slate-500">Check-out</span>
-            <span>{formatDate(booking.endDate)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-slate-500">Duration</span>
-            <span>{nights} night{nights > 1 ? 's' : ''}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-slate-500">Guests</span>
-            <span>{booking.guests}</span>
-          </div>
-          {booking.isGroupBooking && (
-            <div className="flex justify-between">
-              <span className="text-slate-500">Group</span>
-              <span>{booking.groupName || 'Yes'}</span>
-            </div>
-          )}
-          <div className="flex justify-between border-t border-white/10 pt-2">
-            <span className="text-slate-500">Value</span>
-            <span className="font-bold text-lime-300">{formatCurrency(booking.totalPrice)}</span>
-          </div>
-          {booking.specialRequests && (
-            <div className="pt-1">
-              <p className="text-slate-500">Notes</p>
-              <p className="mt-1 rounded-xl bg-white/5 px-3 py-2 text-xs text-slate-300">
-                {booking.specialRequests}
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AdminCalendarPage() {
-  const today = new Date();
-  const [currentMonth, setCurrentMonth] = useState(toYearMonth(today));
-  const [bookings, setBookings] = useState([]);
+export default function AdminCalendarPage() {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone:'Asia/Kolkata' }).format(new Date());
+  const requestRef = useRef(null);
+  const [month, setMonth] = useState(today.slice(0, 7));
   const [rooms, setRooms] = useState([]);
+  const [bookings, setBookings] = useState([]);
+  const [rules, setRules] = useState([]);
+  const [roomId, setRoomId] = useState(null);
+  const [search, setSearch] = useState('');
+  const [selection, setSelection] = useState([]);
+  const [price, setPrice] = useState('');
+  const [note, setNote] = useState('');
+  const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [selectedBooking, setSelectedBooking] = useState(null);
-  const anchorRef = useRef(null);
-
-  const monthDate = parseYearMonth(currentMonth);
-  const year = monthDate.getFullYear();
-  const month = monthDate.getMonth();
-  const totalDays = daysInMonth(year, month);
-  const days = Array.from({ length: totalDays }, (_, i) => new Date(year, month, i + 1));
-
-  useEffect(() => {
-    document.title = 'Bowline Admin | Calendar';
-    const fetchRooms = async () => {
-      const { data } = await api.get('/listings/admin/all');
-      setRooms(data.listings.filter((l) => l.type === 'room' && l.active));
-    };
-    fetchRooms();
-  }, []);
-
-  useEffect(() => {
-    const fetchCalendar = async () => {
-      setLoading(true);
-      try {
-        const { data } = await api.get('/bookings/admin/calendar', {
-          params: { month: currentMonth },
-        });
-        setBookings(data.bookings.filter((b) => b.status === 'confirmed'));
-      } finally {
-        setLoading(false);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [year, monthNumber] = month.split('-').map(Number);
+  const first = new Date(year, monthNumber - 1, 1);
+  const count = new Date(year, monthNumber, 0).getDate();
+  const days = Array.from({ length: count }, (_, i) => calendarDateKey(new Date(year, monthNumber - 1, i + 1)));
+  const room = rooms.find(r => r._id === roomId);
+  const load = async () => {
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
+    setLoading(true); setError('');
+    try {
+      const [inventory, calendar, pricing] = await Promise.all([api.get('/listings/admin/all', {signal:controller.signal}), api.get('/bookings/admin/calendar', { params: { month }, signal:controller.signal }), api.get('/admin/pricing-rules', {signal:controller.signal})]);
+      setRooms(inventory.data.listings.filter(l => l.type === 'room'));
+      setBookings(calendar.data.bookings || []); setRules(pricing.data.rules || []);
+    } catch { if (!controller.signal.aborted) setError('We couldn’t load the calendar. Please try again.'); }
+    finally { if (!controller.signal.aborted) setLoading(false); }
+  };
+  useEffect(() => { document.title = 'Bowline Admin | Calendar'; load(); setSelection([]); setDetail(null); return () => requestRef.current?.abort(); }, [month]);
+  const bookingOn = (id, day) => bookings.find(b => (b.listing?._id || b.listing) === id && (['confirmed','blocked'].includes(b.status) || b.status === 'pending' && ['paid','partially_paid'].includes(b.paymentStatus)) && String(b.startDate).slice(0,10) <= day && String(b.endDate).slice(0,10) > day);
+  const moveMonth = delta => { const next = new Date(year, monthNumber - 1 + delta, 1); setMonth(calendarDateKey(next).slice(0,7)); };
+  const inSelection = day => selection.length && day >= selection[0] && day <= (selection[1] || selection[0]);
+  const selectDay = day => {
+    const booking = bookingOn(roomId, day);
+    if (booking) { setDetail(booking); setSelection([]); return; }
+    setDetail(null);
+    if (selection.length !== 1) { setSelection([day]); setPrice(''); setNote(''); }
+    else { const range = [selection[0], day].sort(); if (days.some(d => d >= range[0] && d <= range[1] && bookingOn(roomId,d))) { toast.error('This range includes a reservation or blocked date. Choose free dates.'); return; } setSelection(range); }
+  };
+  const save = async mode => {
+    if (!selection.length || saving) return;
+    const startDate = selection[0];
+    const last = selection[1] || startDate;
+    const end = new Date(`${last}T12:00:00`); end.setDate(end.getDate() + 1);
+    setSaving(true);
+    try {
+      if (mode === 'block') {
+        if (!note.trim()) { toast.error('Add a reason for blocking these dates.'); return; }
+        await api.post('/bookings/admin/block', { listingIds:[roomId], startDate, endDate:calendarDateKey(end), blockNote:note.trim() });
+      } else {
+        if (price === '' || !Number.isFinite(Number(price)) || Number(price) <= 0) { toast.error('Enter a price greater than zero.'); return; }
+        // A percentage rule replaces the effective base while preserving the pricing engine.
+        // Reject overlapping rules: silently stacking them would produce an incorrect tariff.
+        if (rules.some(r => r.active && (!r.listing || (r.listing?._id || r.listing) === roomId) && (!r.listingType || ['all','room'].includes(r.listingType)) && String(r.startDate).slice(0,10) <= last && String(r.endDate).slice(0,10) >= startDate)) { toast.error('These dates already have pricing rules. Update them in Pricing to avoid overlapping tariffs.'); return; }
+        const base = Number(room.manualPriceOverride ?? room.price);
+        await api.post('/admin/pricing-rules', { name:`Calendar tariff · ${room.name} · ${startDate}`, listing:roomId, listingType:'room', startDate, endDate:last, adjustmentType:'flat', adjustmentValue:Number(price)-base, priority:1, active:true });
       }
-    };
-    fetchCalendar();
-  }, [currentMonth]);
-
-  const prevMonth = () => {
-    const d = parseYearMonth(currentMonth);
-    d.setMonth(d.getMonth() - 1);
-    setCurrentMonth(toYearMonth(d));
+      toast.success(mode === 'block' ? 'Dates blocked' : 'Price updated'); setSelection([]); await load();
+    } catch (e) { toast.error(e.response?.data?.message || 'Could not save changes'); }
+    finally { setSaving(false); }
   };
-
-  const nextMonth = () => {
-    const d = parseYearMonth(currentMonth);
-    d.setMonth(d.getMonth() + 1);
-    setCurrentMonth(toYearMonth(d));
+  const unblock = async () => {
+    setSaving(true);
+    try { await api.delete(`/bookings/admin/block/${detail._id}`); setDetail(null); toast.success('Dates are available again'); await load(); }
+    catch (e) { toast.error(e.response?.data?.message || 'Unable to remove block'); } finally { setSaving(false); }
   };
-
-  const monthLabel = monthDate.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
-
-  // Build a lookup: roomId → bookings sorted by start
-  const bookingsByRoom = {};
-  for (const b of bookings) {
-    const rid = b.listing?._id;
-    if (!rid) continue;
-    if (!bookingsByRoom[rid]) bookingsByRoom[rid] = [];
-    bookingsByRoom[rid].push(b);
-  }
-
-  // Summary counts
-  const confirmedCount = bookings.length;
-
-  // Today's column index (0-based within current month view)
-  const todayIdx =
-    today.getFullYear() === year && today.getMonth() === month ? today.getDate() - 1 : -1;
-
-  if (loading && rooms.length === 0) {
-    return <PageLoader label="Loading calendar..." />;
-  }
-
-  return (
-    <div className="space-y-6">
-      <SectionHeader
-        eyebrow="Room Calendar"
-        title="Occupancy overview"
-        description={`${confirmedCount} confirmed booking${confirmedCount === 1 ? '' : 's'} this month`}
-      />
-
-      {/* Month nav + legend */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={prevMonth}
-            className="rounded-full border border-white/10 p-2 text-slate-400 hover:text-white"
-          >
-            <ChevronLeftIcon className="h-4 w-4" />
-          </button>
-          <h2 className="min-w-[180px] text-center text-lg font-semibold text-white">{monthLabel}</h2>
-          <button
-            onClick={nextMonth}
-            className="rounded-full border border-white/10 p-2 text-slate-400 hover:text-white"
-          >
-            <ChevronRightIcon className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => setCurrentMonth(toYearMonth(today))}
-            className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-slate-400 hover:text-white"
-          >
-            Today
-          </button>
-        </div>
-
-        <div className="flex items-center gap-4 text-xs text-slate-400">
-          <span className="flex items-center gap-1.5">
-            <span className={`h-2.5 w-2.5 rounded-full ${STATUS_STYLES.confirmed.dot}`} />
-            {STATUS_STYLES.confirmed.label}
-          </span>
-        </div>
+  return <div>
+    <div className="host-welcome-top"><div><p className="host-eyebrow">AVAILABILITY & NIGHTLY TARIFFS</p><h1 style={{fontSize:36,fontWeight:650,letterSpacing:'-1.5px',marginTop:10}}>{room ? room.name : 'Calendars'}</h1><p style={{marginTop:8}}>{room ? 'A clear view of every stay and every open night.' : 'Your spaces, at a glance. Choose a listing to manage dates.'}</p></div><div className="host-calendar-heading-actions">{room && <button className="host-icon-button" aria-label="Back to calendars" onClick={() => {setRoomId(null);setSelection([]);setDetail(null);}}><ArrowLeftIcon /></button>}<Link className="host-outline-button host-multi-room-link" to="/admin/block-rooms">Block multiple rooms ↗</Link></div></div>
+    <div className="host-calendar-toolbar"><h2>{first.toLocaleDateString('en-IN', {month:'long',year:'numeric'})}</h2><div className="flex items-center gap-2"><button className="host-icon-button" aria-label="Previous month" onClick={() => moveMonth(-1)}><ChevronLeftIcon /></button><button className="host-outline-button" onClick={() => setMonth(today.slice(0,7))}>Today</button><button className="host-icon-button" aria-label="Next month" onClick={() => moveMonth(1)}><ChevronRightIcon /></button></div></div>
+    {error ? <div className="host-error">{error} <button onClick={load}>Retry</button></div> : loading ? <div className="host-empty" role="status">Loading your calendar…</div> : !room ? <><input className="input mb-6" aria-label="Search calendars" placeholder="Search your spaces" value={search} onChange={e => setSearch(e.target.value)} /><div className="host-calendar-list">{rooms.filter(r => r.name.toLowerCase().includes(search.toLowerCase())).map(r => <button key={r._id} className="host-calendar-room" onClick={() => setRoomId(r._id)}><img src={r.images?.[0] || roomImage} alt="" /><div><h3>{r.name}</h3><p>{r.active ? 'Listed' : 'Unlisted'} · {r.maxOccupancy || r.capacity} guests</p><p>{days.filter(d => bookingOn(r._id,d)).length} nights unavailable</p></div><div className="host-mini-calendar" aria-hidden="true">{days.map(d => <i key={d} className={d === today ? 'current' : bookingOn(r._id,d) ? 'occupied' : ''} />)}</div></button>)}</div>{!rooms.length && <div className="host-empty">Create a room listing to start managing availability.</div>}</> : <>
+      <div className={`host-calendar-detail ${selection.length || detail ? 'has-editor' : ''}`}><div className="host-calendar-board">
+      <p className="host-selection-hint">Select a date, then another to choose a range. Tap a reservation for details. Rates are per guest, per night, before tax.</p>
+      <div className="host-month">{['S','M','T','W','T','F','S'].map((d,i) => <div key={i} className="host-weekday">{d}</div>)}{Array.from({length:first.getDay()}, (_,i) => <div key={`empty-${i}`} />)}{days.map(day => { const b = bookingOn(roomId,day); return <button key={day} aria-label={`${formatDate(day)}, ${b?.status === 'blocked' ? 'blocked' : b ? 'reserved' : 'available'}, ${formatCurrency(calendarNightRate(room,day,rules))}`} aria-pressed={Boolean(inSelection(day))} className={`host-day ${b ? 'is-booked' : ''} ${b?.status === 'blocked' ? 'is-blocked' : ''} ${inSelection(day) ? 'is-selected' : ''} ${day === today ? 'is-today' : ''}`} onClick={() => selectDay(day)}><span className="host-day-number">{Number(day.slice(-2))}</span>{b && <span className="host-day-guest">{b.status === 'blocked' ? 'Blocked' : b.contactName || b.user?.name || 'Reserved'}</span>}<span className="host-day-price">{formatCurrency(calendarNightRate(room,day,rules))}</span></button>; })}</div>
+      <div className="host-calendar-legend"><span><i />Reserved / blocked</span><span><i className="today" />Today</span><span><i className="selected" />Selected dates</span></div>
       </div>
-
-      {/* Calendar grid */}
-      <div className="overflow-x-auto rounded-[2rem] border border-white/10 bg-[#0d1710]/70">
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <p className="text-sm text-slate-400">Loading bookings...</p>
-          </div>
-        ) : (
-          <table className="w-full border-collapse" style={{ minWidth: `${Math.max(totalDays * 36 + 160, 800)}px` }}>
-            <thead>
-              <tr className="border-b border-white/10">
-                {/* Room name header */}
-                <th className="sticky left-0 z-10 w-40 min-w-[160px] bg-[#0d1710] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Room
-                </th>
-                {days.map((day, idx) => {
-                  const isToday = idx === todayIdx;
-                  const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-                  return (
-                    <th
-                      key={idx}
-                      className={`w-9 min-w-[36px] px-0.5 py-2 text-center text-xs ${
-                        isToday
-                          ? 'font-bold text-lime-300'
-                          : isWeekend
-                          ? 'text-slate-400'
-                          : 'text-slate-500'
-                      }`}
-                    >
-                      <div>{day.getDate()}</div>
-                      <div className="text-[9px] uppercase opacity-60">
-                        {day.toLocaleDateString('en-IN', { weekday: 'short' }).slice(0, 2)}
-                      </div>
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-
-            <tbody>
-              {rooms.length === 0 && (
-                <tr>
-                  <td colSpan={totalDays + 1} className="py-12 text-center text-sm text-slate-500">
-                    No active rooms found.
-                  </td>
-                </tr>
-              )}
-              {rooms.map((room, roomIdx) => {
-                const roomBookings = bookingsByRoom[room._id] || [];
-
-                // Build a day-indexed map for this room: dayKey → booking
-                const dayMap = {};
-                for (const b of roomBookings) {
-                  const start = new Date(b.startDate);
-                  const end = new Date(b.endDate);
-                  const cur = new Date(start);
-                  while (cur < end) {
-                    dayMap[dayKey(cur)] = b;
-                    cur.setDate(cur.getDate() + 1);
-                  }
-                }
-
-                return (
-                  <tr
-                    key={room._id}
-                    className={`border-b border-white/5 ${roomIdx % 2 === 0 ? '' : 'bg-white/[0.02]'}`}
-                  >
-                    {/* Room name cell */}
-                    <td className="sticky left-0 z-10 bg-[#0d1710] px-4 py-2">
-                      <p className="max-w-[140px] truncate text-sm font-medium text-slate-200">
-                        {room.name}
-                      </p>
-                      <p className="text-[10px] text-slate-500">max {room.capacity}</p>
-                    </td>
-
-                    {/* Day cells */}
-                    {days.map((day, idx) => {
-                      const dk = dayKey(day);
-                      const booking = dayMap[dk];
-                      const isToday = idx === todayIdx;
-
-                      if (!booking) {
-                        return (
-                          <td
-                            key={idx}
-                            className={`h-12 w-9 px-0 py-1 ${isToday ? 'bg-lime-900/20' : ''}`}
-                          />
-                        );
-                      }
-
-                      const style = STATUS_STYLES[booking.status] || STATUS_STYLES.pending;
-                      const bStart = new Date(booking.startDate);
-                      // Clamp to month view
-                      const viewStart = new Date(year, month, 1);
-                      const isFirstDayOfBookingInView =
-                        isSameDayLocal(day, bStart) || isSameDayLocal(day, viewStart);
-                      const isActualStart = isSameDayLocal(day, bStart);
-
-                      const bEnd = new Date(booking.endDate);
-                      bEnd.setDate(bEnd.getDate() - 1); // last night
-                      const isLastDay = isSameDayLocal(day, bEnd);
-
-                      const showLabel = isActualStart || (day.getDate() === 1);
-
-                      return (
-                        <td
-                          key={idx}
-                          className={`h-12 w-9 cursor-pointer px-0 py-1 ${isToday ? 'bg-lime-900/20' : ''}`}
-                          onClick={() => setSelectedBooking(booking)}
-                          ref={showLabel ? anchorRef : undefined}
-                        >
-                          <div
-                            className={`flex h-8 items-center border-y px-1 text-[10px] font-semibold leading-none transition-opacity hover:opacity-80 ${style.bar} ${
-                              isActualStart ? 'rounded-l-full border-l pl-2' : 'border-l-0'
-                            } ${isLastDay ? 'rounded-r-full border-r pr-2' : 'border-r-0'}`}
-                          >
-                            {showLabel && (
-                              <span className="truncate max-w-[100px]">
-                                {booking.contactName || booking.user?.name || ''}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
+      {selection.length > 0 && <section className="host-date-panel" aria-label="Edit selected dates"><div className="host-date-panel-top"><strong>{formatDate(selection[0])}{selection[1] && ` – ${formatDate(selection[1])}`}</strong><button aria-label="Clear selection" onClick={() => setSelection([])}><XMarkIcon className="h-5 w-5" /></button></div><div className="host-date-panel-grid"><label>Price per guest / night (₹)<input type="number" min="1" placeholder={String(calendarNightRate(room,selection[0],rules))} value={price} onChange={e => setPrice(e.target.value)} /></label><label>Reason for blocking<input placeholder="e.g. Maintenance" value={note} onChange={e => setNote(e.target.value)} /></label></div><div className="host-date-panel-actions"><button className="host-save" disabled={saving} onClick={() => save('price')}>Save price</button><button className="host-save" disabled={saving} onClick={() => save('block')}>Block dates</button><Link to="/admin/pricing">Custom pricing rules ↗</Link></div></section>}
+      {detail && <section className="host-date-panel" aria-label="Reservation details"><div className="host-date-panel-top"><strong>{detail.status === 'blocked' ? 'Blocked by you' : detail.contactName || detail.user?.name || 'Reservation'}</strong><button aria-label="Close details" onClick={() => setDetail(null)}><XMarkIcon className="h-5 w-5" /></button></div><p>{formatDate(detail.startDate)} – {formatDate(detail.endDate)} · {room.name}</p><p className="mt-3 text-sm">{detail.blockNote || detail.specialRequests || `${detail.guests || 1} guests · ${formatCurrency(detail.totalPrice)}`}</p><div className="host-date-panel-actions">{detail.status === 'blocked' ? <button className="host-save" disabled={saving} onClick={unblock}>Make available · remove entire block</button> : <Link to="/admin/bookings">Manage reservation ↗</Link>}</div></section>}
       </div>
-
-      {/* Occupancy summary strip */}
-      {!loading && rooms.length > 0 && (
-        <div className="rounded-[2rem] border border-white/10 bg-[#0d1710]/70 p-5">
-          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-400">
-            Daily occupancy — {monthLabel}
-          </h3>
-          <div className="overflow-x-auto">
-            <div
-              className="flex gap-px"
-              style={{ minWidth: `${Math.max(totalDays * 36, 600)}px` }}
-            >
-              {days.map((day, idx) => {
-                const dk = dayKey(day);
-                const occupied = rooms.filter((room) => {
-                  const roomBookings = bookingsByRoom[room._id] || [];
-                  return roomBookings.some((b) => {
-                    const start = new Date(b.startDate);
-                    const end = new Date(b.endDate);
-                    return b.status !== 'cancelled' && day >= start && day < end;
-                  });
-                }).length;
-                const pct = rooms.length ? (occupied / rooms.length) * 100 : 0;
-                const isToday = idx === todayIdx;
-
-                return (
-                  <div
-                    key={idx}
-                    className="flex flex-1 flex-col items-center gap-1"
-                    title={`${day.getDate()} ${monthDate.toLocaleDateString('en-IN', { month: 'short' })}: ${occupied}/${rooms.length} rooms`}
-                  >
-                    <div className="relative h-16 w-full min-w-[28px] overflow-hidden rounded-t-lg bg-white/5">
-                      <div
-                        className={`absolute bottom-0 w-full rounded-t-md transition-all ${
-                          pct > 75 ? 'bg-rose-500/70' : pct > 40 ? 'bg-amber-500/70' : 'bg-lime-500/70'
-                        }`}
-                        style={{ height: `${pct}%` }}
-                      />
-                      {isToday && (
-                        <div className="absolute inset-x-0 top-0 h-full border-2 border-lime-400/60 rounded-t-md" />
-                      )}
-                    </div>
-                    <span className={`text-[9px] ${isToday ? 'text-lime-300 font-bold' : 'text-slate-600'}`}>
-                      {day.getDate()}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          <div className="mt-3 flex items-center gap-4 text-xs text-slate-500">
-            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-lime-500/70" /> Low (&lt;40%)</span>
-            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-amber-500/70" /> Moderate (40–75%)</span>
-            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-rose-500/70" /> High (&gt;75%)</span>
-          </div>
-        </div>
-      )}
-
-      {selectedBooking && (
-        <BookingDetail
-          booking={selectedBooking}
-          anchorRef={anchorRef}
-          onClose={() => setSelectedBooking(null)}
-        />
-      )}
-    </div>
-  );
+    </>}
+  </div>;
 }
-
-function isSameDayLocal(a, b) {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
-}
-
-export default AdminCalendarPage;

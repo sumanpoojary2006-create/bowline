@@ -14,4 +14,10 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// An explicitly launched development preview never connects to the real API.
+if (import.meta.env.DEV && import.meta.env.VITE_ADMIN_PREVIEW === 'true') {
+  const { installAdminPreview } = await import('./adminPreview');
+  installAdminPreview(api);
+}
+
 export default api;

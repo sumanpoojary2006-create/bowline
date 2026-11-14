@@ -142,7 +142,7 @@ function AdminReportsPage() {
                 No confirmed guests for {report.dateLabel}.
               </div>
             ) : (
-              <table className="w-full border-collapse text-sm">
+              <table className="host-mobile-records w-full border-collapse text-sm">
                 <thead>
                   <tr className="border-b border-white/10 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                     <th className="px-4 py-3">Room</th>
@@ -157,18 +157,18 @@ function AdminReportsPage() {
                 <tbody>
                   {report.entries.map((entry) => (
                     <tr key={entry.bookingId} className="border-b border-white/5">
-                      <td className="px-4 py-3 font-medium text-white">{entry.room}</td>
-                      <td className="px-4 py-3 text-slate-300">{entry.contactName}</td>
-                      <td className="px-4 py-3 text-slate-400">{entry.contactPhone || '-'}</td>
-                      <td className="px-4 py-3 text-slate-400">
+                      <td data-label="Room" className="px-4 py-3 font-medium text-white">{entry.room}</td>
+                      <td data-label="Guest" className="px-4 py-3 text-slate-300">{entry.contactName}</td>
+                      <td data-label="Phone" className="px-4 py-3 text-slate-400">{entry.contactPhone || '-'}</td>
+                      <td data-label="Dates" className="px-4 py-3 text-slate-400">
                         {formatDate(entry.checkIn)} - {formatDate(entry.checkOut)}
                       </td>
-                      <td className="px-4 py-3 text-slate-300">
+                      <td data-label="Guests" className="px-4 py-3 text-slate-300">
                         {entry.adultGuests} adult{entry.adultGuests > 1 ? 's' : ''}
                         {entry.childGuests ? `, ${entry.childGuests} child${entry.childGuests > 1 ? 'ren' : ''}` : ''}
                       </td>
-                      <td className="px-4 py-3 text-slate-400">{entry.pets || '-'}</td>
-                      <td className="px-4 py-3 text-slate-500">{entry.specialRequests || '-'}</td>
+                      <td data-label="Pets" className="px-4 py-3 text-slate-400">{entry.pets || '-'}</td>
+                      <td data-label="Notes" className="px-4 py-3 text-slate-500">{entry.specialRequests || '-'}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -52,7 +52,7 @@ function CancelRefundDialog({ booking, onClose, onDone }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
+    <div className="host-mobile-dialog fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
       <div className="w-full max-w-md rounded-[2rem] border border-lime-100/10 bg-[#0d1710] p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-xl font-semibold text-white">Cancel booking</h3>
         <p className="mt-1 text-sm text-slate-400">{booking.contactName} · {booking.listing?.name}</p>
@@ -139,7 +139,7 @@ function EditDatesDialog({ booking, onClose, onDone }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
+    <div className="host-mobile-dialog fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
       <form
         className="w-full max-w-md rounded-[2rem] border border-lime-100/10 bg-[#0d1710] p-6 shadow-2xl"
         onClick={(event) => event.stopPropagation()}
@@ -466,7 +466,7 @@ function AdminBookingsPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <SectionHeader
           eyebrow="Booking Management"
-          title="Track and moderate every reservation"
+          title="Reservations"
           description={`Current filtered booking value: ${formatCurrency(estimatedValue)}`}
         />
         <Link to="/admin/calendar" className="btn-secondary whitespace-nowrap">
@@ -474,6 +474,7 @@ function AdminBookingsPage() {
         </Link>
       </div>
 
+      <details className="host-booking-create"><summary>＋ New room reservation<span>For direct, phone and WhatsApp bookings</span></summary>
       <form className="grid gap-4 rounded-[2rem] border border-lime-100/10 bg-[#0d1710]/70 p-5" onSubmit={createManualBooking}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -596,7 +597,9 @@ function AdminBookingsPage() {
           placeholder="Internal notes or guest requests"
         />
       </form>
+      </details>
 
+      <details className="host-booking-create"><summary>＋ New group reservation<span>Book a room bundle or the full house</span></summary>
       <form className="grid gap-4 rounded-[2rem] border border-lime-100/10 bg-[#0d1710]/70 p-5" onSubmit={createGroupBooking}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -719,6 +722,7 @@ function AdminBookingsPage() {
           placeholder="Internal notes or guest requests"
         />
       </form>
+      </details>
 
       <div className="grid gap-4 rounded-[2rem] border border-lime-100/10 bg-[#0d1710]/70 p-4 md:grid-cols-4">
         <input

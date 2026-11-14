@@ -1,3 +1,4 @@
+import HostReservations from '../components/HostReservations';
 import { useEffect, useState } from 'react';
 import {
   BanknotesIcon,
@@ -62,6 +63,13 @@ function StatCard({ icon: Icon, label, value, hint }) {
 }
 
 function AdminDashboardPage() {
+  const [performanceOpen, setPerformanceOpen] = useState(() => window.matchMedia('(min-width: 901px)').matches);
+  useEffect(() => {
+    const desktop = window.matchMedia('(min-width: 901px)');
+    const updateLayout = () => setPerformanceOpen(desktop.matches);
+    desktop.addEventListener('change', updateLayout);
+    return () => desktop.removeEventListener('change', updateLayout);
+  }, []);
   const [payload, setPayload] = useState(null);
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState(currentYearMonth());
@@ -76,7 +84,7 @@ function AdminDashboardPage() {
       try {
         const { data } = await api.get('/admin/overview');
         setPayload(data);
-      } finally {
+      } catch { toast.error("Unable to load overview"); } finally {
         setLoading(false);
       }
     };
@@ -95,7 +103,7 @@ function AdminDashboardPage() {
       try {
         const { data } = await api.get('/admin/analytics/monthly', { params: { month } });
         setAnalytics(data);
-      } finally {
+      } catch { toast.error("Unable to load analytics"); } finally {
         setAnalyticsLoading(false);
       }
     };
@@ -190,6 +198,7 @@ function AdminDashboardPage() {
     return <PageLoader label="Loading admin overview..." />;
   }
 
+  if (!payload) return <div className="host-empty">Unable to load your workspace. <button onClick={() => window.location.reload()}>Try again</button></div>;
   const { overview, notifications } = payload;
   const breakdownEntries = Object.entries(overview.breakdown || {}).filter(([, count]) => count > 0);
 
@@ -208,9 +217,12 @@ function AdminDashboardPage() {
 
   return (
     <div className="space-y-6">
+      <HostReservations />
+      <details className="host-performance" open={performanceOpen} onToggle={event => setPerformanceOpen(event.currentTarget.open)}><summary>Performance & operations <span>Revenue, reports and calendar sync</span></summary>
+      <div className="host-divider" />
       <SectionHeader
-        eyebrow="Admin Dashboard"
-        title="Command center"
+        eyebrow="PERFORMANCE & OPERATIONS"
+        title="The bigger picture"
         description="A snapshot of confirmed bookings, revenue, and what needs your attention."
         action={syncButton}
       />
@@ -383,6 +395,7 @@ function AdminDashboardPage() {
           </div>
         </div>
       </div>
+      </details>
     </div>
   );
 }
