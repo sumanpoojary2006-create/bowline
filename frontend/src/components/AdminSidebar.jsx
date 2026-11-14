@@ -30,6 +30,7 @@ const groups = [
     items: [
       { label: 'Employees', to: '/admin/employees' },
       { label: 'Attendance', to: '/admin/attendance' },
+      { label: 'Laundry', to: '/admin/laundry' },
       { label: 'Checklists', to: '/admin/checklists' },
       { label: 'Checklist Editor', to: '/admin/checklist-editor' },
       { label: 'Employee Settings', to: '/admin/employee-settings' },

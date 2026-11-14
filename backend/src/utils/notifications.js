@@ -110,6 +110,7 @@ export const formatAdminBookingEmailSubject = (bookings, status) => {
 
 export const notifyAdmins = async ({ title, message, emailBody, emailHtml, emailSubject, type = 'system' }) => {
   const admins = await User.find({ role: 'admin' }).select('_id email');
+  const delivery = { emailConfigured: isEmailConfigured(), recipientCount: 0, emailSent: false };
 
   await Promise.all(
     admins.map((admin) =>
@@ -122,7 +123,7 @@ export const notifyAdmins = async ({ title, message, emailBody, emailHtml, email
     )
   );
 
-  if (isEmailConfigured()) {
+  if (delivery.emailConfigured) {
     const extraRecipients = (process.env.REPORT_EMAIL_RECIPIENTS || '')
       .split(',')
       .map((email) => email.trim())
@@ -136,6 +137,7 @@ export const notifyAdmins = async ({ title, message, emailBody, emailHtml, email
     const recipients = [
       ...new Set([...admins.map((admin) => admin.email).filter(Boolean), ...extraRecipients]),
     ].filter(isDeliverable);
+    delivery.recipientCount = recipients.length;
 
     if (recipients.length) {
       try {
@@ -145,9 +147,12 @@ export const notifyAdmins = async ({ title, message, emailBody, emailHtml, email
           text: emailBody || message,
           html: emailHtml,
         });
+        delivery.emailSent = true;
       } catch (error) {
         console.error('Failed to send admin notification email', error);
       }
     }
   }
+
+  return delivery;
 };
