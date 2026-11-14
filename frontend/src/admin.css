@@ -100,8 +100,7 @@
   .host-day-guest{font-size:10px;max-width:100%;padding:4px}
   .host-selection-hint{font-size:13px;line-height:1.6}
   .host-calendar-legend{flex-wrap:wrap;font-size:12px;gap:12px}
-  .host-date-panel{position:fixed;left:10px;right:10px;bottom:calc(80px + env(safe-area-inset-bottom));margin:0 auto;max-height:55dvh;overflow-y:auto;overscroll-behavior:contain;padding:20px;border-radius:24px;z-index:40}
-  .host-calendar-detail.has-editor .host-calendar-board{padding-bottom:62dvh}
+  .host-date-panel{position:static;width:100%;max-width:none;max-height:none;overflow:visible;margin:20px 0 calc(24px + env(safe-area-inset-bottom));padding:20px;border-radius:24px}
   .host-date-panel-top{gap:12px;font-size:14px;margin-bottom:12px}
   .host-date-panel-top button{min-height:44px;min-width:44px;display:grid;place-items:center}
   .host-date-panel-grid{grid-template-columns:1fr;gap:14px}
