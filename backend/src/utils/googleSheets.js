@@ -6,8 +6,12 @@
 // Sheet → App:  Apps Script onEdit() POSTs column data to /api/sync/inbound.
 //
 // Required env vars:
-//   APPS_SCRIPT_WEB_APP_URL  – the deployed Apps Script web app URL
-//   SHEETS_WEBHOOK_SECRET    – secret accepted on Sheet → App webhooks
+//   APPS_SCRIPT_WEB_APP_URL  – the deployed Apps Script web app URL for the
+//                              main bookings/laundry/WhatsApp spreadsheet
+//   ATTENDANCE_APPS_SCRIPT_WEB_APP_URL – the deployed Apps Script web app URL
+//                              for the separate staff attendance spreadsheet
+//   SHEETS_WEBHOOK_SECRET    – secret accepted on Sheet → App webhooks, and
+//                              shared by both Apps Script deployments above
 //   APPS_SCRIPT_OUTBOUND_SECRET – optional separate legacy secret used only
 //                                 for App → Sheet calls
 
@@ -50,6 +54,16 @@ export function isSheetsConfigured() {
   );
 }
 
+// The staff attendance spreadsheet is a separate Apps Script deployment from
+// the main bookings/laundry one, so booking/laundry writes never touch it
+// and vice versa.
+export function isAttendanceSheetsConfigured() {
+  return Boolean(
+    process.env.ATTENDANCE_APPS_SCRIPT_WEB_APP_URL &&
+      (process.env.APPS_SCRIPT_OUTBOUND_SECRET || process.env.SHEETS_WEBHOOK_SECRET)
+  );
+}
+
 const getAppsScriptSecret = () =>
   process.env.APPS_SCRIPT_OUTBOUND_SECRET || process.env.SHEETS_WEBHOOK_SECRET || '';
 
@@ -71,8 +85,8 @@ function enqueueAppsScriptCall(task) {
   return result;
 }
 
-async function callAppsScript(payload) {
-  const url = process.env.APPS_SCRIPT_WEB_APP_URL;
+async function callAppsScript(payload, urlOverride) {
+  const url = urlOverride || process.env.APPS_SCRIPT_WEB_APP_URL;
   if (!url) return;
 
   return enqueueAppsScriptCall(async () => {
@@ -352,31 +366,37 @@ export async function pushAllFullBookingsToSheet(bookings) {
 // Column order in each "Attendance <Month>" tab (row 1 = headers):
 //   A: Employee Name   B: Check-in   C: Check-out
 export async function writeAttendanceToSheet({ employeeName, date, checkInAt, checkOutAt }) {
-  if (!isSheetsConfigured()) return;
+  if (!isAttendanceSheetsConfigured()) return;
 
-  await callAppsScript({
-    action: 'upsertAttendance',
-    date,
-    employeeName,
-    checkInAt: checkInAt ? new Date(checkInAt).toISOString() : '',
-    checkOutAt: checkOutAt ? new Date(checkOutAt).toISOString() : '',
-  });
+  await callAppsScript(
+    {
+      action: 'upsertAttendance',
+      date,
+      employeeName,
+      checkInAt: checkInAt ? new Date(checkInAt).toISOString() : '',
+      checkOutAt: checkOutAt ? new Date(checkOutAt).toISOString() : '',
+    },
+    process.env.ATTENDANCE_APPS_SCRIPT_WEB_APP_URL
+  );
 }
 
 // ── Monthly salary summary — one tab per month, reflects leave/salary calc ─
 export async function writeSalarySummaryToSheet({ month, employeeName, summary }) {
-  if (!isSheetsConfigured()) return;
+  if (!isAttendanceSheetsConfigured()) return;
 
-  await callAppsScript({
-    action: 'upsertSalarySummary',
-    month,
-    employeeName,
-    fullDays: summary.fullDays,
-    halfDays: summary.halfDays,
-    leaveDays: summary.leaveDays,
-    excessLeaveDays: summary.excessLeaveDays,
-    calculatedSalary: summary.calculatedSalary,
-  });
+  await callAppsScript(
+    {
+      action: 'upsertSalarySummary',
+      month,
+      employeeName,
+      fullDays: summary.fullDays,
+      halfDays: summary.halfDays,
+      leaveDays: summary.leaveDays,
+      excessLeaveDays: summary.excessLeaveDays,
+      calculatedSalary: summary.calculatedSalary,
+    },
+    process.env.ATTENDANCE_APPS_SCRIPT_WEB_APP_URL
+  );
 }
 
 // ── Push a WhatsApp contact into the "WhatsApp Leads" tab ─────────────────
