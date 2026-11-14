@@ -103,11 +103,11 @@ export default function LaundryPage() {
               const limits = availability[item.id] || { inHouse: item.stock || 0, previouslySent: 0, availableToSend: item.stock || 0, availableToReceive: 0 };
               const inHouse = item.stock === null ? null : limits.inHouse - entry.sent + entry.received;
               return <tr key={item.id}>
-                <td><span className="laundry-number">{String(index + 1).padStart(2, '0')}</span>{item.name}</td>
-                <td><strong className="laundry-previously-sent">{limits.previouslySent}</strong></td>
-                <td><select disabled={busy || item.stock === null} aria-label={`Send ${item.name}`} title={`${limits.availableToSend} currently in-house and available to send`} value={entry.sent} onChange={(event) => change(item.id, 'sent', event.target.value)}>{Array.from({ length: limits.availableToSend + 1 }, (_, value) => <option key={value} value={value}>{value}</option>)}</select></td>
-                <td><select disabled={busy || item.stock === null || limits.availableToReceive === 0} aria-label={`Received ${item.name}`} title={`Maximum ${limits.availableToReceive} can be received`} value={entry.received} onChange={(event) => change(item.id, 'received', event.target.value)}>{Array.from({ length: limits.availableToReceive + 1 }, (_, value) => <option key={value} value={value}>{value}</option>)}</select></td>
-                <td><strong className="laundry-in-house">{inHouse ?? 'Not set by admin'}</strong></td>
+                <td data-label="Item"><span className="laundry-number">{String(index + 1).padStart(2, '0')}</span>{item.name}</td>
+                <td data-label="Previously sent"><strong className="laundry-previously-sent">{limits.previouslySent}</strong></td>
+                <td data-label="Send ↑"><select disabled={busy || item.stock === null} aria-label={`Send ${item.name}`} title={`${limits.availableToSend} currently in-house and available to send`} value={entry.sent} onChange={(event) => change(item.id, 'sent', event.target.value)}>{Array.from({ length: limits.availableToSend + 1 }, (_, value) => <option key={value} value={value}>{value}</option>)}</select></td>
+                <td data-label="Received ↓"><select disabled={busy || item.stock === null || limits.availableToReceive === 0} aria-label={`Received ${item.name}`} title={`Maximum ${limits.availableToReceive} can be received`} value={entry.received} onChange={(event) => change(item.id, 'received', event.target.value)}>{Array.from({ length: limits.availableToReceive + 1 }, (_, value) => <option key={value} value={value}>{value}</option>)}</select></td>
+                <td data-label="In-house stock"><strong className="laundry-in-house">{inHouse ?? 'Not set by admin'}</strong></td>
               </tr>;
             })}</tbody>
           </table>
