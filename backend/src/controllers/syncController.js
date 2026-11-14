@@ -8,6 +8,7 @@ import {
   isSheetsConfigured,
   isAttendanceSheetsConfigured,
   checkSheetsConnection,
+  checkAttendanceSheetsConnection,
   pushAllBookingsToSheet,
   pushAllFullBookingsToSheet,
   groupCellsIntoBookings,
@@ -35,7 +36,10 @@ const LEGACY_ROOM_MAP = {
 
 // ── GET /api/sync/status ────────────────────────────────────────────────────
 export const getSyncStatus = async (req, res) => {
-  const connection = await checkSheetsConnection();
+  const [connection, attendanceConnection] = await Promise.all([
+    checkSheetsConnection(),
+    checkAttendanceSheetsConnection(),
+  ]);
   res.json({
     configured: isSheetsConfigured(),
     connected: connection.connected,
@@ -44,6 +48,8 @@ export const getSyncStatus = async (req, res) => {
       ? '(set)'
       : null,
     attendanceConfigured: isAttendanceSheetsConfigured(),
+    attendanceConnected: attendanceConnection.connected,
+    attendanceConnectionError: attendanceConnection.error,
     attendanceAppsScriptUrl: process.env.ATTENDANCE_APPS_SCRIPT_WEB_APP_URL
       ? '(set)'
       : null,

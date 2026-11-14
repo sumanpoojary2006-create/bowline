@@ -150,6 +150,22 @@ export async function checkSheetsConnection() {
   }
 }
 
+// Same zero-item no-op, aimed at the attendance spreadsheet's deployment —
+// confirms its URL and secret actually authenticate, not just that the env
+// vars are present.
+export async function checkAttendanceSheetsConnection() {
+  if (!isAttendanceSheetsConfigured()) {
+    return { connected: false, error: 'Attendance sheet sync environment variables are incomplete' };
+  }
+
+  try {
+    await callAppsScript({ action: 'bulkUpsert', items: [] }, process.env.ATTENDANCE_APPS_SCRIPT_WEB_APP_URL);
+    return { connected: true, error: null };
+  } catch (error) {
+    return { connected: false, error: error.message };
+  }
+}
+
 // A block's "guest" is a fake placeholder contact — show the admin's reason
 // for blocking instead, which is what's actually useful in the cell.
 function cellLabelFor(booking) {
