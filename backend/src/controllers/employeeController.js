@@ -120,7 +120,10 @@ export const checkIn = async (req, res, next) => {
       checkInIp: clientIp,
     });
 
-    writeAttendanceToSheet({
+    // Awaited, not fire-and-forget: on a serverless platform the function
+    // can freeze as soon as the response is sent, which would silently kill
+    // an in-flight Apps Script request before it completes.
+    await writeAttendanceToSheet({
       employeeName: req.employee.name,
       date,
       checkInAt: attendance.checkInAt,
@@ -201,14 +204,17 @@ export const checkOut = async (req, res, next) => {
     attendance.score = totalScore;
     await attendance.save();
 
-    writeAttendanceToSheet({
+    // Awaited for the same reason as in checkIn — a serverless function can
+    // freeze right after the response is sent, before a fire-and-forget
+    // Apps Script request finishes.
+    await writeAttendanceToSheet({
       employeeName: req.employee.name,
       date,
       checkInAt: attendance.checkInAt,
       checkOutAt: attendance.checkOutAt,
     }).catch(() => {});
 
-    computeMonthlySalary(req.employee, dayjs(date).format('YYYY-MM'))
+    await computeMonthlySalary(req.employee, dayjs(date).format('YYYY-MM'))
       .then((summary) =>
         writeSalarySummaryToSheet({ month: summary.month, employeeName: req.employee.name, summary })
       )
