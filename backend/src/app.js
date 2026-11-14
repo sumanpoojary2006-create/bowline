@@ -17,41 +17,14 @@ import webhookRoutes from './routes/webhookRoutes.js';
 import employeeRoutes from './routes/employeeRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
 import { errorHandler, notFound } from './middleware/error.js';
+import { createOriginChecker } from './utils/cors.js';
 
 dotenv.config();
 
 const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const allowedOrigins = (process.env.CLIENT_URL || '')
-  .split(',')
-  .map((value) => value.trim())
-  .filter(Boolean);
-
-const isAllowedOrigin = (origin) => {
-  if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
-    return true;
-  }
-
-  try {
-    const { hostname } = new URL(origin);
-
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return true;
-    }
-
-    if (
-      hostname.endsWith('.vercel.app') &&
-      (hostname.startsWith('bowline-') || hostname === 'bowline-omega.vercel.app')
-    ) {
-      return true;
-    }
-  } catch {
-    return false;
-  }
-
-  return false;
-};
+const isAllowedOrigin = createOriginChecker(process.env.CLIENT_URL);
 
 app.use(
   cors({
