@@ -61,7 +61,7 @@ function EmployeeChecklistPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="mx-auto flex min-h-screen w-full max-w-sm flex-col">
       <header className="sticky top-0 z-10 border-b border-white/5 bg-[#08110a]/90 px-5 py-4 backdrop-blur">
         <button className="text-xs font-semibold text-slate-400" onClick={() => navigate('/employee/dashboard')}>
           ← Back
@@ -134,9 +134,11 @@ function EmployeeChecklistPage() {
         </div>
 
         <div className="fixed inset-x-0 bottom-0 z-10 border-t border-white/5 bg-[#08110a]/95 px-5 py-4 backdrop-blur">
-          <button className="btn-primary w-full" disabled={submitting} type="submit">
-            {submitting ? 'Submitting...' : 'Submit & Check Out'}
-          </button>
+          <div className="mx-auto max-w-sm">
+            <button className="btn-primary w-full" disabled={submitting} type="submit">
+              {submitting ? 'Submitting...' : 'Submit & Check Out'}
+            </button>
+          </div>
         </div>
       </form>
     </div>

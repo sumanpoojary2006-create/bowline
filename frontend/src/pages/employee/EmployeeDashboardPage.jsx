@@ -46,7 +46,7 @@ function StatusRing({ progress, children, tone = 'lime' }) {
 
   return (
     <div className="relative mx-auto flex h-[220px] w-[220px] items-center justify-center">
-      <svg height={radius * 2} width={radius * 2} className="absolute -rotate-90">
+      <svg height={radius * 2} width={radius * 2} className="pointer-events-none absolute -rotate-90">
         <circle
           stroke="rgba(255,255,255,0.08)"
           fill="transparent"
@@ -73,10 +73,38 @@ function StatusRing({ progress, children, tone = 'lime' }) {
   );
 }
 
+function TodaysTasks({ employee, todayTasks }) {
+  const laundryDone = Boolean(todayTasks?.laundryDone);
+
+  return (
+    <div className="mt-6">
+      <p className="text-xs uppercase tracking-[0.25em] text-lime-200/60">Today's To-Do List</p>
+      <Link
+        to="/employee/laundry"
+        className="mt-3 flex items-center justify-between rounded-[1.5rem] bg-slate-900/70 p-4"
+      >
+        <div>
+          <p className="text-sm font-semibold text-white">Laundry dashboard</p>
+          <p className="mt-1 text-xs text-slate-400">
+            {laundryDone ? "Today's laundry list is submitted" : "Upload today's laundry list"}
+          </p>
+        </div>
+        <span className={laundryDone ? 'text-lime-200' : 'text-slate-400'}>{laundryDone ? '✓' : '→'}</span>
+      </Link>
+      {employee?.role === 'kitchen' ? (
+        <div className="mt-3 rounded-[1.5rem] bg-slate-900/40 p-4 text-sm text-slate-500">
+          Kitchen checklist — coming soon
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function EmployeeDashboardPage() {
   const { employee, summary, refresh, logout, loading } = useEmployeeAuth();
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
+  const [leavePanelOpen, setLeavePanelOpen] = useState(false);
   const now = useNow(30000);
 
   useEffect(() => {
@@ -87,6 +115,7 @@ function EmployeeDashboardPage() {
   const elapsedHours = checkInTime ? (now - checkInTime.getTime()) / (1000 * 60 * 60) : 0;
   const remainingMinutes = checkInTime ? Math.max(0, Math.ceil((MIN_SHIFT_HOURS - elapsedHours) * 60)) : 0;
   const canCheckOut = checkInTime && elapsedHours >= MIN_SHIFT_HOURS;
+  const tasksComplete = !summary?.todayTasks || !summary.todayTasks.laundryRequired || summary.todayTasks.laundryDone;
 
   const handleCheckIn = async () => {
     setBusy(true);
@@ -113,9 +142,10 @@ function EmployeeDashboardPage() {
 
   const status = summary?.today?.status;
   const isOnLeaveToday = Boolean(summary?.isOnLeaveToday);
+  const checkedIn = Boolean(status) && !isOnLeaveToday;
 
   return (
-    <div className="flex min-h-screen flex-col px-5 pb-10 pt-6">
+    <div className="mx-auto flex min-h-screen w-full max-w-sm flex-col px-5 pb-10 pt-6">
       <header className="flex items-center justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-lime-200/70">
@@ -131,11 +161,13 @@ function EmployeeDashboardPage() {
         </button>
       </header>
 
-      <div className="mt-6">
-        <AttendanceCalendar onLeaveApplied={refresh} />
-      </div>
+      {checkedIn ? (
+        <div className="mt-6">
+          <AttendanceCalendar onLeaveApplied={refresh} />
+        </div>
+      ) : null}
 
-      <div className="mt-10 flex flex-1 flex-col items-center justify-center">
+      <div className={`flex flex-1 flex-col items-center justify-center ${checkedIn ? 'mt-8' : 'mt-10'}`}>
         {isOnLeaveToday ? (
           <>
             <StatusRing progress={1} tone="slate">
@@ -161,24 +193,50 @@ function EmployeeDashboardPage() {
             <p className="mt-6 max-w-xs text-center text-sm text-slate-400">
               Make sure you're connected to the homestay WiFi before checking in.
             </p>
+            <button
+              type="button"
+              className="mt-6 text-xs font-semibold text-lime-200 underline"
+              onClick={() => setLeavePanelOpen((open) => !open)}
+            >
+              {leavePanelOpen ? 'Hide leave calendar' : 'Need to apply for leave?'}
+            </button>
+            {leavePanelOpen ? (
+              <div className="mt-4 w-full">
+                <AttendanceCalendar onLeaveApplied={refresh} />
+              </div>
+            ) : null}
           </>
         ) : status === 'checked-in' ? (
           canCheckOut ? (
-            <>
-              <StatusRing progress={1} tone="lime">
-                <button
-                  className="flex h-[170px] w-[170px] flex-col items-center justify-center rounded-full bg-gradient-to-br from-lime-200 to-lime-400 text-slate-950 shadow-glow transition active:scale-95"
-                  onClick={() => navigate('/employee/checkout')}
-                >
-                  <span className="text-lg font-bold uppercase tracking-wide">Check Out</span>
-                  <span className="mt-1 text-xs font-medium opacity-70">Shift complete</span>
-                </button>
-              </StatusRing>
-              <p className="mt-6 text-center text-sm text-slate-400">
-                Checked in at {checkInTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Fill out
-                the checklist to finish.
-              </p>
-            </>
+            tasksComplete ? (
+              <>
+                <StatusRing progress={1} tone="lime">
+                  <button
+                    className="flex h-[170px] w-[170px] flex-col items-center justify-center rounded-full bg-gradient-to-br from-lime-200 to-lime-400 text-slate-950 shadow-glow transition active:scale-95"
+                    onClick={() => navigate('/employee/checkout')}
+                  >
+                    <span className="text-lg font-bold uppercase tracking-wide">Check Out</span>
+                    <span className="mt-1 text-xs font-medium opacity-70">Shift complete</span>
+                  </button>
+                </StatusRing>
+                <p className="mt-6 text-center text-sm text-slate-400">
+                  Checked in at {checkInTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Fill out
+                  the checklist to finish.
+                </p>
+              </>
+            ) : (
+              <>
+                <StatusRing progress={1} tone="amber">
+                  <span className="text-3xl">📝</span>
+                  <span className="mt-2 text-sm font-semibold uppercase tracking-wide text-amber-200/80">
+                    Finish your tasks
+                  </span>
+                </StatusRing>
+                <p className="mt-6 max-w-xs text-center text-sm text-slate-400">
+                  Complete today's laundry dashboard below before you can check out.
+                </p>
+              </>
+            )
           ) : (
             <>
               <StatusRing progress={elapsedHours / MIN_SHIFT_HOURS} tone="amber">
@@ -210,33 +268,7 @@ function EmployeeDashboardPage() {
         )}
       </div>
 
-      {status && !isOnLeaveToday ? (
-        <div className="mt-8">
-          <p className="text-xs uppercase tracking-[0.25em] text-lime-200/60">Today's Tasks</p>
-          <Link
-            to="/employee/laundry"
-            className="mt-3 flex items-center justify-between rounded-[1.5rem] bg-slate-900/70 p-4"
-          >
-            <div>
-              <p className="text-sm font-semibold text-white">Laundry dashboard</p>
-              <p className="mt-1 text-xs text-slate-400">Upload today's laundry list</p>
-            </div>
-            <span className="text-lime-200">→</span>
-          </Link>
-          {status === 'checked-in' ? (
-            <Link
-              to="/employee/checkout"
-              className="mt-3 flex items-center justify-between rounded-[1.5rem] bg-slate-900/70 p-4"
-            >
-              <div>
-                <p className="text-sm font-semibold text-white">End-of-shift checklist</p>
-                <p className="mt-1 text-xs text-slate-400">Complete it when you check out</p>
-              </div>
-              <span className="text-lime-200">→</span>
-            </Link>
-          ) : null}
-        </div>
-      ) : null}
+      {checkedIn ? <TodaysTasks employee={employee} todayTasks={summary?.todayTasks} /> : null}
 
       <div className="mt-8 grid grid-cols-2 gap-4">
         <div className="glass rounded-[1.5rem] p-4 text-center">

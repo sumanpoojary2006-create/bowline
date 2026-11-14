@@ -3,6 +3,7 @@ import Attendance from '../models/Attendance.js';
 import ChecklistSubmission from '../models/ChecklistSubmission.js';
 import AppSetting from '../models/AppSetting.js';
 import Leave from '../models/Leave.js';
+import LaundrySubmission from '../models/LaundrySubmission.js';
 import { resolveChecklistFields } from '../utils/checklistFields.js';
 import { buildChecklistResponses, computeChecklistScore } from '../utils/scoring.js';
 import { getClientIp, isAllowedIp } from '../utils/network.js';
@@ -13,6 +14,17 @@ const MIN_SHIFT_HOURS = 5;
 const ATTENDANCE_WINDOW_DAYS = 30;
 
 const todayKey = () => dayjs().format('YYYY-MM-DD');
+
+// Housekeeping must submit today's laundry list before they can check out;
+// other roles have no required task yet (e.g. kitchen's checklist is future work).
+const getTodayTaskStatus = async (employee, date) => {
+  if (employee.role !== 'housekeeping') {
+    return { laundryRequired: false, laundryDone: true };
+  }
+
+  const laundryDone = await LaundrySubmission.exists({ staffId: String(employee._id), date });
+  return { laundryRequired: true, laundryDone: Boolean(laundryDone) };
+};
 
 const getAttendanceSummary = async (employeeId) => {
   const since = dayjs().subtract(ATTENDANCE_WINDOW_DAYS, 'day').format('YYYY-MM-DD');
@@ -45,11 +57,12 @@ const getCurrentScore = async (employeeId) => {
 export const getMe = async (req, res, next) => {
   try {
     const date = todayKey();
-    const [attendanceSummary, score, todayAttendance, todayLeave] = await Promise.all([
+    const [attendanceSummary, score, todayAttendance, todayLeave, todayTasks] = await Promise.all([
       getAttendanceSummary(req.employee._id),
       getCurrentScore(req.employee._id),
       Attendance.findOne({ employee: req.employee._id, date }),
       Leave.findOne({ employee: req.employee._id, date }),
+      getTodayTaskStatus(req.employee, date),
     ]);
 
     res.json({
@@ -71,6 +84,7 @@ export const getMe = async (req, res, next) => {
           }
         : null,
       isOnLeaveToday: Boolean(todayLeave),
+      todayTasks,
     });
   } catch (error) {
     next(error);
@@ -161,6 +175,12 @@ export const checkOut = async (req, res, next) => {
       throw new Error(
         `You can check out after ${remainingMinutes} more minute(s) (minimum ${MIN_SHIFT_HOURS}-hour shift)`
       );
+    }
+
+    const taskStatus = await getTodayTaskStatus(req.employee, date);
+    if (taskStatus.laundryRequired && !taskStatus.laundryDone) {
+      res.status(400);
+      throw new Error("Complete today's laundry dashboard before checking out");
     }
 
     const { answers } = req.body;

@@ -17,6 +17,7 @@ export function EmployeeAuthProvider({ children }) {
       score: data.score,
       today: data.today,
       isOnLeaveToday: data.isOnLeaveToday,
+      todayTasks: data.todayTasks,
     });
     return data;
   };
