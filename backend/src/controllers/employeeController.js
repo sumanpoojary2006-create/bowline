@@ -32,9 +32,16 @@ const getTodayTaskStatus = async (employee, date) => {
   return { laundryRequired: true, laundryDone: Boolean(laundryDone) };
 };
 
+// Each leave-unit (a full leave day counts as 1, a half-day shift counts as
+// 0.5) taken beyond the allowance costs this many score points — calibrated
+// so 1 day over a 4-day allowance lands at 92%, not a token few points off.
+const POINTS_PER_EXCESS_LEAVE_UNIT = 8;
+
 // Reuses the same monthly tally the salary calculator uses, so "days this
 // month" and the leave score are always consistent with the payroll numbers
-// the admin sees for the same employee.
+// the admin sees for the same employee. Built from actual leave/attendance
+// records rather than days-in-month, so it never penalizes for days later
+// in the month that simply haven't happened yet.
 const getMonthlyAttendanceStats = async (employee) => {
   const monthly = await computeMonthlySalary(employee, dayjs().format('YYYY-MM'));
   const leaveAllowance = employee.leavesPerMonth > 0 ? employee.leavesPerMonth : DEFAULT_LEAVES_PER_MONTH;
@@ -42,7 +49,7 @@ const getMonthlyAttendanceStats = async (employee) => {
   const leaveScore =
     leaveUnitsUsed <= leaveAllowance
       ? 100
-      : Math.max(0, Math.round(100 - ((leaveUnitsUsed - leaveAllowance) / leaveAllowance) * 100));
+      : Math.max(0, Math.round(100 - (leaveUnitsUsed - leaveAllowance) * POINTS_PER_EXCESS_LEAVE_UNIT));
 
   return {
     attendanceSummary: {
