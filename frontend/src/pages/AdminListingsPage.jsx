@@ -18,6 +18,7 @@ const emptyForm = {
   shortDescription: '',
   price: '',
   priceUnit: 'night',
+  weekendPrice: '',
   maxOccupancy: 1,
   capacity: 1,
   amenities: '',
@@ -62,6 +63,7 @@ const parseListingToForm = (listing) => ({
   shortDescription: listing.shortDescription,
   price: listing.price,
   priceUnit: listing.priceUnit,
+  weekendPrice: listing.weekendPrice || '',
   maxOccupancy: listing.maxOccupancy,
   capacity: listing.capacity,
   amenities: listing.amenities?.join(', '),
@@ -267,7 +269,9 @@ function AdminListingsPage() {
       key: 'pricing',
       title: 'Pricing',
       subtitle: form.price
-        ? `₹${Number(form.manualPriceOverride || form.price).toLocaleString('en-IN')} ${PRICE_UNIT_LABELS[form.priceUnit] || ''}`
+        ? `₹${Number(form.manualPriceOverride || form.price).toLocaleString('en-IN')} ${PRICE_UNIT_LABELS[form.priceUnit] || ''}${
+            form.weekendPrice ? ` · ₹${Number(form.weekendPrice).toLocaleString('en-IN')} weekend` : ''
+          }`
         : 'Set a price',
     },
     {
@@ -449,14 +453,47 @@ function AdminListingsPage() {
 
               {activeSection === 'pricing' && (
                 <div className="host-editor-fields">
-                  <div className="host-editor-fields two-col">
-                    <input className="input" placeholder="Base price" type="number" value={form.price} onChange={(event) => setField('price', event.target.value)} />
-                    <select className="input" value={form.priceUnit} onChange={(event) => setField('priceUnit', event.target.value)}>
-                      <option value="night">Per night</option>
-                      <option value="person">Per person</option>
-                      <option value="package">Package</option>
-                    </select>
+                  <div className="host-editor-card">
+                    <label className="label">Base price</label>
+                    <input className="input mt-2" placeholder="Base price" type="number" value={form.price} onChange={(event) => setField('price', event.target.value)} />
                   </div>
+
+                  {activeType === 'room' && (
+                    <div className="host-editor-card">
+                      <div className="host-editor-card-top">
+                        <label className="label">Custom weekend price</label>
+                        {form.weekendPrice ? (
+                          <button type="button" className="host-editor-link" onClick={() => setField('weekendPrice', '')}>
+                            Remove
+                          </button>
+                        ) : null}
+                      </div>
+                      {form.weekendPrice ? (
+                        <input
+                          className="input mt-2"
+                          placeholder="Weekend price"
+                          type="number"
+                          value={form.weekendPrice}
+                          onChange={(event) => setField('weekendPrice', event.target.value)}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          className="btn-secondary mt-2"
+                          onClick={() => setField('weekendPrice', form.price || '')}
+                        >
+                          + Add a custom weekend price
+                        </button>
+                      )}
+                      <p className="host-editor-hint mt-2">Applies to Saturday and Sunday nights.</p>
+                    </div>
+                  )}
+
+                  <select className="input" value={form.priceUnit} onChange={(event) => setField('priceUnit', event.target.value)}>
+                    <option value="night">Per night</option>
+                    <option value="person">Per person</option>
+                    <option value="package">Package</option>
+                  </select>
                   <input
                     className="input"
                     placeholder="Manual price override"
@@ -464,7 +501,7 @@ function AdminListingsPage() {
                     value={form.manualPriceOverride}
                     onChange={(event) => setField('manualPriceOverride', event.target.value)}
                   />
-                  <p className="host-editor-hint">Overrides the calculated price on the public site when set.</p>
+                  <p className="host-editor-hint">Overrides the calculated price (including the weekend price) on the public site when set.</p>
                 </div>
               )}
 

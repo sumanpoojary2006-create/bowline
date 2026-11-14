@@ -42,6 +42,10 @@ const listingSchema = new mongoose.Schema(
       enum: ['night', 'person', 'package'],
       default: 'package',
     },
+    weekendPrice: {
+      type: Number,
+      default: null,
+    },
     minOccupancy: {
       type: Number,
       default: 1,

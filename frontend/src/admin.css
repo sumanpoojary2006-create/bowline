@@ -29,6 +29,10 @@
 .host-editor-row>svg{width:20px;height:20px;color:#b0b0b0;flex-shrink:0}
 .host-editor-panel{border:1px solid #e5e5e5;border-radius:24px;padding:28px}
 .host-editor-fields{display:grid;gap:16px}.host-editor-fields.two-col{grid-template-columns:1fr 1fr}
+.host-editor-card{border:1px solid #e5e5e5;border-radius:20px;padding:20px 24px}
+.host-editor-card-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.host-editor-link{font-size:13px;font-weight:600;text-decoration:underline;color:#222}
+.host-editor-link:hover{color:#d90850}
 .host-editor-hint{font-size:12px;color:#717171;margin-top:-8px}
 .host-editor-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
 @media(max-width:700px){.host-editor-top h2{font-size:22px}.host-editor-row{padding:16px 18px}.host-editor-panel{padding:20px;border-radius:20px}.host-editor-fields.two-col{grid-template-columns:1fr}}
@@ -97,6 +101,7 @@
   .host-selection-hint{font-size:13px;line-height:1.6}
   .host-calendar-legend{flex-wrap:wrap;font-size:12px;gap:12px}
   .host-date-panel{position:fixed;left:10px;right:10px;bottom:calc(80px + env(safe-area-inset-bottom));margin:0 auto;max-height:55dvh;overflow-y:auto;overscroll-behavior:contain;padding:20px;border-radius:24px;z-index:40}
+  .host-calendar-detail.has-editor .host-calendar-board{padding-bottom:62dvh}
   .host-date-panel-top{gap:12px;font-size:14px;margin-bottom:12px}
   .host-date-panel-top button{min-height:44px;min-width:44px;display:grid;place-items:center}
   .host-date-panel-grid{grid-template-columns:1fr;gap:14px}

@@ -88,7 +88,18 @@ export const calculateBookingPrice = async ({
     let totalPrice = 0;
 
     for (let cursor = start; cursor.isBefore(end, 'day'); cursor = cursor.add(1, 'day')) {
-      let nightlyPrice = groupRate ? (isWeekendNight(cursor) ? groupRate.weekend : groupRate.weekday) : effectiveBase;
+      let nightlyPrice;
+      if (groupRate) {
+        nightlyPrice = isWeekendNight(cursor) ? groupRate.weekend : groupRate.weekday;
+      } else if (listing.manualPriceOverride != null) {
+        // A manual override is a blanket replacement for every night — it
+        // takes precedence over the weekday/weekend split entirely.
+        nightlyPrice = listing.manualPriceOverride;
+      } else if (listing.weekendPrice != null && isWeekendNight(cursor)) {
+        nightlyPrice = listing.weekendPrice;
+      } else {
+        nightlyPrice = listing.price;
+      }
 
       for (const rule of rules) {
         if (!isRuleApplicableForDate(rule, cursor)) {

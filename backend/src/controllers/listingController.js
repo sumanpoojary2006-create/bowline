@@ -4,6 +4,7 @@ import { calculateBookingPrice } from '../utils/pricing.js';
 import { validateListingAvailability, getBookedDateRanges, getNextAvailableWindow, getNextAvailableWindowMulti, getBlockingListingIds } from '../utils/availability.js';
 import { persistUploadedFiles } from '../utils/upload.js';
 import { sortRoomsForDisplay } from '../utils/roomOrder.js';
+import { ensureFreshAirbnbAvailability } from '../services/airbnbAvailabilitySync.js';
 
 const parseArray = (value) => {
   if (Array.isArray(value)) {
@@ -41,6 +42,7 @@ const buildListingPayload = async (body, files = []) => {
     shortDescription: body.shortDescription,
     price: Number(body.price),
     priceUnit: body.priceUnit,
+    weekendPrice: body.weekendPrice ? Number(body.weekendPrice) : null,
     maxOccupancy: Number(body.maxOccupancy || 1),
     capacity: Number(body.capacity || body.maxOccupancy || 1),
     amenities: parseArray(body.amenities),
@@ -239,6 +241,8 @@ export const getRoomsWithAvailability = async (req, res, next) => {
       await Listing.find({ type: 'room', active: true }).sort({ featured: -1 })
     );
 
+    await ensureFreshAirbnbAvailability({ listingIds: rooms.map((room) => room._id) });
+
     const start = new Date(startDate);
     const end = new Date(endDate);
 
@@ -269,6 +273,8 @@ export const getBookedDatesForListing = async (req, res, next) => {
       throw new Error('Listing not found');
     }
 
+    await ensureFreshAirbnbAvailability({ listingIds: [listing._id] });
+
     const months = Math.min(Number(req.query.months) || 3, 12);
     const from = new Date();
     from.setHours(0, 0, 0, 0);
@@ -290,6 +296,8 @@ export const getNextAvailableForListing = async (req, res, next) => {
       res.status(404);
       throw new Error('Listing not found');
     }
+
+    await ensureFreshAirbnbAvailability({ listingIds: [listing._id] });
 
     const nights = Math.max(Number(req.query.nights) || 1, 1);
     const from = req.query.from ? new Date(req.query.from) : new Date();
@@ -314,6 +322,8 @@ export const getBookedDatesForListings = async (req, res, next) => {
       return res.json({ bookedRanges: [] });
     }
 
+    await ensureFreshAirbnbAvailability({ listingIds: ids });
+
     const months = Math.min(Number(req.query.months) || 3, 12);
     const from = new Date();
     from.setHours(0, 0, 0, 0);
@@ -337,6 +347,8 @@ export const getNextAvailableForListings = async (req, res, next) => {
     if (!ids.length) {
       return res.json({});
     }
+
+    await ensureFreshAirbnbAvailability({ listingIds: ids });
 
     const nights = Math.max(Number(req.query.nights) || 1, 1);
     const from = req.query.from ? new Date(req.query.from) : new Date();
@@ -368,6 +380,8 @@ export const checkAvailability = async (req, res, next) => {
       res.status(404);
       throw new Error('Listing not found');
     }
+
+    await ensureFreshAirbnbAvailability({ listingIds: [listing._id] });
 
     const { startDate, endDate, guests = 1, adultGuests, childGuests = 0, pets = 0 } = req.body;
     const normalizedAdults = Number(adultGuests ?? guests);
