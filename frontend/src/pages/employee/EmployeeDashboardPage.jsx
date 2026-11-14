@@ -253,7 +253,7 @@ function EmployeeDashboardPage() {
       {checkedIn ? <TodaysTasks employee={employee} todayTasks={summary?.todayTasks} /> : null}
 
       <div className="mt-8 grid grid-cols-2 gap-4">
-        <div className="glass rounded-[1.5rem] p-4 text-center">
+        <div className="glass flex flex-col items-center justify-center rounded-[1.5rem] p-4 text-center">
           <p className="text-xs uppercase tracking-[0.25em] text-lime-200/60">Attendance</p>
           <p className="mt-2 text-2xl font-bold text-white">{attendanceLabel}</p>
           <p className="text-xs text-slate-400">days this month</p>
