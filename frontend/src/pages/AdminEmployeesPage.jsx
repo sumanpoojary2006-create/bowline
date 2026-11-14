@@ -75,6 +75,23 @@ function AdminEmployeesPage() {
     }
   };
 
+  const deleteEmployee = async (employee) => {
+    if (
+      !window.confirm(
+        `Permanently delete ${employee.name}? This also removes their attendance, leave, and checklist history. This cannot be undone.`
+      )
+    ) {
+      return;
+    }
+    try {
+      await api.delete(`/admin/employees/${employee.id}`);
+      toast.success(`${employee.name} deleted`);
+      fetchEmployees();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Unable to delete employee');
+    }
+  };
+
   if (loading) {
     return <PageLoader label="Loading employees..." />;
   }
@@ -175,7 +192,13 @@ function AdminEmployeesPage() {
               <p className="text-sm text-slate-400">No employees yet.</p>
             ) : (
               employees.map((employee) => (
-                <EmployeeRow key={employee.id} employee={employee} onToggleActive={toggleActive} onSavePay={savePay} />
+                <EmployeeRow
+                  key={employee.id}
+                  employee={employee}
+                  onToggleActive={toggleActive}
+                  onSavePay={savePay}
+                  onDelete={deleteEmployee}
+                />
               ))
             )}
           </div>
@@ -185,7 +208,7 @@ function AdminEmployeesPage() {
   );
 }
 
-function EmployeeRow({ employee, onToggleActive, onSavePay }) {
+function EmployeeRow({ employee, onToggleActive, onSavePay, onDelete }) {
   const [monthlySalary, setMonthlySalary] = useState(employee.monthlySalary ?? 0);
   const [leavesPerMonth, setLeavesPerMonth] = useState(employee.leavesPerMonth ?? 0);
   const dirty = Number(monthlySalary) !== (employee.monthlySalary ?? 0) || Number(leavesPerMonth) !== (employee.leavesPerMonth ?? 0);
@@ -203,14 +226,22 @@ function EmployeeRow({ employee, onToggleActive, onSavePay }) {
           <p className="text-sm text-lime-200">
             {employee.score != null ? `${employee.score} / 100` : 'No score yet'}
           </p>
-          <button
-            className={`mt-2 rounded-full px-3 py-1 text-xs font-semibold ${
-              employee.active ? 'bg-rose-500/20 text-rose-300' : 'bg-lime-200 text-slate-950'
-            }`}
-            onClick={() => onToggleActive(employee)}
-          >
-            {employee.active ? 'Deactivate' : 'Activate'}
-          </button>
+          <div className="mt-2 flex gap-2">
+            <button
+              className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                employee.active ? 'bg-rose-500/20 text-rose-300' : 'bg-lime-200 text-slate-950'
+              }`}
+              onClick={() => onToggleActive(employee)}
+            >
+              {employee.active ? 'Deactivate' : 'Activate'}
+            </button>
+            <button
+              className="rounded-full bg-rose-500/20 px-3 py-1 text-xs font-semibold text-rose-300"
+              onClick={() => onDelete(employee)}
+            >
+              Delete
+            </button>
+          </div>
         </div>
       </div>
 

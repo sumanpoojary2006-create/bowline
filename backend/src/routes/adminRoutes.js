@@ -31,6 +31,7 @@ import {
   createChecklistItem,
   createEmployee,
   deleteChecklistItem,
+  deleteEmployee,
   getAllAttendance,
   getAllLeaves,
   getChecklistItems,
@@ -72,6 +73,7 @@ router.put('/faqs', updateFaqs);
 router.get('/employees', getEmployees);
 router.post('/employees', createEmployee);
 router.put('/employees/:id', updateEmployee);
+router.delete('/employees/:id', deleteEmployee);
 router.get('/attendance', getAllAttendance);
 router.get('/leaves', getAllLeaves);
 router.get('/employees/:id/salary', getEmployeeSalary);

@@ -3,6 +3,7 @@ import Attendance from '../models/Attendance.js';
 import ChecklistSubmission from '../models/ChecklistSubmission.js';
 import ChecklistItem from '../models/ChecklistItem.js';
 import Leave from '../models/Leave.js';
+import LaundrySubmission from '../models/LaundrySubmission.js';
 import { getChecklistTemplate } from '../config/checklistTemplates.js';
 import { slugify } from '../utils/slugify.js';
 import { computeMonthlySalary } from '../utils/salary.js';
@@ -102,6 +103,31 @@ export const updateEmployee = async (req, res, next) => {
     await employee.save();
 
     res.json({ employee: formatEmployee(employee) });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Deletes the employee account plus every record tied to it — attendance,
+// leave, checklist submissions, and laundry submissions — so nothing is left
+// pointing at a deleted employee in other admin views.
+export const deleteEmployee = async (req, res, next) => {
+  try {
+    const employee = await Employee.findById(req.params.id);
+    if (!employee) {
+      res.status(404);
+      throw new Error('Employee not found');
+    }
+
+    await Promise.all([
+      Attendance.deleteMany({ employee: employee._id }),
+      Leave.deleteMany({ employee: employee._id }),
+      ChecklistSubmission.deleteMany({ employee: employee._id }),
+      LaundrySubmission.deleteMany({ staffId: String(employee._id) }),
+    ]);
+    await employee.deleteOne();
+
+    res.json({ success: true });
   } catch (error) {
     next(error);
   }
