@@ -14,7 +14,7 @@ function EmployeeChecklistPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    document.title = 'Bowline Staff | Checkout';
+    document.title = 'Bowline Staff | Sign Out';
 
     const fetchTemplate = async () => {
       try {
@@ -46,11 +46,12 @@ function EmployeeChecklistPage() {
     setSubmitting(true);
     try {
       const { data } = await employeeApi.post('/employee/checkout', { answers });
-      toast.success(`Checked out! Shift score: ${data.score} / 100`);
+      const dayType = data.attendance?.dayType === 'full' ? 'full day' : 'half day';
+      toast.success(`Signed out — recorded as a ${dayType}. Shift score: ${data.score} / 100`);
       await refresh();
       navigate('/employee/dashboard');
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Unable to check out');
+      toast.error(error.response?.data?.message || 'Unable to sign out');
     } finally {
       setSubmitting(false);
     }
@@ -67,7 +68,7 @@ function EmployeeChecklistPage() {
           ← Back
         </button>
         <h1 className="mt-2 font-display text-2xl text-white">End-of-shift checklist</h1>
-        <p className="mt-1 text-xs text-slate-400">Quickly tap through each item, then submit to check out.</p>
+        <p className="mt-1 text-xs text-slate-400">Quickly tap through each item, then submit to sign out.</p>
       </header>
 
       <form className="flex-1 px-5 pb-28 pt-4" onSubmit={submit}>
@@ -136,7 +137,7 @@ function EmployeeChecklistPage() {
         <div className="fixed inset-x-0 bottom-0 z-10 border-t border-white/5 bg-[#08110a]/95 px-5 py-4 backdrop-blur">
           <div className="mx-auto max-w-sm">
             <button className="btn-primary w-full" disabled={submitting} type="submit">
-              {submitting ? 'Submitting...' : 'Submit & Check Out'}
+              {submitting ? 'Submitting...' : 'Submit & Sign Out'}
             </button>
           </div>
         </div>

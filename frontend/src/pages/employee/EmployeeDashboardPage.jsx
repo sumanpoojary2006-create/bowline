@@ -91,7 +91,7 @@ function TodaysTasks({ employee, todayTasks }) {
 
   return (
     <div className="mt-6">
-      <p className="text-xs uppercase tracking-[0.25em] text-lime-200/60">Today's To-Do List</p>
+      <p className="text-xs uppercase tracking-[0.25em] text-lime-200/60">Today's To-Do List (optional)</p>
       <Link
         to="/employee/laundry"
         className="mt-3 flex items-center justify-between rounded-[1.5rem] bg-slate-900/70 p-4"
@@ -124,19 +124,18 @@ function EmployeeDashboardPage() {
   }, []);
 
   const checkInTime = summary?.today?.checkInAt ? new Date(summary.today.checkInAt) : null;
-  const tasksComplete = !summary?.todayTasks || !summary.todayTasks.laundryRequired || summary.todayTasks.laundryDone;
 
   const handleCheckIn = async () => {
     setBusy(true);
     try {
       const { data } = await employeeApi.post('/employee/checkin');
-      toast.success('Checked in! Have a great shift.');
+      toast.success('Signed in! Have a great shift.');
       if (data?.attendance?.lateCheckIn) {
         setShowLateWarning(true);
       }
       await refresh();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Unable to check in');
+      toast.error(error.response?.data?.message || 'Unable to sign in');
     } finally {
       setBusy(false);
     }
@@ -187,7 +186,7 @@ function EmployeeDashboardPage() {
               <span className="mt-2 text-sm font-semibold uppercase tracking-wide text-slate-300">On leave today</span>
             </StatusRing>
             <p className="mt-6 max-w-xs text-center text-sm text-slate-400">
-              You applied for leave today, so check-in is disabled. See you on your next shift!
+              You applied for leave today, so sign-in is disabled. See you on your next shift!
             </p>
           </>
         ) : !status ? (
@@ -198,41 +197,27 @@ function EmployeeDashboardPage() {
                 disabled={busy}
                 onClick={handleCheckIn}
               >
-                <span className="text-lg font-bold uppercase tracking-wide">{busy ? '...' : 'Check In'}</span>
+                <span className="text-lg font-bold uppercase tracking-wide">{busy ? '...' : 'Sign In'}</span>
                 <span className="mt-1 text-xs font-medium opacity-70">Tap to start shift</span>
               </button>
             </StatusRing>
           </>
         ) : status === 'checked-in' ? (
-          tasksComplete ? (
-            <>
-              <StatusRing progress={1} tone="lime">
-                <button
-                  className="flex h-[170px] w-[170px] flex-col items-center justify-center rounded-full bg-gradient-to-br from-lime-200 to-lime-400 text-slate-950 shadow-glow transition active:scale-95"
-                  onClick={() => navigate('/employee/checkout')}
-                >
-                  <span className="text-lg font-bold uppercase tracking-wide">Check Out</span>
-                  <span className="mt-1 text-xs font-medium opacity-70">Shift complete</span>
-                </button>
-              </StatusRing>
-              <p className="mt-6 text-center text-sm text-slate-400">
-                Checked in at {checkInTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Fill out
-                the checklist to finish.
-              </p>
-            </>
-          ) : (
-            <>
-              <StatusRing progress={1} tone="amber">
-                <span className="text-3xl">📝</span>
-                <span className="mt-2 text-sm font-semibold uppercase tracking-wide text-amber-200/80">
-                  Finish your tasks
-                </span>
-              </StatusRing>
-              <p className="mt-6 max-w-xs text-center text-sm text-slate-400">
-                Complete today's laundry dashboard below before you can check out.
-              </p>
-            </>
-          )
+          <>
+            <StatusRing progress={1} tone="lime">
+              <button
+                className="flex h-[170px] w-[170px] flex-col items-center justify-center rounded-full bg-gradient-to-br from-lime-200 to-lime-400 text-slate-950 shadow-glow transition active:scale-95"
+                onClick={() => navigate('/employee/checkout')}
+              >
+                <span className="text-lg font-bold uppercase tracking-wide">Sign Out</span>
+                <span className="mt-1 text-xs font-medium opacity-70">Shift complete</span>
+              </button>
+            </StatusRing>
+            <p className="mt-6 text-center text-sm text-slate-400">
+              Signed in at {checkInTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Fill out
+              the checklist to finish.
+            </p>
+          </>
         ) : (
           <>
             <StatusRing progress={1} tone="slate">
@@ -240,12 +225,21 @@ function EmployeeDashboardPage() {
               <span className="mt-2 text-sm font-semibold uppercase tracking-wide text-slate-300">Done for today</span>
             </StatusRing>
             <p className="mt-6 text-center text-sm text-slate-400">
-              Checked out at{' '}
+              Signed out at{' '}
               {summary?.today?.checkOutAt
                 ? new Date(summary.today.checkOutAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 : '—'}
               . See you tomorrow!
             </p>
+            {summary?.today?.dayType ? (
+              <span
+                className={`mt-3 inline-flex rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-wide ${
+                  summary.today.dayType === 'full' ? 'bg-lime-200/15 text-lime-200' : 'bg-amber-400/15 text-amber-200'
+                }`}
+              >
+                {summary.today.dayType === 'full' ? 'Full day' : 'Half day'}
+              </span>
+            ) : null}
           </>
         )}
       </div>
@@ -277,9 +271,9 @@ function EmployeeDashboardPage() {
             onClick={(event) => event.stopPropagation()}
           >
             <span className="text-3xl">⏰</span>
-            <h3 className="mt-3 text-lg font-semibold text-white">Late check-in</h3>
+            <h3 className="mt-3 text-lg font-semibold text-white">Late sign-in</h3>
             <p className="mt-2 text-sm text-slate-400">
-              You checked in after 7:00 AM. Try to check in on time tomorrow.
+              You signed in after 7:00 AM. Try to sign in on time tomorrow.
             </p>
             <button
               className="mt-5 w-full rounded-full bg-lime-200 py-2.5 text-sm font-semibold text-slate-950"

@@ -7,7 +7,7 @@ import { resolveChecklistFields } from '../utils/checklistFields.js';
 import { buildChecklistResponses, computeChecklistScore } from '../utils/scoring.js';
 import { getClientIp } from '../utils/network.js';
 import { writeAttendanceToSheet, writeSalarySummaryToSheet } from '../utils/googleSheets.js';
-import { computeMonthlySalary } from '../utils/salary.js';
+import { computeMonthlySalary, isFullDayCheckout } from '../utils/salary.js';
 import { buildAttendanceCalendar } from '../utils/attendanceCalendar.js';
 import { istTimeOfDay } from '../utils/istTime.js';
 
@@ -89,6 +89,12 @@ export const getMe = async (req, res, next) => {
             checkInAt: todayAttendance.checkInAt,
             checkOutAt: todayAttendance.checkOutAt,
             lateCheckIn: todayAttendance.lateCheckIn,
+            dayType:
+              todayAttendance.status === 'checked-out' && todayAttendance.checkOutAt
+                ? isFullDayCheckout(todayAttendance.checkOutAt)
+                  ? 'full'
+                  : 'half'
+                : null,
           }
         : null,
       isOnLeaveToday: Boolean(todayLeave),
@@ -109,14 +115,14 @@ export const checkIn = async (req, res, next) => {
       throw new Error(
         existing.status === 'checked-out'
           ? 'You have already completed your shift today'
-          : 'You are already checked in for today'
+          : 'You are already signed in for today'
       );
     }
 
     const onLeave = await Leave.findOne({ employee: req.employee._id, date });
     if (onLeave) {
       res.status(403);
-      throw new Error('You are on leave today — check-in is disabled');
+      throw new Error('You are on leave today — sign-in is disabled');
     }
 
     const clientIp = getClientIp(req);
@@ -172,20 +178,14 @@ export const checkOut = async (req, res, next) => {
 
     if (!attendance || attendance.status !== 'checked-in') {
       res.status(400);
-      throw new Error('No active check-in found for today');
-    }
-
-    const taskStatus = await getTodayTaskStatus(req.employee, date);
-    if (taskStatus.laundryRequired && !taskStatus.laundryDone) {
-      res.status(400);
-      throw new Error("Complete today's laundry dashboard before checking out");
+      throw new Error('No active sign-in found for today');
     }
 
     const { answers } = req.body;
 
     if (!answers || typeof answers !== 'object') {
       res.status(400);
-      throw new Error('Checklist answers are required to check out');
+      throw new Error('Checklist answers are required to sign out');
     }
 
     const fields = await resolveChecklistFields(req.employee.role);
@@ -227,6 +227,7 @@ export const checkOut = async (req, res, next) => {
         status: attendance.status,
         checkInAt: attendance.checkInAt,
         checkOutAt: attendance.checkOutAt,
+        dayType: isFullDayCheckout(attendance.checkOutAt) ? 'full' : 'half',
       },
       score: totalScore,
     });

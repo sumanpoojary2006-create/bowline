@@ -36,7 +36,7 @@ function EmployeeLoginPage() {
             B
           </div>
           <h1 className="mt-4 font-display text-3xl text-white">Bowline Staff</h1>
-          <p className="mt-1 text-sm text-slate-400">Sign in to check in and out of your shift</p>
+          <p className="mt-1 text-sm text-slate-400">Log in to sign in and out of your shift</p>
         </div>
 
         <form className="glass space-y-4 rounded-[2rem] p-6" onSubmit={submit}>
