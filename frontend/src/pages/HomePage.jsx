@@ -168,7 +168,7 @@ function HomePage() {
             <p className="mt-4 text-base font-semibold tracking-[0.04em] !text-lime-200 drop-shadow-md sm:mt-5 sm:text-2xl">
               <span aria-hidden="true">📍</span> Mudigere, Chikkamagaluru
             </p>
-            <div className="mt-4 flex flex-col items-center justify-center gap-2 text-sm font-medium text-white/90 drop-shadow sm:mt-5 sm:flex-row sm:flex-wrap sm:gap-x-3 sm:text-base">
+            <div className="mt-4 flex flex-col items-center justify-center gap-2 text-sm font-medium !text-white/90 drop-shadow sm:mt-5 sm:flex-row sm:flex-wrap sm:gap-x-3 sm:text-base">
               <span>🕥 5 hours from Bengaluru</span>
               <span className="hidden text-white/50 sm:inline">·</span>
               <span>🕥 3 hours from Mangaluru</span>
@@ -392,21 +392,21 @@ function HomePage() {
         <p className="mx-auto mt-5 max-w-xl font-medium leading-7 !text-[#d2dccf]">Check live room availability online or speak directly with Pavithra and Suhan on WhatsApp.</p>
       </section>
 
-      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[#07100a]/95 px-3 py-3 shadow-[0_-16px_50px_rgba(0,0,0,0.42)] backdrop-blur-xl sm:px-5 sm:py-4">
-        <div className="mx-auto grid max-w-3xl grid-cols-2 gap-2.5 sm:gap-4">
+      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[#07100a]/95 px-3 py-2 shadow-[0_-16px_50px_rgba(0,0,0,0.42)] backdrop-blur-xl sm:px-5 sm:py-4">
+        <div className="mx-auto grid max-w-3xl grid-cols-2 gap-2 sm:gap-4">
           <a
-            className="inline-flex min-h-[56px] items-center justify-center gap-2 rounded-2xl bg-[#25D366] px-3 text-center text-sm font-bold !text-[#05210e] shadow-[0_8px_24px_rgba(37,211,102,0.2)] transition hover:bg-[#35df73] sm:min-h-[60px] sm:gap-3 sm:rounded-full sm:text-base"
+            className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl bg-[#25D366] px-3 text-center text-xs font-bold !text-[#05210e] shadow-[0_8px_24px_rgba(37,211,102,0.2)] transition hover:bg-[#35df73] sm:min-h-[60px] sm:gap-3 sm:rounded-full sm:text-base"
             href={whatsappUrl}
             target="_blank"
             rel="noreferrer"
           >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[#20b858] sm:h-9 sm:w-9">
-              <WhatsAppIcon className="h-5 w-5 sm:h-6 sm:w-6" />
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-[#20b858] sm:h-9 sm:w-9">
+              <WhatsAppIcon className="h-3.5 w-3.5 sm:h-6 sm:w-6" />
             </span>
             <span>Book on WhatsApp</span>
           </a>
-          <Link className="inline-flex min-h-[56px] items-center justify-center gap-2 rounded-2xl bg-[#dff5aa] px-3 text-center text-sm font-bold !text-[#102013] shadow-[0_8px_24px_rgba(223,245,170,0.12)] transition hover:bg-[#e9fac2] sm:min-h-[60px] sm:gap-3 sm:rounded-full sm:text-base" to="/stays">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#102013] text-lg sm:h-9 sm:w-9 sm:text-xl" aria-hidden="true">📅</span>
+          <Link className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl bg-[#dff5aa] px-3 text-center text-xs font-bold !text-[#102013] shadow-[0_8px_24px_rgba(223,245,170,0.12)] transition hover:bg-[#e9fac2] sm:min-h-[60px] sm:gap-3 sm:rounded-full sm:text-base" to="/stays">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#102013] text-sm sm:h-9 sm:w-9 sm:text-xl" aria-hidden="true">📅</span>
             <span>Book on website</span>
           </Link>
         </div>
