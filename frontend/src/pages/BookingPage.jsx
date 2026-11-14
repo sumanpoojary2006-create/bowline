@@ -896,7 +896,15 @@ function HomePage() {
                 <p className="text-xs uppercase tracking-[0.28em] text-lime-200/80">Book now</p>
                 <h3 className="mt-2 text-3xl font-semibold text-[#f5f0dd]">{activeBooking.name}</h3>
               </div>
-              <button className="rounded-full border border-lime-100/12 p-2 text-white" onClick={() => setActiveBooking(null)} type="button">
+              <button
+                className="rounded-full border border-lime-100/12 p-2 text-white"
+                aria-label="Close booking and view all rooms"
+                onClick={() => {
+                  setActiveBooking(null);
+                  navigate('/#stay', { replace: true });
+                }}
+                type="button"
+              >
                 <XMarkIcon className="h-5 w-5" />
               </button>
             </div>

@@ -12,6 +12,7 @@ import {
   SparklesIcon,
 } from '@heroicons/react/24/outline';
 import heroImage from '../assets/marketing/starry-bowline.jpg';
+import guestFavouriteBadge from '../assets/marketing/airbnb-guest-favourite.png';
 import campfireImage from '../assets/marketing/campfire.jpg';
 import ListingCard from '../components/ListingCard';
 import api from '../lib/api';
@@ -147,14 +148,19 @@ function HomePage() {
 
   return (
     <div className="overflow-hidden bg-transparent pb-6 text-[#f7f2e5]">
-      <section className="relative min-h-[calc(100svh-4.5rem)]">
+      <section className="relative isolate min-h-[calc(100svh-4.5rem)]">
         <img
           src={heroImage}
           alt="Bowline Nature Stay beneath the mountains and a star-filled sky"
           className="absolute inset-0 h-full w-full object-cover object-center"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-[#00152b]/20 to-[#07100a]/55" />
-        <div className="section-shell relative flex min-h-[calc(100svh-4.5rem)] flex-col items-center pt-[9vh] text-center sm:pt-[13vh]">
+        <div className="section-shell relative flex min-h-[calc(100svh-4.5rem)] flex-col items-center pb-12 pt-[4vh] text-center sm:pt-[5vh]">
+          <img
+            src={guestFavouriteBadge}
+            alt="Rated 5.0 — Guest favourite, one of the most loved stays on Airbnb"
+            className="mb-6 h-auto w-[190px] max-w-[65vw] shrink-0 object-contain mix-blend-screen sm:mb-7 sm:w-[230px] lg:w-[250px]"
+          />
           <div className="max-w-4xl">
             <h1 className="font-display text-[2.7rem] font-extrabold leading-[0.98] tracking-[-0.045em] !text-white drop-shadow-[0_4px_28px_rgba(0,0,0,0.75)] sm:text-7xl lg:text-[5.5rem]">
               Bowline<br className="sm:hidden" /> Nature Stay
@@ -179,7 +185,7 @@ function HomePage() {
           rel="noreferrer"
         >
           <WhatsAppIcon className="h-4 w-4 shrink-0 text-[#25D366]" />
-          For any inquiries you can contact here.
+          Chat with us
         </a>
       </div>
 
@@ -245,15 +251,6 @@ function HomePage() {
           </div>
         )}
 
-        <div className="mt-8 flex flex-col items-center justify-between gap-5 rounded-[1.75rem] border border-lime-100/15 bg-lime-100/[0.06] p-6 text-center sm:flex-row sm:text-left">
-          <div>
-            <p className="font-semibold text-white">Want to compare dates across every room?</p>
-            <p className="mt-1 text-sm font-medium !text-[#c9d4c6]">Breakfast is included. Weekend rates may vary.</p>
-          </div>
-          <Link className="inline-flex shrink-0 items-center gap-2 rounded-full bg-[#dff5aa] px-6 py-3 font-bold !text-[#102013] transition hover:bg-[#e9fac2]" to="/stays">
-            View all availability <ArrowRightIcon className="h-4 w-4" />
-          </Link>
-        </div>
       </section>
 
       <section id="about" className="section-shell py-16 sm:py-20">
