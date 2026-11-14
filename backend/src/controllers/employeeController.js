@@ -32,24 +32,24 @@ const getTodayTaskStatus = async (employee, date) => {
   return { laundryRequired: true, laundryDone: Boolean(laundryDone) };
 };
 
-// Each leave-unit (a full leave day counts as 1, a half-day shift counts as
-// 0.5) taken beyond the allowance costs this many score points — calibrated
-// so 1 day over a 4-day allowance lands at 92%, not a token few points off.
-const POINTS_PER_EXCESS_LEAVE_UNIT = 8;
-
 // Reuses the same monthly tally the salary calculator uses, so "days this
-// month" and the leave score are always consistent with the payroll numbers
-// the admin sees for the same employee. Built from actual leave/attendance
-// records rather than days-in-month, so it never penalizes for days later
-// in the month that simply haven't happened yet.
+// month" and the attendance score are always consistent with the payroll
+// numbers the admin sees for the same employee. Built from actual
+// leave/attendance records rather than days-in-month, so it never
+// penalizes for days later in the month that simply haven't happened yet.
+//
+// The score is a fill, not a depleting penalty: it starts at 0% on day one
+// and rises as full/half days are actually worked, reaching 100% once
+// they've worked every required day this month (days in month minus the
+// leave allowance — e.g. 26 of 30 with a 4-day allowance). Taking more
+// leave than the allowance simply leaves fewer days available to fill it
+// with, so it tops out below 100% rather than needing a separate penalty.
 const getMonthlyAttendanceStats = async (employee) => {
   const monthly = await computeMonthlySalary(employee, dayjs().format('YYYY-MM'));
   const leaveAllowance = employee.leavesPerMonth > 0 ? employee.leavesPerMonth : DEFAULT_LEAVES_PER_MONTH;
-  const leaveUnitsUsed = monthly.leaveDays + monthly.halfDays * 0.5;
-  const leaveScore =
-    leaveUnitsUsed <= leaveAllowance
-      ? 100
-      : Math.max(0, Math.round(100 - (leaveUnitsUsed - leaveAllowance) * POINTS_PER_EXCESS_LEAVE_UNIT));
+  const attendedUnits = monthly.fullDays + monthly.halfDays * 0.5;
+  const requiredDays = Math.max(1, monthly.daysInMonth - leaveAllowance);
+  const leaveScore = Math.min(100, Math.round((attendedUnits / requiredDays) * 100));
 
   return {
     attendanceSummary: {
