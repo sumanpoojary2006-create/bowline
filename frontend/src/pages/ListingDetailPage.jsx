@@ -1,4 +1,5 @@
-import { CalendarDaysIcon, MapPinIcon, MinusIcon, PlusIcon, ShoppingBagIcon, UserGroupIcon } from '@heroicons/react/24/outline';
+import { CalendarDaysIcon, ChevronDownIcon, MapPinIcon, MinusIcon, PlusIcon, UserGroupIcon } from '@heroicons/react/24/outline';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import DatePicker from 'react-datepicker';
 import toast from 'react-hot-toast';
@@ -8,7 +9,8 @@ import { useBookingCart } from '../context/BookingCartContext';
 import api from '../lib/api';
 import { formatCurrency, formatDateRange } from '../lib/formatters';
 import { addDays, ensureCheckoutDate, formatDateParam, parseDateParam } from '../lib/dateUtils';
-import ListingCard from '../components/ListingCard';
+import MealPolicyList from '../components/MealPolicyList';
+import ListingCard, { getDescriptionPoints } from '../components/ListingCard';
 import PageLoader from '../components/PageLoader';
 import RoomCalendar from '../components/RoomCalendar';
 import { petFee, getRoomRate, getRoomDisplayOrder } from '../lib/roomRates';
@@ -23,8 +25,10 @@ function ListingDetailPage({ bookingFirst = false }) {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
-  const { addItem } = useBookingCart();
+  const { addItem, setIsOpen } = useBookingCart();
+  const reduceMotion = useReducedMotion();
   const bookingFormRef = useRef(null);
+  const bookingDetailsRef = useRef(null);
   const isBookingIntent = Boolean(bookingFirst || searchParams.get('intent') === 'book');
 
   const statePrefill = location.state?.bookingPrefill || {};
@@ -48,8 +52,11 @@ function ListingDetailPage({ bookingFirst = false }) {
   const [recommendedRooms, setRecommendedRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [datesConfirmed, setDatesConfirmed] = useState(false);
+  const [roomDetailsOpen, setRoomDetailsOpen] = useState(false);
   const [stickyBarVisible, setStickyBarVisible] = useState(true);
-  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(isBookingIntent);
   const calendarRef = useRef(null);
   const [booking, setBooking] = useState({
     startDate: initialStartDate,
@@ -62,11 +69,6 @@ function ListingDetailPage({ bookingFirst = false }) {
     contactPhone: initialContactPhone,
   });
   const [availability, setAvailability] = useState(null);
-  const stayNights = Math.max(
-    Math.round((booking.endDate.getTime() - booking.startDate.getTime()) / (1000 * 60 * 60 * 24)),
-    1
-  );
-
   useEffect(() => {
     const fetchListing = async () => {
       setLoading(true);
@@ -153,6 +155,7 @@ function ListingDetailPage({ bookingFirst = false }) {
 
   const updateStartDate = (date) => {
     setAvailability(null);
+    setDatesConfirmed(false);
     setBooking((prev) => ({
       ...prev,
       startDate: date,
@@ -162,46 +165,81 @@ function ListingDetailPage({ bookingFirst = false }) {
 
   const updateEndDate = (date) => {
     setAvailability(null);
+    setDatesConfirmed(false);
     setBooking((prev) => ({
       ...prev,
       endDate: ensureCheckoutDate(prev.startDate, date, listing?.type === 'room' ? 1 : 0),
     }));
   };
 
-  const checkAvailability = async () => {
+  const checkAvailability = async (selection = booking) => {
     if (!listing) return;
     setChecking(true);
     try {
       const { data } = await api.post(`/listings/${listing._id}/availability`, {
-        startDate: booking.startDate,
-        endDate: booking.endDate,
-        guests: booking.adults + booking.children,
-        adultGuests: booking.adults,
-        childGuests: booking.children,
-        pets: booking.pets,
+        startDate: formatDateParam(selection.startDate),
+        endDate: formatDateParam(selection.endDate),
+        guests: selection.adults + selection.children,
+        adultGuests: selection.adults,
+        childGuests: selection.children,
+        pets: selection.pets,
       });
       setAvailability(data);
       if (!data.available) {
         toast.error(data.reason);
       }
+      return data;
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Unable to check availability right now');
+      return null;
     } finally {
       setChecking(false);
     }
   };
 
+  const handleRangeComplete = async ({ startDate, endDate }) => {
+    const selection = { ...booking, startDate, endDate };
+    setDatesConfirmed(false);
+    const result = await checkAvailability(selection);
+
+    if (!result?.available) return;
+
+    setCalendarOpen(false);
+  };
+
+  const confirmAvailableDates = () => {
+    setDatesConfirmed(true);
+    window.requestAnimationFrame(() => {
+      bookingDetailsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
+
+  const addAnotherRoom = () => {
+    addItem(listing, booking.startDate, booking.endDate, booking.adults + booking.children);
+    setIsOpen(false);
+    toast.success(`${listing.name} added. Choose another room.`);
+
+    const query = new URLSearchParams({
+      startDate: formatDateParam(booking.startDate),
+      endDate: formatDateParam(booking.endDate),
+      guests: String(booking.adults + booking.children),
+    });
+    navigate(`/book-stay?${query.toString()}`);
+  };
+
   const submitBooking = async (event) => {
     event.preventDefault();
 
-    if (!availability?.available) {
-      toast.error('Please check availability before booking');
-      return;
-    }
+    let currentAvailability = availability;
+    if (!currentAvailability?.available) currentAvailability = await checkAvailability(booking);
+    if (!currentAvailability?.available) return;
 
+    setSubmitting(true);
     try {
       const { data } = await api.post('/bookings', {
         listingId: listing._id,
-        startDate: booking.startDate,
-        endDate: booking.endDate,
+        startDate: formatDateParam(booking.startDate),
+        endDate: formatDateParam(booking.endDate),
         guests: booking.adults + booking.children,
         adultGuests: booking.adults,
         childGuests: booking.children,
@@ -214,6 +252,8 @@ function ListingDetailPage({ bookingFirst = false }) {
       navigate(`/booking/confirmation/${data.booking._id}`, { state: { booking: data.booking, resetBookingModal: true } });
     } catch (error) {
       toast.error(error.response?.data?.message || 'Unable to create booking');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -228,7 +268,7 @@ function ListingDetailPage({ bookingFirst = false }) {
       pets: String(booking.pets),
     });
 
-    navigate(`/book/${room.slug}?${query.toString()}`, {
+    navigate(`/book-stay?${query.toString()}`, {
       state: {
         bookingPrefill: {
           startDate: formatDateParam(booking.startDate),
@@ -249,43 +289,108 @@ function ListingDetailPage({ bookingFirst = false }) {
   return (
     <section className="section-shell pb-28 pt-8 sm:py-12">
       <div className="grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className={`min-w-0 space-y-6 ${isBookingIntent ? 'order-2' : ''}`}>
+        <div className={`min-w-0 space-y-4 ${isBookingIntent ? 'order-2' : ''}`}>
           <div className="overflow-hidden rounded-[2.5rem] border border-white/10">
             <img
               src={listing.images?.[0] || 'https://placehold.co/1200x800'}
               alt={listing.name}
-              className="h-56 w-full object-cover sm:h-[420px]"
+              className={`w-full object-cover ${isBookingIntent && listing.type === 'room' ? 'h-52 sm:h-[300px]' : 'h-56 sm:h-[420px]'}`}
             />
           </div>
-          <div className="glass rounded-[2rem] p-6">
-            <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400">
-              <span className="rounded-full bg-lime-200 px-3 py-1 font-semibold uppercase tracking-[0.22em] text-slate-950">
-                {listing.type}
-              </span>
-              <span className="inline-flex items-center gap-2">
-                <MapPinIcon className="h-4 w-4" />
-                Bowline Nature Stay, Devaramane, Mudigere, Chikkamagaluru
-              </span>
-              <span className="inline-flex items-center gap-2">
-                <CalendarDaysIcon className="h-4 w-4" />
-                {listing.duration || 'Stay by selected dates'}
-              </span>
-              <span className="inline-flex items-center gap-2">
-                <UserGroupIcon className="h-4 w-4" />
-                Capacity {listing.capacity}
-              </span>
-            </div>
+          <div className="glass rounded-[2rem] p-5 sm:p-6">
+            {isBookingIntent && listing.type === 'room' ? (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <span className="rounded-full bg-lime-200 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-slate-950">
+                    {listing.type}
+                  </span>
+                  <span className="inline-flex items-center gap-2 text-sm text-slate-300">
+                    <UserGroupIcon className="h-4 w-4" />
+                    Up to {listing.capacity} guests
+                  </span>
+                </div>
 
-            <h1 className="mt-5 font-display text-5xl text-white">{listing.name}</h1>
-            <p className="mt-5 text-base leading-7 text-slate-300">{listing.description}</p>
+                <h1 className="mt-4 font-display text-4xl text-white sm:text-5xl">{listing.name}</h1>
+                <button
+                  type="button"
+                  className="mt-5 flex w-full items-center justify-between gap-4 rounded-[1.25rem] border border-lime-100/20 bg-lime-100/[0.06] px-4 py-3 text-left text-sm font-semibold text-lime-100 transition hover:bg-lime-100/10"
+                  onClick={() => setRoomDetailsOpen((open) => !open)}
+                  aria-expanded={roomDetailsOpen}
+                >
+                  Click here to know more about the room
+                  <ChevronDownIcon className={`h-5 w-5 shrink-0 transition-transform ${roomDetailsOpen ? 'rotate-180' : ''}`} />
+                </button>
 
-            <div className="mt-6 flex flex-wrap gap-2">
-              {[...(listing.amenities || []), ...(listing.facilities || [])].map((item) => (
-                <span key={item} className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200">
-                  {item}
-                </span>
-              ))}
-            </div>
+                <AnimatePresence initial={false}>
+                {roomDetailsOpen ? (
+                  <motion.div
+                    className="overflow-hidden"
+                    initial={reduceMotion ? false : { height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={reduceMotion ? undefined : { height: 0, opacity: 0 }}
+                    transition={{ duration: reduceMotion ? 0 : 0.3, ease: [0.22, 1, 0.36, 1] }}
+                  >
+                  <div className="mt-5 border-t border-white/10 pt-5">
+                    <ul className="space-y-3 text-base text-slate-200">
+                      {getDescriptionPoints(listing.shortDescription || listing.description).map((point, index) => (
+                        <li key={`${point.text}-${index}`} className="flex items-start gap-3">
+                          <span aria-hidden="true">{point.emoji}</span>
+                          <span>{point.text}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  </motion.div>
+                ) : null}
+                </AnimatePresence>
+              </>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400">
+                  <span className="rounded-full bg-lime-200 px-3 py-1 font-semibold uppercase tracking-[0.22em] text-slate-950">
+                    {listing.type}
+                  </span>
+                  {listing.type !== 'room' ? (
+                    <>
+                      <span className="inline-flex items-center gap-2">
+                        <MapPinIcon className="h-4 w-4" />
+                        Bowline Nature Stay, Devaramane, Mudigere, Chikkamagaluru
+                      </span>
+                      <span className="inline-flex items-center gap-2">
+                        <CalendarDaysIcon className="h-4 w-4" />
+                        {listing.duration || 'Stay by selected dates'}
+                      </span>
+                    </>
+                  ) : null}
+                  <span className="inline-flex items-center gap-2">
+                    <UserGroupIcon className="h-4 w-4" />
+                    Capacity {listing.capacity}
+                  </span>
+                </div>
+                <h1 className="mt-5 font-display text-5xl text-white">{listing.name}</h1>
+                {listing.type === 'room' ? (
+                  <ul className="mt-6 space-y-3 text-base text-slate-200">
+                    {getDescriptionPoints(listing.shortDescription || listing.description).map((point, index) => (
+                      <li key={`${point.text}-${index}`} className="flex items-start gap-3">
+                        <span aria-hidden="true">{point.emoji}</span>
+                        <span>{point.text}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <>
+                    <p className="mt-5 text-base leading-7 text-slate-300">{listing.description}</p>
+                    <div className="mt-6 flex flex-wrap gap-2">
+                      {[...(listing.amenities || []), ...(listing.facilities || [])].map((item) => (
+                        <span key={item} className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200">
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </>
+            )}
           </div>
         </div>
 
@@ -300,11 +405,7 @@ function ListingDetailPage({ bookingFirst = false }) {
             </div>
 
             <div className="mt-5 rounded-[1.5rem] border border-lime-100/10 bg-[#0d1710]/80 p-4 text-sm text-[#c1cbbd]">
-              <ul className="list-disc space-y-1 pl-4">
-                <li>Breakfast is complimentary.</li>
-                <li>Meal price is not included in the room total.</li>
-                <li>Lunch and dinner are Rs 350 per person per meal.</li>
-              </ul>
+              <MealPolicyList />
             </div>
 
             <form className="mt-6 space-y-4" onSubmit={submitBooking}>
@@ -337,11 +438,26 @@ function ListingDetailPage({ bookingFirst = false }) {
                     </button>
 
                     {/* Floating calendar — dropdown on desktop, bottom sheet on mobile */}
+                    <AnimatePresence initial={false}>
                     {calendarOpen && (
                       <>
                         {/* Mobile: full-screen overlay */}
-                        <div className="fixed inset-0 z-40 bg-black/60 sm:hidden" />
-                        <div className="fixed bottom-0 left-0 right-0 z-50 overflow-hidden rounded-t-3xl border-t border-lime-100/14 bg-[#090f0b] sm:absolute sm:bottom-auto sm:top-[calc(100%+0.5rem)] sm:rounded-2xl sm:border sm:shadow-[0_24px_80px_rgba(0,0,0,0.6)]">
+                        <motion.div
+                          key="calendar-overlay"
+                          className="fixed inset-0 z-40 bg-black/60 sm:hidden"
+                          initial={reduceMotion ? false : { opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={reduceMotion ? undefined : { opacity: 0 }}
+                          transition={{ duration: reduceMotion ? 0 : 0.18 }}
+                        />
+                        <motion.div
+                          key="calendar-panel"
+                          className="fixed bottom-0 left-0 right-0 z-50 origin-top overflow-hidden rounded-t-3xl border-t border-lime-100/14 bg-[#090f0b] sm:absolute sm:bottom-auto sm:top-[calc(100%+0.5rem)] sm:rounded-2xl sm:border sm:shadow-[0_24px_80px_rgba(0,0,0,0.6)]"
+                          initial={reduceMotion ? false : { opacity: 0, y: 14, scale: 0.985 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={reduceMotion ? undefined : { opacity: 0, y: 8, scale: 0.99 }}
+                          transition={{ duration: reduceMotion ? 0 : 0.26, ease: [0.22, 1, 0.36, 1] }}
+                        >
                           <div className="flex items-center justify-between border-b border-lime-100/10 px-4 py-3 sm:hidden">
                             <p className="text-sm font-semibold text-[#f5f0dd]">Select dates</p>
                             <button
@@ -359,12 +475,13 @@ function ListingDetailPage({ bookingFirst = false }) {
                               endDate={booking.endDate}
                               onStartDate={updateStartDate}
                               onEndDate={updateEndDate}
-                              onRangeComplete={() => setCalendarOpen(false)}
+                              onRangeComplete={handleRangeComplete}
                             />
                           </div>
-                        </div>
+                        </motion.div>
                       </>
                     )}
+                    </AnimatePresence>
                   </div>
                 </div>
               ) : (
@@ -375,7 +492,7 @@ function ListingDetailPage({ bookingFirst = false }) {
                       selected={booking.startDate}
                       onChange={(date) => updateStartDate(date)}
                       className="input"
-                      minDate={new Date()}
+                      minDate={tomorrow()}
                     />
                   </div>
                   <div>
@@ -389,8 +506,53 @@ function ListingDetailPage({ bookingFirst = false }) {
                   </div>
                 </div>
               )}
+              <AnimatePresence mode="wait" initial={false}>
+              {listing.type === 'room' && availability ? (
+                <motion.div
+                  key={`${availability.available}-${formatDateParam(booking.startDate)}-${formatDateParam(booking.endDate)}`}
+                  className={`rounded-[1.5rem] border p-4 ${
+                    availability.available
+                      ? 'border-emerald-300/30 bg-emerald-300/10'
+                      : 'border-rose-300/30 bg-rose-300/10'
+                  }`}
+                  aria-live="polite"
+                  initial={reduceMotion ? false : { opacity: 0, y: 10, scale: 0.985 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={reduceMotion ? undefined : { opacity: 0, y: -6, scale: 0.99 }}
+                  transition={{ duration: reduceMotion ? 0 : 0.24, ease: [0.22, 1, 0.36, 1] }}
+                >
+                  <p className={`font-semibold ${availability.available ? 'text-emerald-200' : 'text-rose-200'}`}>
+                    {availability.available ? 'Your selected dates are available' : availability.reason}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-200">{formatDateRange(booking.startDate, booking.endDate)}</p>
+                  {availability.available ? (
+                    <>
+                      <p className="mt-1 text-sm text-slate-300">
+                        Estimated booking value: {formatCurrency(availability.pricing.totalPrice)} including GST
+                      </p>
+                      {!datesConfirmed ? (
+                        <button className="btn-primary mt-4 w-full" type="button" onClick={confirmAvailableDates}>
+                          Continue with these dates
+                        </button>
+                      ) : null}
+                    </>
+                  ) : (
+                    <button className="btn-secondary mt-4 w-full" type="button" onClick={() => setCalendarOpen(true)}>
+                      Choose different dates
+                    </button>
+                  )}
+                </motion.div>
+              ) : null}
+              </AnimatePresence>
+              {listing.type !== 'room' || datesConfirmed ? (
+                <motion.div
+                  className="space-y-4"
+                  initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: reduceMotion ? 0 : 0.28, ease: [0.22, 1, 0.36, 1] }}
+                >
               {listing.type === 'room' ? (
-                <div className="space-y-3">
+                <div ref={bookingDetailsRef} className="scroll-mt-24 space-y-3">
                   <div className="flex items-center justify-between rounded-[1.25rem] border border-white/10 bg-[#0d1710]/80 px-4 py-3">
                     <div>
                       <p className="text-sm font-semibold text-white">Adults</p>
@@ -429,11 +591,7 @@ function ListingDetailPage({ bookingFirst = false }) {
                   </div>
 
                   <div className="rounded-[1.25rem] border border-white/10 bg-[#0d1710]/80 px-4 py-3 text-xs text-slate-400">
-                    <ul className="list-disc space-y-1 pl-4">
-                      <li>Breakfast is complimentary.</li>
-                      <li>Meal price is not included in the room total.</li>
-                      <li>Lunch and dinner are Rs 350 per person per meal.</li>
-                    </ul>
+                    <MealPolicyList />
                   </div>
 
                   <div className="flex items-center justify-between rounded-[1.25rem] border border-white/10 bg-[#0d1710]/80 px-4 py-3">
@@ -500,7 +658,7 @@ function ListingDetailPage({ bookingFirst = false }) {
 
                 </div>
               ) : (
-                <div>
+                <div ref={bookingDetailsRef} className="scroll-mt-24">
                   <label className="label">Guests</label>
                   <input
                     className="input"
@@ -524,6 +682,7 @@ function ListingDetailPage({ bookingFirst = false }) {
                   <label className="label">Contact name</label>
                   <input
                     className="input"
+                    required
                     value={booking.contactName}
                     onChange={(event) => setBooking((prev) => ({ ...prev, contactName: event.target.value }))}
                   />
@@ -533,6 +692,7 @@ function ListingDetailPage({ bookingFirst = false }) {
                   <input
                     className="input"
                     type="email"
+                    required
                     value={booking.contactEmail}
                     onChange={(event) => setBooking((prev) => ({ ...prev, contactEmail: event.target.value }))}
                   />
@@ -542,97 +702,70 @@ function ListingDetailPage({ bookingFirst = false }) {
                 <label className="label">Contact phone</label>
                 <input
                   className="input"
+                  required
                   value={booking.contactPhone}
                   onChange={(event) => setBooking((prev) => ({ ...prev, contactPhone: event.target.value }))}
                 />
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <button className="btn-secondary disabled:opacity-50" type="button" onClick={checkAvailability} disabled={checking}>
-                  {checking ? 'Checking...' : 'Check Availability'}
-                </button>
-                <button className="btn-primary" type="submit">
-                  Send Booking Request
-                </button>
-              </div>
+              <button className="btn-primary w-full disabled:opacity-50" type="submit" disabled={checking || submitting}>
+                {checking ? 'Checking your dates...' : submitting ? 'Starting your booking...' : 'Continue to booking'}
+              </button>
               {listing.type === 'room' && (
                 <button
                   type="button"
                   className="flex w-full items-center justify-center gap-2 rounded-[1.25rem] border border-white/20 bg-white/5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
-                  onClick={() => {
-                    addItem(listing, booking.startDate, booking.endDate, booking.adults + booking.children);
-                    toast.success(`${listing.name} added to cart`);
-                  }}
+                  onClick={addAnotherRoom}
                 >
-                  <ShoppingBagIcon className="h-4 w-4" />
-                  Add to Cart
+                  <PlusIcon className="h-4 w-4" />
+                  Add Another Room
                 </button>
               )}
+                </motion.div>
+              ) : null}
             </form>
-
-            {availability ? (
-              <div className="mt-5 rounded-[1.5rem] border border-white/10 bg-slate-900/70 p-4 text-sm">
-                <p className={availability.available ? 'text-emerald-300' : 'text-rose-300'}>{availability.reason}</p>
-                <p className="mt-2 text-slate-300">Stay dates: {formatDateRange(booking.startDate, booking.endDate)}</p>
-                <p className="text-slate-300">Duration: {stayNights} {stayNights === 1 ? 'night' : 'nights'}</p>
-                <p className="text-slate-300">
-                  Guests: {booking.adults} adult{booking.adults === 1 ? '' : 's'}
-                  {booking.children > 0 ? `, ${booking.children} child${booking.children === 1 ? '' : 'ren'}` : ''}
-                  {booking.pets > 0 ? `, ${booking.pets} pet${booking.pets === 1 ? '' : 's'}` : ''}
-                </p>
-                <p className="text-slate-300">Average nightly tariff: {formatCurrency(availability.pricing.unitPrice)} per person</p>
-                {availability.pricing.gstAmount ? (
-                  <p className="text-slate-300">
-                    Subtotal: {formatCurrency(availability.pricing.subtotal)} + GST (5%): {formatCurrency(availability.pricing.gstAmount)}
-                  </p>
-                ) : null}
-                <p className="text-slate-300">Estimated booking value: {formatCurrency(availability.pricing.totalPrice)}</p>
-                {availability.pricing.adjustments?.length ? (
-                  <p className="mt-2 text-slate-400">Applied tariff notes: {availability.pricing.adjustments.join(', ')}</p>
-                ) : null}
-              </div>
-            ) : null}
           </div>
 
-          {(isBookingIntent && listing.type === 'room' ? recommendedRooms.length : related.length) ? (
-            <div>
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-xl font-semibold text-white">
-                  {isBookingIntent && listing.type === 'room'
-                    ? 'Other rooms you might be interested in'
-                    : listing.type === 'room'
-                      ? 'More stays nearby'
-                      : 'You might also like'}
-                </h3>
-                {isBookingIntent && listing.type === 'room' ? null : (
-                  <Link className="text-sm text-slate-300" to={`/${listing.type === 'room' ? 'stays' : `${listing.type}s`}`}>
-                    See all
-                  </Link>
-                )}
-              </div>
-              {isBookingIntent && listing.type === 'room' ? (
-                <div className="flex gap-4 overflow-x-auto pb-2">
-                  {recommendedRooms.map((item) => (
-                    <div key={item._id} className="min-w-[290px] max-w-[290px] flex-shrink-0">
-                      <ListingCard
-                        listing={item}
-                        onBookNow={openRecommendedRoomBooking}
-                        compact
-                      />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {related.map((item) => (
-                    <ListingCard key={item._id} listing={item} />
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : null}
         </div>
       </div>
+
+      {(isBookingIntent && listing.type === 'room' ? recommendedRooms.length : related.length) ? (
+        <div className="mt-10 min-w-0">
+          <div className="mb-5 flex items-center justify-between gap-4">
+            <h3 className="text-xl font-semibold text-white sm:text-2xl">
+              {isBookingIntent && listing.type === 'room'
+                ? 'Other rooms you might be interested in'
+                : listing.type === 'room'
+                  ? 'More stays nearby'
+                  : 'You might also like'}
+            </h3>
+            {isBookingIntent && listing.type === 'room' ? null : (
+              <Link className="shrink-0 text-sm text-slate-300" to={`/${listing.type === 'room' ? 'stays' : `${listing.type}s`}`}>
+                See all
+              </Link>
+            )}
+          </div>
+          {isBookingIntent && listing.type === 'room' ? (
+            <div className="grid items-stretch gap-5 sm:grid-cols-2 xl:grid-cols-3">
+              {recommendedRooms.map((item) => (
+                <div key={item._id} className="min-w-0">
+                  <ListingCard
+                    listing={item}
+                    onBookNow={openRecommendedRoomBooking}
+                    compact
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {related.map((item) => (
+                <ListingCard key={item._id} listing={item} />
+              ))}
+            </div>
+          )}
+        </div>
+      ) : null}
 
       {/* Sticky mobile booking bar — hidden once booking form is in view */}
       {listing && stickyBarVisible && (

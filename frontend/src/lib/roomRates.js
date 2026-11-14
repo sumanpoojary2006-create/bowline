@@ -45,6 +45,30 @@ export const groupBookingTiers = {
 export const getGroupBundleRooms = (rooms, bundle) =>
   bundle === 'full-house' ? rooms : rooms.filter((room) => room.slug !== 'pent-house');
 
+export const buildGroupBookingListings = (rooms) => {
+  if (!rooms.length) return [];
+
+  return Object.values(groupBookingTiers).map((tier) => {
+    const tierRooms = getGroupBundleRooms(rooms, tier.key);
+    return {
+      _id: `group-booking-${tier.key}`,
+      isGroupBundle: true,
+      bundle: tier.key,
+      type: 'room',
+      slug: `group-booking-${tier.key}`,
+      name: tier.label,
+      shortDescription: `Includes ${tierRooms.map((room) => room.name).join(', ')} with breakfast for everyone.`,
+      extraPoints: tier.key === 'except-pent-house' ? [{ emoji: '🚫', text: 'Penthouse excluded' }] : [],
+      images: tierRooms.flatMap((room) => room.images || []),
+      price: tier.weekday,
+      priceUnit: 'person',
+      minOccupancy: tier.minGuests,
+      maxOccupancy: tier.maxGuests,
+      capacity: tier.maxGuests,
+    };
+  });
+};
+
 export const getRoomRate = (listing) => {
   if (listing?.isGroupBundle) {
     const tier = groupBookingTiers[listing.bundle];

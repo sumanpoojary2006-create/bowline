@@ -1,5 +1,7 @@
 import PDFDocument from 'pdfkit';
 import dayjs from 'dayjs';
+import { formatBookingDate, nightsBetweenBookingDates } from './bookingDates.js';
+import { CHECK_IN_TIME, CHECK_OUT_TIME, DINNER_PRICE, LUNCH_PRICE } from './guestStayInfo.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { getAmountPaid, getAmountDue } from '../controllers/paymentController.js';
@@ -86,9 +88,9 @@ export const generateBookingReceiptPdf = (bookings) =>
     y = drawSectionLabel(doc, `Booking${bookings.length > 1 ? 's' : ''} Summary`, y);
 
     bookings.forEach((booking, idx) => {
-      const nights = Math.max(dayjs(booking.endDate).diff(dayjs(booking.startDate), 'day'), 1);
-      const checkIn = dayjs(booking.startDate).format('D MMM YYYY');
-      const checkOut = dayjs(booking.endDate).format('D MMM YYYY');
+      const nights = Math.max(nightsBetweenBookingDates(booking.startDate, booking.endDate), 1);
+      const checkIn = formatBookingDate(booking.startDate);
+      const checkOut = formatBookingDate(booking.endDate);
       const guestParts = [];
       if (booking.adultGuests) guestParts.push(`${booking.adultGuests} adult${booking.adultGuests > 1 ? 's' : ''}`);
       if (booking.childGuests) guestParts.push(`${booking.childGuests} child${booking.childGuests > 1 ? 'ren' : ''}`);
@@ -144,8 +146,9 @@ export const generateBookingReceiptPdf = (bookings) =>
     y = drawSectionLabel(doc, 'Important Information', y);
     y += 8;
     const policies = [
-      'Check-in: 1:00 PM  ·  Check-out: 10:00 AM',
-      'Breakfast is complimentary. Lunch & dinner are Rs.350 per person per meal.',
+      `Check-in: ${CHECK_IN_TIME}  ·  Check-out: ${CHECK_OUT_TIME}`,
+      `Breakfast is complimentary. Lunch: Rs.${LUNCH_PRICE} per person (not available on day 1).`,
+      `Dinner: Rs.${DINNER_PRICE} per person; request one day before arrival (veg or non-veg).`,
       'Pets are welcome with prior notice. Pet fee: Rs.400 per stay.',
       'For cancellations or changes please contact us at bowlinestays@gmail.com.',
     ];

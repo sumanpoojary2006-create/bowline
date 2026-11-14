@@ -1,6 +1,7 @@
 import { TagIcon, TrashIcon, UserGroupIcon } from '@heroicons/react/24/outline';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
+import MealPolicyList from '../components/MealPolicyList';
 import { useNavigate } from 'react-router-dom';
 import BookingSuccessOverlay from '../components/BookingSuccessOverlay';
 import { useAuth } from '../context/AuthContext';
@@ -191,11 +192,7 @@ function CheckoutPage() {
                         {nights} night{nights > 1 ? 's' : ''} · {item.guests} guest{item.guests > 1 ? 's' : ''}
                       </p>
                       <div className="mt-3 rounded-[1.25rem] border border-lime-100/10 bg-black/20 p-3">
-                        <ul className="list-disc space-y-1 pl-4 text-xs text-slate-300">
-                          <li>Breakfast is complimentary.</li>
-                          <li>Meal price is not included in the room total.</li>
-                          <li>Lunch and dinner are Rs 350 per person per meal.</li>
-                        </ul>
+                        <MealPolicyList className="list-disc space-y-1 pl-4 text-xs text-slate-300" />
                       </div>
                       <p className="mt-1 font-semibold text-lime-300">
                         {formatCurrency(item.listing.price * nights)}

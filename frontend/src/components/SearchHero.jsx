@@ -35,7 +35,7 @@ function SearchHero({ filters, setFilters, onSubmit }) {
             selected={filters.startDate}
             onChange={(date) => updateStartDate(date)}
             className="w-full bg-transparent text-base font-medium text-slate-900 outline-none"
-            minDate={new Date()}
+            minDate={addDays(new Date(), 1)}
             dateFormat="MMM d"
           />
         </label>

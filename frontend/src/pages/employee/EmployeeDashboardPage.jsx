@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import employeeApi from '../../lib/employeeApi';
 import { useEmployeeAuth } from '../../context/EmployeeAuthContext';
 import PageLoader from '../../components/PageLoader';
+import AttendanceCalendar from '../../components/employee/AttendanceCalendar';
 
 const MIN_SHIFT_HOURS = 5;
 const ROLE_LABELS = {
@@ -111,6 +112,7 @@ function EmployeeDashboardPage() {
   }
 
   const status = summary?.today?.status;
+  const isOnLeaveToday = Boolean(summary?.isOnLeaveToday);
 
   return (
     <div className="flex min-h-screen flex-col px-5 pb-10 pt-6">
@@ -129,8 +131,22 @@ function EmployeeDashboardPage() {
         </button>
       </header>
 
+      <div className="mt-6">
+        <AttendanceCalendar onLeaveApplied={refresh} />
+      </div>
+
       <div className="mt-10 flex flex-1 flex-col items-center justify-center">
-        {!status ? (
+        {isOnLeaveToday ? (
+          <>
+            <StatusRing progress={1} tone="slate">
+              <span className="text-4xl">🌴</span>
+              <span className="mt-2 text-sm font-semibold uppercase tracking-wide text-slate-300">On leave today</span>
+            </StatusRing>
+            <p className="mt-6 max-w-xs text-center text-sm text-slate-400">
+              You applied for leave today, so check-in is disabled. See you on your next shift!
+            </p>
+          </>
+        ) : !status ? (
           <>
             <StatusRing progress={0} tone="lime">
               <button
@@ -193,6 +209,34 @@ function EmployeeDashboardPage() {
           </>
         )}
       </div>
+
+      {status && !isOnLeaveToday ? (
+        <div className="mt-8">
+          <p className="text-xs uppercase tracking-[0.25em] text-lime-200/60">Today's Tasks</p>
+          <Link
+            to="/employee/laundry"
+            className="mt-3 flex items-center justify-between rounded-[1.5rem] bg-slate-900/70 p-4"
+          >
+            <div>
+              <p className="text-sm font-semibold text-white">Laundry dashboard</p>
+              <p className="mt-1 text-xs text-slate-400">Upload today's laundry list</p>
+            </div>
+            <span className="text-lime-200">→</span>
+          </Link>
+          {status === 'checked-in' ? (
+            <Link
+              to="/employee/checkout"
+              className="mt-3 flex items-center justify-between rounded-[1.5rem] bg-slate-900/70 p-4"
+            >
+              <div>
+                <p className="text-sm font-semibold text-white">End-of-shift checklist</p>
+                <p className="mt-1 text-xs text-slate-400">Complete it when you check out</p>
+              </div>
+              <span className="text-lime-200">→</span>
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="mt-8 grid grid-cols-2 gap-4">
         <div className="glass rounded-[1.5rem] p-4 text-center">

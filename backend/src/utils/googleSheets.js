@@ -348,6 +348,37 @@ export async function pushAllFullBookingsToSheet(bookings) {
   return { pushed: items.length };
 }
 
+// ── Staff attendance — one tab per calendar month, 3 columns only ─────────
+// Column order in each "Attendance <Month>" tab (row 1 = headers):
+//   A: Employee Name   B: Check-in   C: Check-out
+export async function writeAttendanceToSheet({ employeeName, date, checkInAt, checkOutAt }) {
+  if (!isSheetsConfigured()) return;
+
+  await callAppsScript({
+    action: 'upsertAttendance',
+    date,
+    employeeName,
+    checkInAt: checkInAt ? new Date(checkInAt).toISOString() : '',
+    checkOutAt: checkOutAt ? new Date(checkOutAt).toISOString() : '',
+  });
+}
+
+// ── Monthly salary summary — one tab per month, reflects leave/salary calc ─
+export async function writeSalarySummaryToSheet({ month, employeeName, summary }) {
+  if (!isSheetsConfigured()) return;
+
+  await callAppsScript({
+    action: 'upsertSalarySummary',
+    month,
+    employeeName,
+    fullDays: summary.fullDays,
+    halfDays: summary.halfDays,
+    leaveDays: summary.leaveDays,
+    excessLeaveDays: summary.excessLeaveDays,
+    calculatedSalary: summary.calculatedSalary,
+  });
+}
+
 // ── Push a WhatsApp contact into the "WhatsApp Leads" tab ─────────────────
 export async function writeWhatsAppContactToSheet(contact) {
   if (!isSheetsConfigured()) return;

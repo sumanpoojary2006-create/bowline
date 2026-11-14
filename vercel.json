@@ -33,6 +33,10 @@
       "schedule": "0 22 * * *"
     },
     {
+      "path": "/api/reports/upcoming-checkins/cron",
+      "schedule": "30 20 * * *"
+    },
+    {
       "path": "/api/reports/laundry-damage/cron",
       "schedule": "15 20 1 * *"
     }

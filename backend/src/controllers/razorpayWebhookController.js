@@ -1,5 +1,4 @@
 import crypto from 'crypto';
-import dayjs from 'dayjs';
 import Booking from '../models/Booking.js';
 import { sendText } from '../utils/whatsapp.js';
 import {
@@ -11,7 +10,9 @@ import {
 } from '../utils/notifications.js';
 import { writeBookingToSheet, writeFullBookingToSheet, isSheetsConfigured } from '../utils/googleSheets.js';
 import { sendBookingConfirmationEmail } from '../utils/bookingConfirmationEmail.js';
+import { formatBookingDate, nightsBetweenBookingDates } from '../utils/bookingDates.js';
 import { getRazorpayCustomerEmail } from '../utils/whatsappBooking.js';
+import { GUEST_ARRIVAL_INFORMATION } from '../utils/guestStayInfo.js';
 
 function syncToSheet(booking) {
   if (!isSheetsConfigured()) return Promise.resolve();
@@ -145,8 +146,8 @@ export const handleRazorpayWebhook = async (req, res, next) => {
       const lines = [`*Payment Received - Booking Confirmed!* ✅`, ``, `*Receipt*`];
 
       for (const booking of updated) {
-        const nights = dayjs(booking.endDate).diff(dayjs(booking.startDate), 'day');
-        const dates = `${dayjs(booking.startDate).format('D MMM YYYY')} to ${dayjs(booking.endDate).format('D MMM YYYY')}`;
+        const nights = nightsBetweenBookingDates(booking.startDate, booking.endDate);
+        const dates = `${formatBookingDate(booking.startDate)} to ${formatBookingDate(booking.endDate)}`;
 
         lines.push(
           ``,
@@ -180,6 +181,12 @@ export const handleRazorpayWebhook = async (req, res, next) => {
       await sendText(phone, lines.join('\n')).catch((error) => {
         console.error('[Razorpay webhook] WhatsApp receipt failed:', error?.message);
       });
+
+      if (!isFinalPayment) {
+        await sendText(phone, GUEST_ARRIVAL_INFORMATION).catch((error) => {
+          console.error('[Razorpay webhook] WhatsApp arrival information failed:', error?.message);
+        });
+      }
     }
 
     if (!isFinalPayment) {

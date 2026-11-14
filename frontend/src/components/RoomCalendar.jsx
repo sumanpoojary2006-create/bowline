@@ -1,4 +1,5 @@
 import { ArrowRightIcon, CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import api from '../lib/api';
 import { addDays, formatDateParam } from '../lib/dateUtils';
@@ -92,7 +93,7 @@ export function CalendarMonth({ year, month, bookedRanges, startDate, endDate, s
             year: 'numeric',
           });
 
-          let base = 'flex items-center justify-center text-sm select-none ';
+          let base = 'flex items-center justify-center text-sm select-none transition-[background-color,color,transform] duration-200 ease-out ';
           let size = 'aspect-square w-full ';
           let style = '';
 
@@ -128,6 +129,7 @@ export function CalendarMonth({ year, month, bookedRanges, startDate, endDate, s
 }
 
 function RoomCalendar({ listingId, listingIds, startDate, endDate, onStartDate, onEndDate, onRangeComplete }) {
+  const reduceMotion = useReducedMotion();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -194,7 +196,7 @@ function RoomCalendar({ listingId, listingIds, startDate, endDate, onStartDate, 
         onEndDate(date);
         setSelecting('start');
         setHasEndSelected(true);
-        onRangeComplete?.();
+        onRangeComplete?.({ startDate, endDate: date });
       }
     }
   };
@@ -256,12 +258,27 @@ function RoomCalendar({ listingId, listingIds, startDate, endDate, onStartDate, 
       </div>
 
       {/* Step prompt */}
-      <p className="text-sm font-medium text-lime-300">
-        {selecting === 'start' ? '① Tap your check-in date' : '② Tap your check-out date'}
-      </p>
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.p
+          key={selecting}
+          className="text-sm font-medium text-lime-300"
+          initial={reduceMotion ? false : { opacity: 0, x: 8 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={reduceMotion ? undefined : { opacity: 0, x: -8 }}
+          transition={{ duration: reduceMotion ? 0 : 0.18, ease: [0.22, 1, 0.36, 1] }}
+        >
+          {selecting === 'start' ? '① Tap your check-in date' : '② Tap your check-out date'}
+        </motion.p>
+      </AnimatePresence>
 
       {/* Two months side by side on larger screens, one on mobile */}
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+      <motion.div
+        key={`${viewYear}-${viewMonth}`}
+        className="grid grid-cols-1 gap-6 sm:grid-cols-2"
+        initial={reduceMotion ? false : { opacity: 0, x: 10 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: reduceMotion ? 0 : 0.22, ease: [0.22, 1, 0.36, 1] }}
+      >
         <div>
           <p className="mb-1 text-center text-sm font-semibold text-slate-200">{monthLabel(viewYear, viewMonth)}</p>
           <CalendarMonth
@@ -288,7 +305,7 @@ function RoomCalendar({ listingId, listingIds, startDate, endDate, onStartDate, 
             onDayClick={handleDayClick}
           />
         </div>
-      </div>
+      </motion.div>
 
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-4 pt-1 text-xs text-slate-400">
@@ -304,8 +321,15 @@ function RoomCalendar({ listingId, listingIds, startDate, endDate, onStartDate, 
       </div>
 
       {/* Next available suggestion */}
+      <AnimatePresence initial={false}>
       {nextAvailable && (
-        <div className="rounded-[1.25rem] border border-amber-400/30 bg-amber-400/10 p-3 text-sm">
+        <motion.div
+          className="rounded-[1.25rem] border border-amber-400/30 bg-amber-400/10 p-3 text-sm"
+          initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={reduceMotion ? undefined : { opacity: 0, y: -5 }}
+          transition={{ duration: reduceMotion ? 0 : 0.22, ease: [0.22, 1, 0.36, 1] }}
+        >
           <p className="font-semibold text-amber-300">Those dates are booked</p>
           {ids.length > 1 && nextAvailable.blockingRooms?.length > 0 && (
             <p className="mt-0.5 text-xs text-amber-200/80">
@@ -328,13 +352,17 @@ function RoomCalendar({ listingId, listingIds, startDate, endDate, onStartDate, 
               onEndDate(new Date(nextAvailable.endDate));
               setSelecting('start');
               setHasEndSelected(true);
-              onRangeComplete?.();
+              onRangeComplete?.({
+                startDate: new Date(nextAvailable.startDate),
+                endDate: new Date(nextAvailable.endDate),
+              });
             }}
           >
             Use these dates
           </button>
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 }

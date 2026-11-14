@@ -9,7 +9,15 @@ const ROLE_LABELS = {
   kitchen: 'Kitchen Assistant',
 };
 
-const emptyForm = { name: '', phone: '', email: '', password: '', role: 'housekeeping' };
+const emptyForm = {
+  name: '',
+  phone: '',
+  email: '',
+  password: '',
+  role: 'housekeeping',
+  monthlySalary: '',
+  leavesPerMonth: '',
+};
 
 function AdminEmployeesPage() {
   const [employees, setEmployees] = useState([]);
@@ -54,6 +62,16 @@ function AdminEmployeesPage() {
       fetchEmployees();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Unable to update employee');
+    }
+  };
+
+  const savePay = async (employee, monthlySalary, leavesPerMonth) => {
+    try {
+      await api.put(`/admin/employees/${employee.id}`, { monthlySalary, leavesPerMonth });
+      toast.success('Pay settings updated');
+      fetchEmployees();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Unable to update pay settings');
     }
   };
 
@@ -122,6 +140,28 @@ function AdminEmployeesPage() {
                 minLength={6}
               />
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">Monthly salary (₹)</label>
+                <input
+                  className="input"
+                  type="number"
+                  min="0"
+                  value={form.monthlySalary}
+                  onChange={(event) => setForm((prev) => ({ ...prev, monthlySalary: event.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="label">Leaves / month</label>
+                <input
+                  className="input"
+                  type="number"
+                  min="0"
+                  value={form.leavesPerMonth}
+                  onChange={(event) => setForm((prev) => ({ ...prev, leavesPerMonth: event.target.value }))}
+                />
+              </div>
+            </div>
             <button className="btn-primary w-full" disabled={submitting} type="submit">
               {submitting ? 'Creating...' : 'Create employee'}
             </button>
@@ -135,33 +175,85 @@ function AdminEmployeesPage() {
               <p className="text-sm text-slate-400">No employees yet.</p>
             ) : (
               employees.map((employee) => (
-                <div key={employee.id} className="rounded-[1.5rem] bg-slate-900/70 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-lg font-semibold text-white">{employee.name}</p>
-                      <p className="mt-1 text-sm text-slate-400">{employee.phone}</p>
-                      <p className="mt-1 text-sm text-slate-300">{ROLE_LABELS[employee.role] || employee.role}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm text-lime-200">
-                        {employee.score != null ? `${employee.score} / 100` : 'No score yet'}
-                      </p>
-                      <button
-                        className={`mt-2 rounded-full px-3 py-1 text-xs font-semibold ${
-                          employee.active ? 'bg-rose-500/20 text-rose-300' : 'bg-lime-200 text-slate-950'
-                        }`}
-                        onClick={() => toggleActive(employee)}
-                      >
-                        {employee.active ? 'Deactivate' : 'Activate'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                <EmployeeRow key={employee.id} employee={employee} onToggleActive={toggleActive} onSavePay={savePay} />
               ))
             )}
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function EmployeeRow({ employee, onToggleActive, onSavePay }) {
+  const [monthlySalary, setMonthlySalary] = useState(employee.monthlySalary ?? 0);
+  const [leavesPerMonth, setLeavesPerMonth] = useState(employee.leavesPerMonth ?? 0);
+  const dirty = Number(monthlySalary) !== (employee.monthlySalary ?? 0) || Number(leavesPerMonth) !== (employee.leavesPerMonth ?? 0);
+  const salary = employee.currentMonthSalary;
+
+  return (
+    <div className="rounded-[1.5rem] bg-slate-900/70 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-lg font-semibold text-white">{employee.name}</p>
+          <p className="mt-1 text-sm text-slate-400">{employee.phone}</p>
+          <p className="mt-1 text-sm text-slate-300">{ROLE_LABELS[employee.role] || employee.role}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-sm text-lime-200">
+            {employee.score != null ? `${employee.score} / 100` : 'No score yet'}
+          </p>
+          <button
+            className={`mt-2 rounded-full px-3 py-1 text-xs font-semibold ${
+              employee.active ? 'bg-rose-500/20 text-rose-300' : 'bg-lime-200 text-slate-950'
+            }`}
+            onClick={() => onToggleActive(employee)}
+          >
+            {employee.active ? 'Deactivate' : 'Activate'}
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-3 border-t border-white/10 pt-4">
+        <div>
+          <label className="label">Monthly salary (₹)</label>
+          <input
+            className="input"
+            type="number"
+            min="0"
+            value={monthlySalary}
+            onChange={(event) => setMonthlySalary(event.target.value)}
+          />
+        </div>
+        <div>
+          <label className="label">Leaves / month</label>
+          <input
+            className="input"
+            type="number"
+            min="0"
+            value={leavesPerMonth}
+            onChange={(event) => setLeavesPerMonth(event.target.value)}
+          />
+        </div>
+      </div>
+      {dirty ? (
+        <button
+          className="mt-2 w-full rounded-full bg-lime-200 py-1.5 text-xs font-semibold text-slate-950"
+          onClick={() => onSavePay(employee, Number(monthlySalary) || 0, Number(leavesPerMonth) || 0)}
+        >
+          Save pay settings
+        </button>
+      ) : null}
+
+      {salary ? (
+        <div className="mt-3 rounded-xl bg-slate-950/50 p-3 text-xs text-slate-300">
+          <p className="font-semibold text-slate-200">This month's calculated salary: ₹{salary.calculatedSalary}</p>
+          <p className="mt-1 text-slate-400">
+            {salary.fullDays} full day(s), {salary.halfDays} half day(s), {salary.leaveDays} leave day(s)
+            {salary.excessLeaveDays > 0 ? ` (${salary.excessLeaveDays} beyond the ${salary.leavesPerMonth}-leave allowance, unpaid)` : ''}.
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }

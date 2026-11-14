@@ -10,6 +10,8 @@ import {
 } from '../utils/notifications.js';
 import { writeBookingToSheet, writeFullBookingToSheet, isSheetsConfigured } from '../utils/googleSheets.js';
 import { sendBookingConfirmationEmail } from '../utils/bookingConfirmationEmail.js';
+import { sendText } from '../utils/whatsapp.js';
+import { GUEST_ARRIVAL_INFORMATION } from '../utils/guestStayInfo.js';
 import { getDepositAmount, getAmountDue, getAmountPaid } from '../utils/bookingAmounts.js';
 
 // Re-exported so existing importers (receiptPdf.js, guestReport.js,
@@ -277,6 +279,13 @@ export const verifyPayment = async (req, res, next) => {
       await sendBookingConfirmationEmail(updated).catch((error) => {
         console.error('Failed to send booking confirmation email', error);
       });
+
+      const guestPhone = updated[0]?.contactPhone?.replace(/^\+/, '');
+      if (guestPhone) {
+        await sendText(guestPhone, GUEST_ARRIVAL_INFORMATION).catch((error) => {
+          console.error('Failed to send WhatsApp arrival information', error);
+        });
+      }
     }
 
     res.json({ bookings: updated });

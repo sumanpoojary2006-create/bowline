@@ -1,5 +1,9 @@
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat.js';
+import {
+  parseDateKey,
+  todayPropertyDateKey,
+} from './bookingDates.js';
 
 dayjs.extend(customParseFormat);
 
@@ -18,24 +22,27 @@ const normalizeDateString = (value) => {
   return value.replace(/([a-zA-Z]+)/g, (m) => m.charAt(0).toUpperCase() + m.slice(1).toLowerCase());
 };
 
-const parseSingleDate = (value) => {
+const parseSingleDate = (value, todayKey = todayPropertyDateKey()) => {
   const trimmed = normalizeDateString(value.trim());
 
   for (const format of DATE_FORMATS) {
     const parsed = dayjs(trimmed, format, true);
 
     if (parsed.isValid()) {
-      let result = parsed.startOf('day');
-
+      let year = parsed.year();
       if (!format.includes('YYYY')) {
-        result = result.year(dayjs().year());
-
-        if (result.isBefore(dayjs(), 'day')) {
-          result = result.add(1, 'year');
-        }
+        year = Number(todayKey.slice(0, 4));
       }
 
-      return result;
+      let key = `${year}-${String(parsed.month() + 1).padStart(2, '0')}-${String(parsed.date()).padStart(2, '0')}`;
+      // A month/day without a year means the next occurrence of that date.
+      // This keeps the WhatsApp flow aligned with the website's future-date
+      // policy even when the message arrives near midnight or year-end.
+      if (!format.includes('YYYY') && key < todayKey) {
+        key = `${year + 1}-${key.slice(5)}`;
+      }
+
+      return parseDateKey(key);
     }
   }
 
@@ -52,12 +59,13 @@ export const parseDateRange = (text) => {
     return null;
   }
 
-  const startDate = parseSingleDate(parts[0]);
-  const endDate = parseSingleDate(parts[1]);
+  const todayKey = todayPropertyDateKey();
+  const startDate = parseSingleDate(parts[0], todayKey);
+  const endDate = parseSingleDate(parts[1], todayKey);
 
   if (!startDate || !endDate) {
     return null;
   }
 
-  return { startDate: startDate.toDate(), endDate: endDate.toDate() };
+  return { startDate, endDate };
 };

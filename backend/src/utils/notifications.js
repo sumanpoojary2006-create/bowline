@@ -1,8 +1,8 @@
-import dayjs from 'dayjs';
 import Notification from '../models/Notification.js';
 import User from '../models/User.js';
 import { isEmailConfigured, sendMail } from './email.js';
 import { getAmountPaid, getAmountDue } from './bookingAmounts.js';
+import { formatBookingDate, nightsBetweenBookingDates } from './bookingDates.js';
 
 export const createNotification = async ({ userId, title, message, type = 'system' }) => {
   return Notification.create({
@@ -19,8 +19,8 @@ export const formatBookingNotificationDetails = (bookings) => {
   const lines = [];
 
   list.forEach((booking) => {
-    const nights = Math.max(dayjs(booking.endDate).diff(dayjs(booking.startDate), 'day'), 1);
-    const dates = `${dayjs(booking.startDate).format('D MMM YYYY')} - ${dayjs(booking.endDate).format('D MMM YYYY')}`;
+    const nights = Math.max(nightsBetweenBookingDates(booking.startDate, booking.endDate), 1);
+    const dates = `${formatBookingDate(booking.startDate)} - ${formatBookingDate(booking.endDate)}`;
     const guestsLine = `${booking.adultGuests} adult${booking.adultGuests > 1 ? 's' : ''}${
       booking.childGuests ? `, ${booking.childGuests} child${booking.childGuests > 1 ? 'ren' : ''}` : ''
     }`;
@@ -55,8 +55,8 @@ export const formatBookingNotificationDetailsHtml = (bookings) => {
 
   const cards = list
     .map((booking) => {
-      const nights = Math.max(dayjs(booking.endDate).diff(dayjs(booking.startDate), 'day'), 1);
-      const dates = `${dayjs(booking.startDate).format('D MMM YYYY')} - ${dayjs(booking.endDate).format('D MMM YYYY')}`;
+      const nights = Math.max(nightsBetweenBookingDates(booking.startDate, booking.endDate), 1);
+      const dates = `${formatBookingDate(booking.startDate)} - ${formatBookingDate(booking.endDate)}`;
       const guestsLine = `${booking.adultGuests} adult${booking.adultGuests > 1 ? 's' : ''}${
         booking.childGuests ? `, ${booking.childGuests} child${booking.childGuests > 1 ? 'ren' : ''}` : ''
       }`;

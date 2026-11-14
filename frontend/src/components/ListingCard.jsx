@@ -1,6 +1,6 @@
 import { FireIcon } from '@heroicons/react/24/outline';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { formatCurrency } from '../lib/formatters';
 import { getRoomRate } from '../lib/roomRates';
@@ -15,7 +15,7 @@ function capitalize(text) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-function getDescriptionPoints(text) {
+export function getDescriptionPoints(text) {
   if (!text) return [];
   const cleaned = text.trim().replace(/\.$/, '');
   const [main, rest] = cleaned.split(/ with /i);
@@ -65,6 +65,8 @@ function ImageCarousel({ images, name, compact }) {
             <button
               key={i}
               type="button"
+              aria-label={`Show ${name} photo ${i + 1}`}
+              aria-pressed={i === idx}
               onClick={() => setIdx(i)}
               className={`h-1.5 rounded-full transition-all ${i === idx ? 'w-4 bg-lime-300' : 'w-1.5 bg-white/40'}`}
             />
@@ -82,12 +84,20 @@ function ListingCard({
   detailLabel = 'View More',
   showPrice = true,
 }) {
+  const reduceMotion = useReducedMotion();
   const isRoom = listing.type === 'room';
   const canBook = isRoom && typeof onBookNow === 'function';
   const roomRate = isRoom ? getRoomRate(listing) : null;
 
   return (
-    <motion.article whileHover={{ y: -6 }} className="glass flex h-full flex-col overflow-hidden rounded-[1.75rem] shadow-[0_18px_50px_rgba(0,0,0,0.28)]">
+    <motion.article
+      initial={reduceMotion ? false : { opacity: 0, y: 18 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.12 }}
+      whileHover={reduceMotion ? undefined : { y: -5 }}
+      transition={{ duration: reduceMotion ? 0 : 0.32, ease: [0.22, 1, 0.36, 1] }}
+      className="glass flex h-full flex-col overflow-hidden rounded-[1.75rem] shadow-[0_18px_50px_rgba(0,0,0,0.28)]"
+    >
       <div className={`relative overflow-hidden ${compact ? 'h-48' : 'h-60'}`}>
         <ImageCarousel images={listing.images} name={listing.name} compact={compact} />
         <div className="absolute inset-0 bg-gradient-to-t from-[#07110b] via-[#07110b]/20 to-transparent" />
@@ -159,7 +169,10 @@ function ListingCard({
                 Book Now
               </button>
             ) : (
-              <Link className="btn-primary w-full rounded-[1rem] px-4" to={`/book/${listing.slug}`}>
+              <Link
+                className="btn-primary w-full rounded-[1rem] px-4"
+                to={listing.isGroupBundle ? '/book-stay?selectDates=1' : `/book/${listing.slug}`}
+              >
                 Book Now
               </Link>
             )

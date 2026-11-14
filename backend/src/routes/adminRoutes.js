@@ -26,13 +26,16 @@ import {
   updateCoupon,
 } from '../controllers/adminController.js';
 import { authorize, protect } from '../middleware/auth.js';
+import { getAdminFaqs, updateFaqs } from '../controllers/faqController.js';
 import {
   createChecklistItem,
   createEmployee,
   deleteChecklistItem,
   getAllAttendance,
+  getAllLeaves,
   getChecklistItems,
   getChecklistSubmissions,
+  getEmployeeSalary,
   getEmployees,
   getWifiSetting,
   reorderChecklistItems,
@@ -63,11 +66,15 @@ router.get('/coupons', getCoupons);
 router.post('/coupons', createCoupon);
 router.put('/coupons/:id', updateCoupon);
 router.delete('/coupons/:id', deleteCoupon);
+router.get('/faqs', getAdminFaqs);
+router.put('/faqs', updateFaqs);
 
 router.get('/employees', getEmployees);
 router.post('/employees', createEmployee);
 router.put('/employees/:id', updateEmployee);
 router.get('/attendance', getAllAttendance);
+router.get('/leaves', getAllLeaves);
+router.get('/employees/:id/salary', getEmployeeSalary);
 router.get('/checklists', getChecklistSubmissions);
 router.put('/checklists/:id', reviewChecklistSubmission);
 

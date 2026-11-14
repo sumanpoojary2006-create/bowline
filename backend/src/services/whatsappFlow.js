@@ -22,6 +22,13 @@ import { notifyAdmins } from '../utils/notifications.js';
 import { sortRoomsForDisplay } from '../utils/roomOrder.js';
 import { findValidCoupon } from '../utils/coupons.js';
 import {
+  formatBookingDate,
+  formatShortBookingDate,
+  isFutureCheckInDate,
+  nightsBetweenBookingDates,
+  validateBookingDates,
+} from '../utils/bookingDates.js';
+import {
   WHATSAPP_QUERY_REPLY,
   allocateCouponDiscount,
   looksLikeCustomerQuery,
@@ -29,6 +36,7 @@ import {
   distributeGroupGuests,
   getWhatsAppGroupTier,
 } from '../utils/whatsappBooking.js';
+import { MEAL_SUMMARY } from '../utils/guestStayInfo.js';
 
 const RESET_WORDS = ['menu', 'hi', 'hello', 'hey', 'start', 'restart'];
 const BUTTON_ONLY_STEPS = new Set([
@@ -46,7 +54,7 @@ const extractIncoming = (message) => ({
   buttonId: message.interactive?.button_reply?.id || message.interactive?.list_reply?.id || null,
 });
 
-const formatDate = (date) => dayjs(date).format('D MMM YYYY');
+const formatDate = (date) => formatBookingDate(date);
 const sendQueryReply = (phone) => sendText(phone, WHATSAPP_QUERY_REPLY);
 const DORMITORY_SLUG = 'dormitory-open-loft';
 
@@ -190,7 +198,7 @@ const startMyBookings = async (session, phone) => {
         rows: bookings.map((booking) => ({
           id: `mybooking_${booking._id}`,
           title: `${booking.listing?.name || 'Room'} - ${formatDate(booking.startDate)}`.slice(0, 24),
-          description: `${dayjs(booking.startDate).format('D MMM')} to ${dayjs(booking.endDate).format('D MMM')} - ${booking.status}`.slice(0, 72),
+          description: `${formatShortBookingDate(booking.startDate)} to ${formatShortBookingDate(booking.endDate)} - ${booking.status}`.slice(0, 72),
         })),
       },
     ],
@@ -211,7 +219,7 @@ const handleMyBookingsSelect = async (session, phone, buttonId, profileName) => 
     return;
   }
 
-  const nights = dayjs(booking.endDate).diff(dayjs(booking.startDate), 'day');
+  const nights = nightsBetweenBookingDates(booking.startDate, booking.endDate);
 
   const lines = [`*Booking Details*`, ``];
   lines.push(`Booking ID: ${booking._id}`);
@@ -515,6 +523,12 @@ const handleGroupDates = async (session, phone, text) => {
     return;
   }
 
+  const dateValidation = validateBookingDates({ startDate: range.startDate, endDate: range.endDate });
+  if (!dateValidation.valid) {
+    await sendText(phone, `${dateValidation.message} Please choose dates from tomorrow onward.`);
+    return;
+  }
+
   const { groupGuests } = session.data;
   const tier = getWhatsAppGroupTier(groupGuests);
   const listings = await getRoomsForGroupTier(tier);
@@ -608,6 +622,11 @@ const handleCheckin = async (session, phone, text) => {
   if (calMatch) {
     const range = parseDateRange(calMatch[1].trim());
     if (range && range.endDate > range.startDate) {
+      const dateValidation = validateBookingDates({ startDate: range.startDate, endDate: range.endDate });
+      if (!dateValidation.valid) {
+        await sendText(phone, `${dateValidation.message} Please choose dates from tomorrow onward.`);
+        return;
+      }
       // Both dates provided from calendar — skip CHECKOUT step
       const overlapping = await getExistingBookingsForRange({
         listingId: session.data.listingId,
@@ -643,8 +662,8 @@ const handleCheckin = async (session, phone, text) => {
     return;
   }
 
-  if (dayjs(date).isBefore(dayjs(), 'day')) {
-    await sendText(phone, 'Check-in date cannot be in the past. Please enter a future date.');
+  if (!isFutureCheckInDate(date)) {
+    await sendText(phone, 'Check-in must be tomorrow or a later date. Please choose a future date.');
     return;
   }
 
@@ -679,7 +698,7 @@ const handleCheckout = async (session, phone, text) => {
   });
 
   if (overlapping.length) {
-    const nights = dayjs(endDate).diff(dayjs(startDate), 'day');
+    const nights = nightsBetweenBookingDates(startDate, endDate);
 
     const [prevWindow, nextWindow] = await Promise.all([
       getPreviousAvailableWindow(session.data.listingId, nights, startDate),
@@ -904,7 +923,7 @@ const sendSummary = async (session, phone) => {
   session.step = 'SUMMARY';
   await session.save();
 
-  const nights = dayjs(endDate).diff(dayjs(startDate), 'day');
+  const nights = nightsBetweenBookingDates(startDate, endDate);
   const lines = [
     `*Booking Summary*`,
     `Room: ${listingName}`,
@@ -935,7 +954,7 @@ const sendSummary = async (session, phone) => {
   if (cart.length) {
     lines.push(``, `*Other rooms in this booking:*`);
     cart.forEach((item) => {
-      const itemNights = dayjs(item.endDate).diff(dayjs(item.startDate), 'day');
+      const itemNights = nightsBetweenBookingDates(item.startDate, item.endDate);
       lines.push(
         `- ${item.listingName} (${formatDate(item.startDate)} to ${formatDate(item.endDate)}, ${itemNights} night${itemNights > 1 ? 's' : ''}) - Rs ${item.totalPrice}`
       );
@@ -946,7 +965,9 @@ const sendSummary = async (session, phone) => {
     ``,
     `Subtotal: Rs ${preTaxTotal}`,
     `GST (5%): Rs ${gstTotal}`,
-    `*Grand Total: Rs ${grandTotal}*`
+    `*Grand Total: Rs ${grandTotal}*`,
+    ``,
+    `*Meals:* ${MEAL_SUMMARY}`
   );
 
   session.step = 'SUMMARY_CONFIRM';

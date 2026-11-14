@@ -1,4 +1,5 @@
 import { ShoppingBagIcon, TrashIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useBookingCart } from '../context/BookingCartContext';
 import { formatCurrency, formatDate } from '../lib/formatters';
@@ -6,19 +7,30 @@ import { formatCurrency, formatDate } from '../lib/formatters';
 function BookingCartDrawer() {
   const { items, isOpen, setIsOpen, removeItem } = useBookingCart();
   const navigate = useNavigate();
-
-  if (!isOpen) return null;
+  const reduceMotion = useReducedMotion();
 
   const nightsBetween = (start, end) =>
     Math.max(Math.round((new Date(end) - new Date(start)) / 86400000), 1);
 
   return (
-    <>
-      <div
+    <AnimatePresence initial={false}>
+      {isOpen ? (
+      <>
+      <motion.div
         className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+        initial={reduceMotion ? false : { opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={reduceMotion ? undefined : { opacity: 0 }}
+        transition={{ duration: reduceMotion ? 0 : 0.2 }}
         onClick={() => setIsOpen(false)}
       />
-      <div className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col bg-[#0d1710] shadow-2xl">
+      <motion.div
+        className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col bg-[#0d1710] shadow-2xl"
+        initial={reduceMotion ? false : { x: '100%' }}
+        animate={{ x: 0 }}
+        exit={reduceMotion ? undefined : { x: '100%' }}
+        transition={{ duration: reduceMotion ? 0 : 0.34, ease: [0.22, 1, 0.36, 1] }}
+      >
         <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
           <div className="flex items-center gap-2">
             <ShoppingBagIcon className="h-5 w-5 text-lime-300" />
@@ -47,13 +59,19 @@ function BookingCartDrawer() {
               <p className="text-sm">Add rooms to book multiple stays at once</p>
             </div>
           ) : (
-            <ul className="space-y-4">
+            <motion.ul layout className="space-y-4">
+              <AnimatePresence initial={false}>
               {items.map((item) => {
                 const nights = nightsBetween(item.startDate, item.endDate);
                 return (
-                  <li
+                  <motion.li
                     key={item.id}
                     className="rounded-2xl border border-white/10 bg-white/5 p-4"
+                    layout
+                    initial={reduceMotion ? false : { opacity: 0, y: 10, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={reduceMotion ? undefined : { opacity: 0, x: 24, scale: 0.98 }}
+                    transition={{ duration: reduceMotion ? 0 : 0.2, ease: [0.22, 1, 0.36, 1] }}
                   >
                     <div className="flex gap-3">
                       <img
@@ -80,10 +98,11 @@ function BookingCartDrawer() {
                         <TrashIcon className="h-4 w-4" />
                       </button>
                     </div>
-                  </li>
+                  </motion.li>
                 );
               })}
-            </ul>
+              </AnimatePresence>
+            </motion.ul>
           )}
         </div>
 
@@ -100,8 +119,10 @@ function BookingCartDrawer() {
             </button>
           </div>
         )}
-      </div>
+      </motion.div>
     </>
+      ) : null}
+    </AnimatePresence>
   );
 }
 

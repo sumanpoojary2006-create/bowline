@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import PublicLayout from './layouts/PublicLayout';
 import AdminLayout from './layouts/AdminLayout';
 import EmployeeLayout from './layouts/EmployeeLayout';
@@ -11,6 +11,7 @@ import { BookingCartProvider } from './context/BookingCartContext';
 import { EmployeeAuthProvider } from './context/EmployeeAuthContext';
 
 const HomePage = lazy(() => import('./pages/HomePage'));
+const BookingPage = lazy(() => import('./pages/BookingPage'));
 const ListingsPage = lazy(() => import('./pages/ListingsPage'));
 const ListingDetailPage = lazy(() => import('./pages/ListingDetailPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
@@ -39,9 +40,21 @@ const AdminAttendancePage = lazy(() => import('./pages/AdminAttendancePage'));
 const AdminChecklistsPage = lazy(() => import('./pages/AdminChecklistsPage'));
 const AdminChecklistTemplatesPage = lazy(() => import('./pages/AdminChecklistTemplatesPage'));
 const AdminEmployeeSettingsPage = lazy(() => import('./pages/AdminEmployeeSettingsPage'));
+const AdminFaqsPage = lazy(() => import('./pages/AdminFaqsPage'));
 
 const LaundryPage = lazy(() => import('./pages/LaundryPage'));
 const AdminLaundryPage = lazy(() => import('./pages/AdminLaundryPage'));
+
+function BookingEntryRoute() {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const hasBookingContext =
+    params.has('selectDates') ||
+    params.has('room') ||
+    (params.has('startDate') && params.has('endDate'));
+
+  return hasBookingContext ? <BookingPage /> : <Navigate to="/stays" replace />;
+}
 
 function App() {
   return (
@@ -52,12 +65,13 @@ function App() {
       <Routes>
         <Route element={<PublicLayout />}>
           <Route path="/" element={<HomePage />} />
+          <Route path="/book-stay" element={<BookingEntryRoute />} />
           <Route path="/stays" element={<ListingsPage type="room" />} />
           <Route path="/treks" element={<ListingsPage type="trek" />} />
           <Route path="/camps" element={<ListingsPage type="camp" />} />
           <Route path="/browse" element={<BrowseRoomsPage />} />
           <Route path="/experiences/:slug" element={<ListingDetailPage />} />
-          <Route path="/book/:slug" element={<ListingDetailPage bookingFirst />} />
+          <Route path="/book/:slug" element={<BookingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/manage-booking" element={<ManageBookingPage />} />
           <Route path="/booking/confirmation/:id" element={<BookingConfirmationPage />} />
@@ -112,6 +126,7 @@ function App() {
           <Route path="checklists" element={<AdminChecklistsPage />} />
           <Route path="checklist-editor" element={<AdminChecklistTemplatesPage />} />
           <Route path="employee-settings" element={<AdminEmployeeSettingsPage />} />
+          <Route path="faqs" element={<AdminFaqsPage />} />
         </Route>
 
         <Route path="*" element={<NotFoundPage />} />

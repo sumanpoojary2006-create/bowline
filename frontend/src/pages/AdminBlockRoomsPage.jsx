@@ -191,6 +191,9 @@ function AdminBlockRoomsPage() {
                 />
               </div>
             </div>
+            <p className="text-xs text-[#b7c2b2]">
+              The “To” date is not blocked. To block only 8 October, choose 8 October to 9 October.
+            </p>
 
             <div>
               <label className="label">Reason (admin only)</label>

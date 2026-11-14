@@ -59,7 +59,7 @@ function AdminEmployeeSettingsPage() {
       <SectionHeader
         eyebrow="Staff Management"
         title="Employee WiFi Settings"
-        description="Employees can only check in while connected to the homestay's WiFi. Add the homestay's public IP address(es) here. To find it, visit whatismyip.com from a device connected to that WiFi."
+        description="Employees can only check in through the homestay's internet connection. Add its public IPv4 address and, when available, its IPv6 network range so every phone on the property WiFi is recognised."
       />
 
       <div className="glass max-w-xl rounded-[2rem] p-6">
@@ -67,7 +67,7 @@ function AdminEmployeeSettingsPage() {
         <form className="mt-5 flex gap-3" onSubmit={addIp}>
           <input
             className="input"
-            placeholder="e.g. 49.207.123.45"
+            placeholder="IP or network range, e.g. 2409:…::/64"
             value={newIp}
             onChange={(event) => setNewIp(event.target.value)}
           />

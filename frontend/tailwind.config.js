@@ -10,8 +10,8 @@ export default {
         mist: '#d7e3fc',
       },
       fontFamily: {
-        display: ['"DM Serif Display"', 'serif'],
-        sans: ['"Manrope"', 'sans-serif'],
+        display: ['"Montserrat"', 'sans-serif'],
+        sans: ['"Montserrat"', 'sans-serif'],
       },
       boxShadow: {
         glow: '0 24px 80px rgba(245, 158, 11, 0.18)',

@@ -1,21 +1,33 @@
 import { Bars3Icon, ShoppingBagIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useState } from 'react';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
-import clsx from 'clsx';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useBookingCart } from '../context/BookingCartContext';
 import bowlineLogo from '../assets/bowline-logo.jpg';
 
-const links = [
+const homeLinks = [
+  { label: 'Stay', to: '/#stay' },
+  { label: 'About', to: '/#about' },
+  { label: 'Experiences', to: '/#experiences' },
+  { label: 'FAQs', to: '/#faqs' },
+];
+
+const bookingLinks = [
+  { label: 'Home', to: '/' },
   { label: 'Treks', to: '/treks' },
   { label: 'Camps', to: '/camps' },
 ];
 
 function Navbar() {
   const [open, setOpen] = useState(false);
+  const reduceMotion = useReducedMotion();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout } = useAuth();
   const { items, setIsOpen: openCart } = useBookingCart();
+  const isHome = location.pathname === '/';
+  const links = isHome ? homeLinks : bookingLinks;
 
   const handleLogout = () => {
     logout();
@@ -24,31 +36,36 @@ function Navbar() {
   };
 
   return (
-    <header className="sticky top-0 z-40 border-b border-lime-100/10 bg-[#0a130d]">
-      <div className="section-shell flex h-20 items-center justify-between gap-4">
+    <header className="sticky top-0 z-40 border-b border-lime-100/10 bg-[#07100a]/95 backdrop-blur-xl">
+      <div className="section-shell flex h-[4.5rem] items-center justify-between gap-4">
         <Link to="/" className="flex items-center gap-3">
-          <img src={bowlineLogo} alt="Bowline Nature Stay" className="h-14 w-auto rounded-xl" />
+          <img src={bowlineLogo} alt="Bowline Nature Stay" className="h-11 w-auto rounded-lg" />
         </Link>
 
         <nav className="hidden items-center gap-2 md:flex">
-          {links.map((link) => (
-            <NavLink
-              key={link.to}
-              to={link.to}
-              className={({ isActive }) =>
-                clsx(
-                  'rounded-full px-4 py-2 text-sm font-medium transition',
-                  isActive ? 'bg-white/10 text-white' : 'text-[#d5ddd2] hover:text-white'
-                )
-              }
-            >
-              {link.label}
-            </NavLink>
-          ))}
+          {links.map((link) =>
+            isHome ? (
+              <a
+                key={link.to}
+                href={link.to.slice(1)}
+                className="rounded-full px-4 py-2 text-sm font-medium text-[#d5ddd2] transition hover:bg-white/5 hover:text-white"
+              >
+                {link.label}
+              </a>
+            ) : (
+              <Link
+                key={link.to}
+                to={link.to}
+                className="rounded-full px-4 py-2 text-sm font-medium text-[#d5ddd2] transition hover:bg-white/5 hover:text-white"
+              >
+                {link.label}
+              </Link>
+            )
+          )}
         </nav>
 
         <div className="hidden items-center gap-3 md:flex">
-          <button
+          {!isHome && <button
             onClick={() => openCart(true)}
             className="relative rounded-full border border-lime-100/10 p-2 text-[#d5ddd2] transition hover:text-white"
             aria-label="Open booking cart"
@@ -59,7 +76,7 @@ function Navbar() {
                 {items.length}
               </span>
             )}
-          </button>
+          </button>}
           {user?.role === 'admin' ? (
             <>
               <Link className="btn-secondary" to="/admin/overview">
@@ -71,8 +88,8 @@ function Navbar() {
             </>
           ) : (
             <>
-              <Link className="btn-primary" to="/manage-booking">
-                Manage Booking
+              <Link className="btn-primary" to={isHome ? '/stays' : '/manage-booking'}>
+                {isHome ? 'View rooms' : 'Manage Booking'}
               </Link>
             </>
           )}
@@ -80,7 +97,7 @@ function Navbar() {
 
         {/* Mobile: cart + hamburger grouped together on the right */}
         <div className="flex items-center gap-2 md:hidden">
-          <button
+          {!isHome && <button
             onClick={() => openCart(true)}
             className="relative flex h-11 w-11 items-center justify-center rounded-full border border-lime-100/10 text-[#d5ddd2]"
             aria-label="Open booking cart"
@@ -91,34 +108,64 @@ function Navbar() {
                 {items.length}
               </span>
             )}
-          </button>
+          </button>}
           <button
             className="flex h-11 w-11 items-center justify-center rounded-full border border-lime-100/10 text-white"
             onClick={() => setOpen((value) => !value)}
             aria-label="Toggle menu"
+            aria-expanded={open}
           >
-            {open ? <XMarkIcon className="h-6 w-6" /> : <Bars3Icon className="h-6 w-6" />}
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.span
+                key={open ? 'close' : 'menu'}
+                initial={reduceMotion ? false : { opacity: 0, rotate: -18, scale: 0.82 }}
+                animate={{ opacity: 1, rotate: 0, scale: 1 }}
+                exit={reduceMotion ? undefined : { opacity: 0, rotate: 18, scale: 0.82 }}
+                transition={{ duration: reduceMotion ? 0 : 0.16, ease: [0.22, 1, 0.36, 1] }}
+              >
+                {open ? <XMarkIcon className="h-6 w-6" /> : <Bars3Icon className="h-6 w-6" />}
+              </motion.span>
+            </AnimatePresence>
           </button>
         </div>
       </div>
 
+      <AnimatePresence initial={false}>
       {open && (
-        <div className="section-shell pb-4 md:hidden">
-          <div className="glass rounded-3xl p-3">
-            {links.map((link) => (
-              <NavLink
-                key={link.to}
-                to={link.to}
-                onClick={() => setOpen(false)}
-                className={({ isActive }) =>
-                  `block rounded-2xl px-4 py-3.5 text-sm font-medium transition ${
-                    isActive ? 'bg-white/10 text-white' : 'text-[#e0e7db] hover:bg-white/5'
-                  }`
-                }
-              >
-                {link.label}
-              </NavLink>
-            ))}
+        <motion.div
+          className="section-shell origin-top pb-4 md:hidden"
+          initial={reduceMotion ? false : { opacity: 0, height: 0, y: -8 }}
+          animate={{ opacity: 1, height: 'auto', y: 0 }}
+          exit={reduceMotion ? undefined : { opacity: 0, height: 0, y: -6 }}
+          transition={{ duration: reduceMotion ? 0 : 0.24, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <motion.div
+            className="glass rounded-3xl p-3"
+            initial={reduceMotion ? false : { scale: 0.98 }}
+            animate={{ scale: 1 }}
+            transition={{ duration: reduceMotion ? 0 : 0.22, ease: [0.22, 1, 0.36, 1] }}
+          >
+            {links.map((link) =>
+              isHome ? (
+                <a
+                  key={link.to}
+                  href={link.to.slice(1)}
+                  onClick={() => setOpen(false)}
+                  className="block rounded-2xl px-4 py-3.5 text-sm font-medium text-[#e0e7db] transition hover:bg-white/5"
+                >
+                  {link.label}
+                </a>
+              ) : (
+                <Link
+                  key={link.to}
+                  to={link.to}
+                  onClick={() => setOpen(false)}
+                  className="block rounded-2xl px-4 py-3.5 text-sm font-medium text-[#e0e7db] transition hover:bg-white/5"
+                >
+                  {link.label}
+                </Link>
+              )
+            )}
             <div className="mt-3 border-t border-white/10 pt-3">
               {user?.role === 'admin' ? (
                 <div className="grid gap-2">
@@ -135,15 +182,16 @@ function Navbar() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-2">
-                  <Link className="btn-primary w-full" onClick={() => setOpen(false)} to="/manage-booking">
-                    Manage Booking
+                  <Link className="btn-primary w-full" onClick={() => setOpen(false)} to={isHome ? '/stays' : '/manage-booking'}>
+                    {isHome ? 'View rooms & availability' : 'Manage Booking'}
                   </Link>
                 </div>
               )}
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </header>
   );
 }

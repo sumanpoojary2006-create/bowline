@@ -7,12 +7,19 @@ import { calculateBookingPrice } from '../utils/pricing.js';
 import { findValidCoupon, normalizeCouponCode } from '../utils/coupons.js';
 import { createNotification, notifyAdmins, formatBookingNotificationDetails, formatAdminBookingEmailSubject } from '../utils/notifications.js';
 import { getExistingBookingsForRange, validateListingAvailability } from '../utils/availability.js';
-import { writeBookingToSheet, writeFullBookingToSheet, refreshSheetRange, isSheetsConfigured } from '../utils/googleSheets.js';
+import {
+  writeBookingToSheet,
+  writeFullBookingToSheet,
+  refreshSheetRange,
+  isSheetsConfigured,
+  pushAllBookingsToSheet,
+} from '../utils/googleSheets.js';
 import { sendBookingConfirmationEmail } from '../utils/bookingConfirmationEmail.js';
 import { isEmailConfigured, sendMail } from '../utils/email.js';
 import { createRazorpayOrder, createRazorpayRefund, isRazorpayConfigured } from '../utils/razorpay.js';
 import { daysUntil, getCancellationRefundPercent, getRescheduleFeePercent } from '../utils/bookingPolicy.js';
 import { calculateRefundPaise } from './paymentController.js';
+import { validateBookingDates } from '../utils/bookingDates.js';
 
 // Awaited at booking-creation call sites so the initial (pending) sheet write
 // is guaranteed to land before the client can reach the payment step — Sheets
@@ -79,6 +86,15 @@ export const createBooking = async (req, res, next) => {
     const normalizedChildren = Number(childGuests || 0);
     const normalizedPets = Number(pets || 0);
     const normalizedGuests = Number(guests ?? normalizedAdults + normalizedChildren);
+
+    const dateValidation = validateBookingDates({
+      startDate: normalizedStartDate,
+      endDate: normalizedEndDate,
+    });
+    if (!dateValidation.valid) {
+      res.status(400);
+      throw new Error(dateValidation.message);
+    }
 
     const availability = await validateListingAvailability({
       listing,
@@ -232,6 +248,15 @@ export const createMultiBooking = async (req, res, next) => {
       const normalizedChildren = Number(childGuests || 0);
       const normalizedPets = Number(pets || 0);
       const normalizedGuests = Number(guests ?? normalizedAdults + normalizedChildren) || 1;
+
+      const dateValidation = validateBookingDates({
+        startDate: normalizedStart,
+        endDate: normalizedEnd,
+      });
+      if (!dateValidation.valid) {
+        validationErrors.push(`${listing.name}: ${dateValidation.message}`);
+        continue;
+      }
 
       if (listing.type === 'room') {
         const windowKey = `${listing._id}:${normalizedStart.toISOString()}:${normalizedEnd.toISOString()}`;
@@ -1546,38 +1571,50 @@ export const blockRoomDates = async (req, res, next) => {
 
     const note = String(blockNote).trim() || 'Blocked';
 
-    const blocks = await Booking.insertMany(
-      listings.map((listing) => ({
-        listing: listing._id,
-        user: req.user._id,
-        bookingType: 'room',
-        startDate: normalizedStart,
-        endDate: normalizedEnd,
-        status: 'blocked',
-        paymentStatus: 'paid',
-        paymentMethod: 'manual',
-        blockNote: note,
-        contactName: 'Admin Block',
-        contactEmail: 'admin@bowline.internal',
-        guests: 1,
-        adultGuests: 1,
-        unitPrice: 0,
-        totalPrice: 0,
-        source: 'admin',
-      }))
-    );
-
-    // insertMany preserves input order, so blocks[i] is listings[i]'s block —
-    // pair them up to color the calendar sheet red without writing a fake
-    // "Admin Block" row into the full booking-log sheet. Must be awaited
-    // before responding — Vercel can freeze the function the instant the
-    // response is sent, killing any still-in-flight fire-and-forget call.
-    await Promise.all(
-      blocks.map((block, idx) =>
-        writeBookingToSheet({ ...block.toObject(), listing: listings[idx] }).catch((err) =>
-          console.error('[blockRoomDates] Sheet sync failed:', err.message)
+    // Retrying after a sheet/network failure must not create duplicate block
+    // records. Reuse an exact existing admin block for the same room/range.
+    const blocks = await Promise.all(
+      listings.map((listing) =>
+        Booking.findOneAndUpdate(
+          {
+            listing: listing._id,
+            startDate: normalizedStart,
+            endDate: normalizedEnd,
+            status: 'blocked',
+            blockNote: note,
+            source: 'admin',
+          },
+          {
+            $setOnInsert: {
+              listing: listing._id,
+              user: req.user._id,
+              bookingType: 'room',
+              startDate: normalizedStart,
+              endDate: normalizedEnd,
+              status: 'blocked',
+              paymentStatus: 'paid',
+              paymentMethod: 'manual',
+              blockNote: note,
+              contactName: 'Admin Block',
+              contactEmail: 'admin@bowline.internal',
+              guests: 1,
+              adultGuests: 1,
+              unitPrice: 0,
+              totalPrice: 0,
+              source: 'admin',
+            },
+          },
+          { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true }
         )
       )
+    );
+
+    // Send every selected room in one Apps Script request. This prevents a
+    // partial calendar update (for example, three rooms turning red while
+    // Pent House remains blank). Do not suppress a final sync failure: the
+    // admin must be told to retry, which is safe because creation is idempotent.
+    await pushAllBookingsToSheet(
+      blocks.map((block, idx) => ({ ...block.toObject(), listing: listings[idx] }))
     );
 
     res.status(201).json({ blocks });

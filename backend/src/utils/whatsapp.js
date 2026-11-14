@@ -41,6 +41,30 @@ export function sendText(to, body) {
   });
 }
 
+export function sendTemplate(to, { name, language = 'en', bodyParameters = [] }) {
+  return sendMessage({
+    to,
+    type: 'template',
+    template: {
+      name,
+      language: { code: language },
+      ...(bodyParameters.length
+        ? {
+            components: [
+              {
+                type: 'body',
+                parameters: bodyParameters.map((value) => ({
+                  type: 'text',
+                  text: String(value),
+                })),
+              },
+            ],
+          }
+        : {}),
+    },
+  });
+}
+
 export function sendButtons(to, bodyText, buttons) {
   return sendMessage({
     to,

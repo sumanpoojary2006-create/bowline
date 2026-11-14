@@ -1,19 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../lib/api';
 import ListingCard from '../components/ListingCard';
 import EmptyState from '../components/EmptyState';
 import PageLoader from '../components/PageLoader';
 import SectionHeader from '../components/SectionHeader';
-import { addDays, formatDateParam } from '../lib/dateUtils';
-import { formatDateRange } from '../lib/formatters';
-import { getRoomDisplayOrder } from '../lib/roomRates';
+import { buildGroupBookingListings, getRoomDisplayOrder } from '../lib/roomRates';
 
 const pageConfig = {
   room: {
-    title: 'Available rooms for your selected stay dates',
-    eyebrow: 'Stay Bookings',
-    description: 'Compare room options with pricing, then use View More or Book Now to continue.',
+    title: 'Choose the room that feels right',
+    eyebrow: 'Room booking',
+    description: 'See every room and group option first. Select Book Now to view that option’s calendar and continue your booking.',
   },
   trek: {
     title: 'Adventure options around Bowline',
@@ -28,21 +25,13 @@ const pageConfig = {
 };
 
 function ListingsPage({ type }) {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
-    search: searchParams.get('search') || '',
-    capacity: searchParams.get('capacity') || '',
+    search: '',
+    capacity: '',
     difficulty: '',
   });
-
-  const defaultStartDate = formatDateParam(new Date());
-  const defaultEndDate = formatDateParam(addDays(new Date(), 1));
-  const selectedStartDate = searchParams.get('startDate') || defaultStartDate;
-  const selectedEndDate = searchParams.get('endDate') || defaultEndDate;
-  const selectedGuests = filters.capacity || searchParams.get('capacity') || '1';
 
   const config = pageConfig[type];
 
@@ -64,14 +53,23 @@ function ListingsPage({ type }) {
     const fetchListings = async () => {
       setLoading(true);
       try {
-        const { data } = await api.get('/listings', { params: query });
-        setListings(
-          type === 'room'
-            ? [...data.listings].sort(
-                (a, b) => getRoomDisplayOrder(a) - getRoomDisplayOrder(b)
-              )
-            : data.listings
-        );
+        const { data } = await api.get('/listings', {
+          params: type === 'room'
+            ? { ...query, limit: 8, includeBundleExtras: true }
+            : query,
+        });
+
+        if (type === 'room') {
+          const sortedRooms = [...data.listings].sort(
+            (a, b) => getRoomDisplayOrder(a) - getRoomDisplayOrder(b)
+          );
+          const standaloneRooms = sortedRooms.filter(
+            (room) => room.slug !== 'dormitory-open-loft'
+          );
+          setListings([...standaloneRooms, ...buildGroupBookingListings(sortedRooms)]);
+        } else {
+          setListings(data.listings);
+        }
       } finally {
         setLoading(false);
       }
@@ -79,24 +77,6 @@ function ListingsPage({ type }) {
 
     fetchListings();
   }, [query]);
-
-  const handleBookNow = (listing) => {
-    const bookingQuery = new URLSearchParams({
-      startDate: selectedStartDate,
-      endDate: selectedEndDate,
-      guests: selectedGuests,
-    });
-
-    navigate(`/book/${listing.slug}?${bookingQuery.toString()}`, {
-      state: {
-        bookingPrefill: {
-          startDate: selectedStartDate,
-          endDate: selectedEndDate,
-          guests: selectedGuests,
-        },
-      },
-    });
-  };
 
   return (
     <section className="section-shell py-12">
@@ -106,29 +86,7 @@ function ListingsPage({ type }) {
         description={config.description}
       />
 
-      {type === 'room' ? (
-        <div className="mb-8 space-y-4 rounded-[2rem] border border-lime-100/10 bg-[#0d1710]/75 p-5">
-          <div className="rounded-[1.25rem] border border-lime-100/10 bg-black/20 px-4 py-3 text-sm text-[#d2dbcf]">
-            Requirement: {formatDateRange(selectedStartDate, selectedEndDate)} • {selectedGuests} guest(s) • Mudigere
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <input
-              className="input"
-              placeholder="Search room by name or feature"
-              value={filters.search}
-              onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
-            />
-            <input
-              className="input"
-              placeholder="Guests"
-              type="number"
-              min="1"
-              value={filters.capacity}
-              onChange={(event) => setFilters((prev) => ({ ...prev, capacity: event.target.value }))}
-            />
-          </div>
-        </div>
-      ) : (
+      {type !== 'room' ? (
         <div className="mb-8 grid gap-4 rounded-[2rem] border border-lime-100/10 bg-[#0d1710]/70 p-4 md:grid-cols-2 xl:grid-cols-3">
           <input
             className="input"
@@ -156,7 +114,7 @@ function ListingsPage({ type }) {
             </select>
           ) : null}
         </div>
-      )}
+      ) : null}
 
       {loading ? (
         <PageLoader label="Loading Bowline inventory..." />
@@ -167,7 +125,6 @@ function ListingsPage({ type }) {
               key={listing._id}
               listing={listing}
               detailLabel="View More"
-              onBookNow={type === 'room' ? handleBookNow : undefined}
               showPrice
             />
           ))}

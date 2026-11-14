@@ -43,6 +43,16 @@ const employeeSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    monthlySalary: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    leavesPerMonth: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
   },
   {
     timestamps: true,

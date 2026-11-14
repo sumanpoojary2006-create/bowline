@@ -3,6 +3,7 @@ import { calculateBookingPrice } from '../utils/pricing.js';
 import { validateListingAvailability } from '../utils/availability.js';
 import { createNotification, notifyAdmins, formatBookingNotificationDetails, formatAdminBookingEmailSubject } from '../utils/notifications.js';
 import { writeBookingToSheet, writeFullBookingToSheet, isSheetsConfigured } from '../utils/googleSheets.js';
+import { validateBookingDates } from '../utils/bookingDates.js';
 
 // Awaited before returning so the initial (pending) sheet write can't race
 // the later "confirmed" write from payment verification — see the matching
@@ -37,6 +38,11 @@ export const createRoomBooking = async ({
   deferSideEffects = false,
 }) => {
   const guests = adultGuests + childGuests;
+
+  const dateValidation = validateBookingDates({ startDate, endDate });
+  if (!dateValidation.valid) {
+    throw new Error(dateValidation.message);
+  }
 
   const availability = await validateListingAvailability({
     listing,

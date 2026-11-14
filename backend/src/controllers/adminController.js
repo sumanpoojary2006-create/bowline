@@ -261,8 +261,13 @@ export const downloadDailyGuestReportPdf = async (req, res, next) => {
 
 export const sendDailyGuestReportEmailNow = async (req, res, next) => {
   try {
-    await sendTomorrowGuestReportEmail();
-    res.json({ message: "Tomorrow's guest report email sent" });
+    const result = await sendTomorrowGuestReportEmail();
+    res.json({
+      message: result.skipped
+        ? 'No eligible check-ins for tomorrow or the following day'
+        : 'Upcoming check-in report sent',
+      result,
+    });
   } catch (error) {
     next(error);
   }

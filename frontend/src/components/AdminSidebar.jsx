@@ -4,7 +4,10 @@ import clsx from 'clsx';
 const groups = [
   {
     label: 'General',
-    items: [{ label: 'Overview', to: '/admin/overview' }],
+    items: [
+      { label: 'Overview', to: '/admin/overview' },
+      { label: 'Website FAQs', to: '/admin/faqs' },
+    ],
   },
   {
     label: 'Bookings',

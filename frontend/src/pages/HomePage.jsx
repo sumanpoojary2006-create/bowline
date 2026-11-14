@@ -1,1531 +1,422 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { Link, useLocation } from 'react-router-dom';
 import {
   ArrowRightIcon,
-  CalendarDaysIcon,
+  CheckIcon,
   ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  MagnifyingGlassIcon,
-  MinusIcon,
-  PlusIcon,
-  ShoppingBagIcon,
-  TagIcon,
-  TrashIcon,
-  XMarkIcon,
+  ClockIcon,
+  FireIcon,
+  SparklesIcon,
 } from '@heroicons/react/24/outline';
-import { useLocation, useNavigate } from 'react-router-dom';
-import toast from 'react-hot-toast';
-import api from '../lib/api';
-import { payForBookings } from '../lib/razorpay';
+import heroImage from '../assets/marketing/starry-bowline.jpg';
+import campfireImage from '../assets/marketing/campfire.jpg';
 import ListingCard from '../components/ListingCard';
-import PageLoader from '../components/PageLoader';
-import EmptyState from '../components/EmptyState';
-import RoomCalendar from '../components/RoomCalendar';
-import FloatingDateRangePicker from '../components/FloatingDateRangePicker';
-import { formatCurrency } from '../lib/formatters';
-import { addDays, ensureCheckoutDate, formatDateParam } from '../lib/dateUtils';
-import { useAuth } from '../context/AuthContext';
-import { getGroupBundleRooms, getRoomRate, getRoomDisplayOrder, groupBookingTiers, isWeekendStayDate, petFee, GST_RATE } from '../lib/roomRates';
+import api from '../lib/api';
+import { buildGroupBookingListings, getRoomDisplayOrder } from '../lib/roomRates';
+import { DEFAULT_FAQS } from '../lib/faqs';
+import { CHECK_IN_TIME, CHECK_OUT_TIME } from '../lib/stayInfo';
 
-const forestBackdrop =
-  'https://images.unsplash.com/photo-1473448912268-2022ce9509d8?auto=format&fit=crop&w=1800&q=80';
+const whatsappUrl =
+  'https://wa.me/916360718604?text=Hi';
+const inquiryWhatsappUrl =
+  'https://wa.me/916366004404?text=Hi';
 
-const today = () => {
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  return date;
-};
-const tomorrow = () => addDays(today(), 1);
-const increment = (value, amount, min = 0, max = 20) => Math.max(min, Math.min(max, Number(value || 0) + amount));
-const formatStayDate = (date) => date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
-const toCalendarDay = (value) => {
-  const date = new Date(value);
-  date.setHours(0, 0, 0, 0);
-  return date;
-};
+function WhatsAppIcon({ className = '' }) {
+  return (
+    <svg className={className} viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">
+      <path d="M16.01 3A12.82 12.82 0 0 0 5.07 22.49L3.25 29l6.68-1.75A12.96 12.96 0 0 0 16 28.8h.01A12.9 12.9 0 0 0 16.01 3Zm7.5 18.21c-.32.9-1.87 1.72-2.58 1.82-.66.1-1.5.14-2.42-.15-.56-.18-1.28-.42-2.2-.81-3.87-1.67-6.39-5.57-6.58-5.83-.19-.26-1.57-2.09-1.57-3.99 0-1.9.99-2.84 1.35-3.23.35-.39.77-.49 1.03-.49h.74c.24.01.56-.09.87.67.32.77 1.09 2.66 1.19 2.85.1.19.16.42.03.68-.13.26-.19.42-.39.65-.19.23-.4.51-.58.68-.19.19-.39.4-.16.79.23.39 1.01 1.67 2.17 2.7 1.49 1.33 2.75 1.74 3.14 1.94.39.19.61.16.84-.1.23-.26.97-1.13 1.23-1.52.26-.39.52-.32.87-.19.36.13 2.26 1.06 2.65 1.26.39.19.65.29.74.45.1.17.1.94-.22 1.84Z" />
+    </svg>
+  );
+}
 
-const doesRangeBlockDay = (range, day) => {
-  const dayStart = toCalendarDay(day);
-  const dayEnd = addDays(dayStart, 1);
-  return toCalendarDay(range.startDate) < dayEnd && toCalendarDay(range.endDate) > dayStart;
-};
+const experiences = [
+  ['Secret trail', 'A host-guided, easy 5 km round trip through a trail marked and maintained by Bowline.'],
+  ['Hidden waterfall', 'A quiet local waterfall about 3 km away, shared with guests away from tourist crowds.'],
+  ['Freshwater stream', 'A five-minute walk to mountain-fed water, with life jackets provided for swimming.'],
+  ['4×4 off-road drive', 'Reach a scenic hilltop without the climb in a Bolero 4×4. Optional and paid.'],
+  ['Devaramane sunset', 'A 1,400-year-old temple and sunset viewpoint around 20 minutes from the stay.'],
+  ['Campfire evenings', 'Slow evenings with shared stories, games and the sounds of the Western Ghats.'],
+];
 
-// Sum a per-night rate (weekday vs weekend) across the stay, mirroring the
-// backend's night-by-night pricing so multi-night stays spanning a weekend
-// total the same on the frontend as the actual charge.
-const computeItemTotals = (listing, draft) => {
-  const nights = Math.max(Math.round((draft.endDate - draft.startDate) / 86400000), 1);
-  const rates = getRoomRate(listing);
-  const guestMultiplier = listing?.isGroupBundle
-    ? Number(draft.adults) + Number(draft.children)
-    : Number(draft.adults) + Number(draft.children) * 0.5;
-
-  let roomTotal = 0;
-  for (let i = 0; i < nights; i += 1) {
-    const night = addDays(draft.startDate, i);
-    const nightlyRate = isWeekendStayDate(night) ? rates.weekend : rates.weekday;
-    roomTotal += nightlyRate * guestMultiplier;
-  }
-
-  const petTotal = petFee * Number(draft.pets);
-  const subtotal = roomTotal + petTotal;
-  const gstAmount = Math.round(subtotal * GST_RATE);
-  const grandTotal = subtotal + gstAmount;
-  return { nights, roomTotal, petTotal, subtotal, gstAmount, grandTotal };
-};
-
-// Spread `total` guests across bundle rooms, respecting each room's
-// min/max occupancy so no single room is over- or under-booked.
-const distributeGuestsAcrossRooms = (totalGuests, bundleRooms) => {
-  const counts = bundleRooms.map((room) => Math.min(room.minOccupancy || 1, room.capacity || 1));
-  let remaining = totalGuests - counts.reduce((sum, count) => sum + count, 0);
-
-  while (remaining > 0) {
-    let madeProgress = false;
-
-    for (let i = 0; i < bundleRooms.length && remaining > 0; i += 1) {
-      const capacity = bundleRooms[i].capacity || 1;
-      if (counts[i] < capacity) {
-        counts[i] += 1;
-        remaining -= 1;
-        madeProgress = true;
-      }
-    }
-
-    if (!madeProgress) break;
-  }
-
-  return counts;
-};
-
-// Split a count proportionally across rooms (by guest share) while keeping
-// the per-room totals exact and never exceeding that room's guest count.
-const splitProportionally = (total, guestsForRoom) => {
-  let remainingTotal = total;
-  let remainingGuests = guestsForRoom.reduce((sum, count) => sum + count, 0);
-
-  return guestsForRoom.map((guests) => {
-    const share = remainingGuests > 0 ? Math.round((remainingTotal / remainingGuests) * guests) : 0;
-    remainingTotal -= share;
-    remainingGuests -= guests;
-    return share;
-  });
-};
-
-const hasValidObjectId = (value) => /^[a-f\d]{24}$/i.test(String(value || ''));
-
-const buildGroupBookingItems = (listing, draft, rooms) => {
-  const bundleRooms = getGroupBundleRooms(rooms, listing.bundle);
-  const tier = groupBookingTiers[listing.bundle];
-  const adults = Number(draft.adults);
-  const children = Number(draft.children);
-  const totalGuests = adults + children;
-
-  const guestsForRoom = distributeGuestsAcrossRooms(totalGuests, bundleRooms);
-  const adultsForRoom = splitProportionally(adults, guestsForRoom);
-
-  return bundleRooms.map((room, index) => ({
-    listingId: room._id,
-    startDate: formatDateParam(draft.startDate),
-    endDate: formatDateParam(draft.endDate),
-    guests: guestsForRoom[index],
-    adultGuests: adultsForRoom[index],
-    childGuests: guestsForRoom[index] - adultsForRoom[index],
-    pets: index === 0 ? Number(draft.pets) : 0,
-    groupRate: { weekday: tier.weekday, weekend: tier.weekend },
-  }));
-};
-
-const toBookingItem = (listing, draft) => ({
-  listingId: listing._id,
-  startDate: formatDateParam(draft.startDate),
-  endDate: formatDateParam(draft.endDate),
-  guests: Number(draft.adults) + Number(draft.children),
-  adultGuests: draft.adults,
-  childGuests: draft.children,
-  pets: draft.pets,
-});
+function SectionHeading({ eyebrow, title, copy }) {
+  return (
+    <div className="max-w-2xl">
+      <p className="text-sm font-semibold uppercase tracking-[0.28em] text-lime-200/80">{eyebrow}</p>
+      <h2 className="mt-4 font-display text-4xl font-bold leading-[1.08] tracking-[-0.035em] text-white sm:text-5xl">{title}</h2>
+      {copy && <p className="mt-5 text-base font-medium leading-8 !text-[#e1e8de] sm:text-lg">{copy}</p>}
+    </div>
+  );
+}
 
 function HomePage() {
-  const navigate = useNavigate();
+  const reduceMotion = useReducedMotion();
   const location = useLocation();
-  const { user } = useAuth();
-  const [filters] = useState({
-    startDate: tomorrow(),
-    endDate: addDays(tomorrow(), 1),
-    guests: '2',
-  });
-  const [rooms, setRooms] = useState([]);
-  const [bundleRooms, setBundleRooms] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [activeBooking, setActiveBooking] = useState(null);
-  const [bookingStep, setBookingStep] = useState('details');
-  const [bookingDraft, setBookingDraft] = useState({
-    startDate: tomorrow(),
-    endDate: addDays(tomorrow(), 1),
-    adults: 2,
-    children: 0,
-    pets: 0,
-    contactName: '',
-    contactEmail: '',
-    contactPhone: '',
-  });
-  const [couponCode, setCouponCode] = useState('');
-  const [couponOffer, setCouponOffer] = useState(null);
-  const [couponChecking, setCouponChecking] = useState(false);
-  const [roomCart, setRoomCart] = useState([]);
-  const [policyExpanded, setPolicyExpanded] = useState(false);
-  const [houseRulesExpanded, setHouseRulesExpanded] = useState(false);
-  const [policyAccepted, setPolicyAccepted] = useState(false);
-  const [paymentPlan, setPaymentPlan] = useState('deposit');
-  const [modalImageIndex, setModalImageIndex] = useState(0);
-  const [dateSearch, setDateSearch] = useState({
-    startDate: tomorrow(),
-    endDate: addDays(tomorrow(), 1),
-  });
-  const [datePickerOpen, setDatePickerOpen] = useState(false);
-  const [datePickerStep, setDatePickerStep] = useState('start');
-  const [searchResults, setSearchResults] = useState(null);
-  const [searching, setSearching] = useState(false);
+  const [openFaq, setOpenFaq] = useState(-1);
+  const [faqs, setFaqs] = useState(DEFAULT_FAQS);
+  const [roomListings, setRoomListings] = useState([]);
+  const [roomsLoading, setRoomsLoading] = useState(true);
+  const [roomsError, setRoomsError] = useState(false);
+  const roomCarouselRef = useRef(null);
 
   useEffect(() => {
-    document.title = 'Bowline Nature Stay | Book Your Hillside Stay';
-
-    const fetchHomeData = async () => {
-      try {
-        const [{ data }, { data: bundleData }] = await Promise.all([
-          api.get('/listings', { params: { type: 'room', limit: 8 } }),
-          // Dormitory is inactive (not bookable standalone) but is still
-          // overflow space for the Group Booking / Full House bundles.
-          api.get('/listings', { params: { type: 'room', limit: 8, includeBundleExtras: true } }),
-        ]);
-        setRooms([...data.listings].sort((a, b) => getRoomDisplayOrder(a) - getRoomDisplayOrder(b)));
-        setBundleRooms([...bundleData.listings].sort((a, b) => getRoomDisplayOrder(a) - getRoomDisplayOrder(b)));
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchHomeData();
+    document.title = 'Bowline Nature Stay | Mudigere, Chikkamagaluru';
+    const description = document.querySelector('meta[name="description"]');
+    if (description) {
+      description.setAttribute(
+        'content',
+        'A quiet, host-led nature stay near Devaramane, Mudigere with cozy rooms, Malnad food, hidden trails, waterfalls and campfire evenings.'
+      );
+    }
   }, []);
 
   useEffect(() => {
-    if (location.state?.resetBookingModal) {
-      setActiveBooking(null);
-    }
-  }, [location.state]);
+    const targetId = decodeURIComponent(location.hash.replace(/^#/, ''));
+    if (!targetId) return undefined;
 
-  const groupListings = useMemo(() => {
-    if (!bundleRooms.length) return [];
+    const scrollToTarget = () => {
+      document.getElementById(targetId)?.scrollIntoView({ block: 'start', behavior: 'auto' });
+    };
 
-    return Object.values(groupBookingTiers).map((tier) => {
-      const tierRooms = getGroupBundleRooms(bundleRooms, tier.key);
-      return {
-        _id: `group-booking-${tier.key}`,
-        isGroupBundle: true,
-        bundle: tier.key,
-        type: 'room',
-        slug: `group-booking-${tier.key}`,
-        name: tier.label,
-        shortDescription: `Includes ${tierRooms.map((room) => room.name).join(', ')} with breakfast for everyone.`,
-        extraPoints: tier.key === 'except-pent-house' ? [{ emoji: '🚫', text: 'Penthouse excluded' }] : [],
-        images: tierRooms.flatMap((room) => room.images || []),
-        price: tier.weekday,
-        priceUnit: 'person',
-        minOccupancy: tier.minGuests,
-        maxOccupancy: tier.maxGuests,
-        capacity: tier.maxGuests,
-      };
+    let secondFrame;
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(scrollToTarget);
     });
-  }, [bundleRooms]);
+    const settledLayoutTimer = window.setTimeout(scrollToTarget, 350);
 
-  const openBookingPrompt = (listing, overrideDates = null) => {
-    setActiveBooking(listing);
-    setBookingStep('details');
-    setCouponCode('');
-    setCouponOffer(null);
-    setPolicyExpanded(false);
-    setHouseRulesExpanded(false);
-    setPolicyAccepted(false);
-    setModalImageIndex(0);
-    setPaymentPlan('deposit');
-    if (listing.isGroupBundle) {
-      setRoomCart([]);
-    }
-    const adults = Math.max(Number(filters.guests || 2), listing.minOccupancy || 1);
-    setBookingDraft({
-      startDate: overrideDates?.startDate || filters.startDate,
-      endDate: overrideDates?.endDate || filters.endDate,
-      adults,
-      children: 0,
-      pets: 0,
-      contactName: user?.name || '',
-      contactEmail: user?.email || '',
-      contactPhone: user?.phone || '',
-    });
-  };
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      if (secondFrame) window.cancelAnimationFrame(secondFrame);
+      window.clearTimeout(settledLayoutTimer);
+    };
+  }, [location.hash, roomsLoading, faqs.length]);
 
-  const updateDraftStartDate = (date) => {
-    setBookingDraft((prev) => ({
-      ...prev,
-      startDate: date,
-      endDate: ensureCheckoutDate(date, prev.endDate, 1),
-    }));
-  };
-
-  const runDateSearch = async (selectedRange = dateSearch) => {
-    if (!rooms.length || searching) return;
-
-    const startDate = selectedRange.startDate;
-    const endDate = selectedRange.endDate;
-    if (!startDate || !endDate) return;
-
-    setDateSearch({ startDate, endDate });
-    setSearching(true);
-    try {
-      const startParam = formatDateParam(startDate);
-      const endParam = formatDateParam(endDate);
-      const nights = Math.max(1, Math.round((endDate - startDate) / 86400000));
-
-      const { data: overallData } = await api.get('/listings/availability/rooms', {
-        params: { startDate: startParam, endDate: endParam },
-      });
-
-      const monthsSpan = Math.min(
-        12,
-        Math.max(1, Math.ceil((endDate - new Date()) / (1000 * 60 * 60 * 24 * 30)) + 1)
-      );
-
-      const days = [];
-      let cursor = new Date(startDate);
-      while (cursor < endDate) {
-        days.push(new Date(cursor));
-        cursor = addDays(cursor, 1);
-      }
-
-      const timelineDays = [];
-      for (let offset = -7; offset <= 14; offset++) {
-        timelineDays.push(addDays(startDate, offset));
-      }
-
-      const results = await Promise.all(
-        overallData.rooms.map(async (room) => {
-          const bookedDays = new Set();
-          const timelineBookedDays = new Set();
-          let nextAvailable = null;
-
-          const requests = [
-            api.get('/listings/availability/booked-dates', {
-              params: { ids: room._id, months: monthsSpan },
-            }),
-          ];
-          if (!room.isAvailable) {
-            requests.push(
-              api.get(`/listings/${room._id}/next-available`, {
-                params: { nights, from: startParam },
-              })
-            );
-          }
-
-          const [{ data: bookedData }, nextRes] = await Promise.all(requests);
-
-          const blockingRanges = (bookedData.bookedRanges || []).filter(
-            (r) => r.status === 'confirmed' || r.status === 'blocked'
-          );
-          days.forEach((day) => {
-            const isBlocked = blockingRanges.some((r) => doesRangeBlockDay(r, day));
-            if (isBlocked) bookedDays.add(formatDateParam(day));
-          });
-          timelineDays.forEach((day) => {
-            const isBlocked = blockingRanges.some((r) => doesRangeBlockDay(r, day));
-            if (isBlocked) timelineBookedDays.add(formatDateParam(day));
-          });
-
-          if (nextRes?.data?.startDate) nextAvailable = nextRes.data;
-
-          return { room, isAvailable: room.isAvailable, bookedDays, timelineBookedDays, nextAvailable };
-        })
-      );
-
-      setSearchResults({
-        days,
-        timelineDays,
-        rooms: results.sort(
-          (a, b) => getRoomDisplayOrder(a.room) - getRoomDisplayOrder(b.room)
-        ),
-      });
-    } catch (error) {
-      toast.error('Unable to check availability right now');
-    } finally {
-      setSearching(false);
-    }
-  };
-
-  const openDatePicker = (step) => {
-    setDatePickerStep(step);
-    setDatePickerOpen(true);
-  };
-
-  const handleDateRangeChange = (nextRange) => {
-    setDateSearch(nextRange);
-  };
-
-  const handleDateRangeComplete = (nextRange) => {
-    runDateSearch(nextRange);
-  };
-
-  const [placingBooking, setPlacingBooking] = useState(false);
-
-  const addCurrentRoomToCart = () => {
-    if (!activeBooking) return;
-
-    const totals = computeItemTotals(activeBooking, bookingDraft);
-    setRoomCart((prev) => [
-      ...prev,
-      { id: `${activeBooking._id}-${Date.now()}`, listing: activeBooking, draft: { ...bookingDraft }, ...totals },
-    ]);
-    setActiveBooking(null);
-    setBookingStep('details');
-    setCouponCode('');
-    setCouponOffer(null);
-    toast.success(`${activeBooking.name} added to your booking. Pick another room to continue.`);
-  };
-
-  const removeCartItem = (id) => {
-    setRoomCart((prev) => prev.filter((item) => item.id !== id));
-  };
-
-  const proceedToBook = async () => {
-    if (!activeBooking) return;
-
-    if (!policyAccepted) {
-      toast.error('Please read and check the cancellation & rescheduling policy and house rules.');
-      return;
-    }
-
-    setPlacingBooking(true);
-    try {
-      if (activeBooking.isGroupBundle) {
-        const items = buildGroupBookingItems(activeBooking, bookingDraft, bundleRooms);
-
-        if (!items.length || items.some((item) => !hasValidObjectId(item.listingId))) {
-          toast.error('Room inventory is still loading. Please refresh and try again.');
-          return;
-        }
-
-        const { data } = await api.post('/bookings/multi', {
-          items,
-          contactName: bookingDraft.contactName,
-          contactEmail: bookingDraft.contactEmail,
-          contactPhone: bookingDraft.contactPhone,
-          couponCode: couponOffer?.coupon?.code || '',
-          isGroupBooking: true,
-          groupName: activeBooking.name,
-        });
-
-        const bookings = data.bookings;
-
-        try {
-          const result = await payForBookings({
-            bookingIds: bookings.map((booking) => booking._id),
-            contact: bookingDraft,
-            payInFull: paymentPlan === 'full',
-          });
-
-          sessionStorage.setItem('bowline_celebrate_booking', result.bookings[0]._id);
-          navigate(`/booking/confirmation/${result.bookings[0]._id}`, {
-            state: { booking: result.bookings[0], resetBookingModal: true, showCelebration: true },
-          });
-        } catch (paymentError) {
-          if (paymentError.message === 'PAYMENT_CANCELLED') {
-            toast.error('Payment cancelled. You can resume or cancel the booking from the next page.');
-            setActiveBooking(null);
-            navigate(`/booking/confirmation/${bookings[0]._id}`, {
-              replace: true,
-              state: { resetBookingModal: true },
-            });
-            return;
-          } else {
-            toast.error('Payment could not be completed. Your booking is saved as pending.');
-          }
-          navigate(`/booking/confirmation/${bookings[0]._id}`, {
-            state: { booking: bookings[0], resetBookingModal: true },
-          });
-        }
-        return;
-      }
-
-      if (roomCart.length === 0) {
-        const { data } = await api.post('/bookings', {
-          ...toBookingItem(activeBooking, bookingDraft),
-          contactName: bookingDraft.contactName,
-          contactEmail: bookingDraft.contactEmail,
-          contactPhone: bookingDraft.contactPhone,
-          couponCode: couponOffer?.coupon?.code || '',
-        });
-
-        const booking = data.booking;
-
-        try {
-          const result = await payForBookings({
-            bookingIds: [booking._id],
-            contact: bookingDraft,
-            payInFull: paymentPlan === 'full',
-          });
-
-          sessionStorage.setItem('bowline_celebrate_booking', booking._id);
-          navigate(`/booking/confirmation/${booking._id}`, {
-            state: { booking: result.bookings[0], resetBookingModal: true, showCelebration: true },
-          });
-        } catch (paymentError) {
-          if (paymentError.message === 'PAYMENT_CANCELLED') {
-            toast.error('Payment cancelled. You can resume or cancel the booking from the next page.');
-            setActiveBooking(null);
-            navigate(`/booking/confirmation/${booking._id}`, {
-              replace: true,
-              state: { resetBookingModal: true },
-            });
-            return;
-          } else {
-            toast.error('Payment could not be completed. Your booking is saved as pending.');
-          }
-          navigate(`/booking/confirmation/${booking._id}`, {
-            state: { booking, resetBookingModal: true },
-          });
-        }
-        return;
-      }
-
-      const items = [
-        ...roomCart.map((item) => toBookingItem(item.listing, item.draft)),
-        toBookingItem(activeBooking, bookingDraft),
-      ];
-
-      const { data } = await api.post('/bookings/multi', {
-        items,
-        contactName: bookingDraft.contactName,
-        contactEmail: bookingDraft.contactEmail,
-        contactPhone: bookingDraft.contactPhone,
-        couponCode: couponOffer?.coupon?.code || '',
-      });
-
-      const bookings = data.bookings;
-
-      try {
-        const result = await payForBookings({
-          bookingIds: bookings.map((booking) => booking._id),
-          contact: bookingDraft,
-          payInFull: paymentPlan === 'full',
-        });
-
-        setRoomCart([]);
-        sessionStorage.setItem('bowline_celebrate_booking', result.bookings[0]._id);
-        navigate(`/booking/confirmation/${result.bookings[0]._id}`, {
-          state: { booking: result.bookings[0], resetBookingModal: true, showCelebration: true },
-        });
-      } catch (paymentError) {
-        setRoomCart([]);
-        if (paymentError.message === 'PAYMENT_CANCELLED') {
-          toast.error('Payment cancelled. You can resume or cancel the booking from the next page.');
-          setActiveBooking(null);
-          navigate(`/booking/confirmation/${bookings[0]._id}`, {
-            replace: true,
-            state: { resetBookingModal: true },
-          });
-          return;
-        } else {
-          toast.error('Payment could not be completed. Your bookings are saved as pending.');
-        }
-        navigate(`/booking/confirmation/${bookings[0]._id}`, {
-          state: { booking: bookings[0], resetBookingModal: true },
-        });
-      }
-    } catch (error) {
-      if (error.response?.data?.code === 'BOOKING_IN_PROGRESS' && error.response.data.bookingId) {
-        const bookingId = error.response.data.bookingId;
-        setActiveBooking(null);
-        toast('Resuming your existing booking so you can complete or cancel it.');
-        navigate(`/booking/confirmation/${bookingId}`);
-        return;
-      }
-      toast.error(error.response?.data?.message || 'Unable to create booking');
-    } finally {
-      setPlacingBooking(false);
-    }
-  };
-
-  const activeTotals = activeBooking ? computeItemTotals(activeBooking, bookingDraft) : null;
-  const modalTotalGuests = Number(bookingDraft.adults) + Number(bookingDraft.children);
-  const modalNights = activeTotals?.nights || 0;
-  const modalRoomTotal = activeTotals?.roomTotal || 0;
-  const modalPetTotal = activeTotals?.petTotal || 0;
-  const modalGrandTotal = activeTotals?.grandTotal || 0;
-  const cartSubtotal = roomCart.reduce((sum, item) => sum + item.grandTotal, 0);
-  const combinedSubtotal = cartSubtotal + modalGrandTotal;
-  // Pre-tax and GST portions of combinedSubtotal, broken out for display —
-  // combinedSubtotal itself stays tax-inclusive since that's what actually
-  // gets charged (matches each Booking's totalPrice on the backend).
-  const combinedPreTax = roomCart.reduce((sum, item) => sum + (item.subtotal ?? item.grandTotal), 0) + (activeTotals?.subtotal || 0);
-  const combinedGst = roomCart.reduce((sum, item) => sum + (item.gstAmount || 0), 0) + (activeTotals?.gstAmount || 0);
-  const modalCouponDiscount = couponOffer?.discount || 0;
-  const modalFinalTotal = Math.max(combinedSubtotal - modalCouponDiscount, 0);
   useEffect(() => {
-    setCouponOffer(null);
-  }, [combinedSubtotal]);
+    let isCurrent = true;
 
-  const applyCoupon = async () => {
-    const code = couponCode.trim();
-
-    if (!code) {
-      toast.error('Enter a coupon code');
-      return;
-    }
-
-    setCouponChecking(true);
-    try {
-      const { data } = await api.post('/bookings/coupon/validate', {
-        couponCode: code,
-        subtotal: combinedSubtotal,
+    api.get('/content/faqs')
+      .then(({ data }) => {
+        if (isCurrent && Array.isArray(data.faqs)) setFaqs(data.faqs);
+      })
+      .catch(() => {
+        // The built-in FAQ copy remains visible if content loading fails.
       });
-      setCouponOffer(data);
-      setCouponCode(data.coupon.code);
-      toast.success(`${data.coupon.code} applied`);
-    } catch (error) {
-      setCouponOffer(null);
-      toast.error(error.response?.data?.message || 'Unable to apply coupon');
-    } finally {
-      setCouponChecking(false);
-    }
-  };
 
-  const removeCoupon = () => {
-    setCouponOffer(null);
-    setCouponCode('');
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    const fetchRooms = async () => {
+      try {
+        const { data } = await api.get('/listings', {
+          params: { type: 'room', limit: 8, includeBundleExtras: true },
+        });
+        if (!isCurrent) return;
+        const sortedRooms = [...data.listings].sort(
+          (a, b) => getRoomDisplayOrder(a) - getRoomDisplayOrder(b)
+        );
+        const standaloneRooms = sortedRooms.filter((room) => room.slug !== 'dormitory-open-loft');
+        setRoomListings([...standaloneRooms, ...buildGroupBookingListings(sortedRooms)]);
+      } catch {
+        if (isCurrent) setRoomsError(true);
+      } finally {
+        if (isCurrent) setRoomsLoading(false);
+      }
+    };
+
+    fetchRooms();
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
+
+  const scrollRoomCarousel = (direction) => {
+    const carousel = roomCarouselRef.current;
+    if (!carousel) return;
+
+    const firstCard = carousel.querySelector('[data-room-card]');
+    const cardWidth = firstCard?.getBoundingClientRect().width || carousel.clientWidth * 0.82;
+    carousel.scrollBy({ left: direction * (cardWidth + 20), behavior: 'smooth' });
   };
 
   return (
-    <>
-      <section className="pb-10 pt-6">
-        <div className="section-shell space-y-8">
-          <div className="mx-auto max-w-6xl rounded-[2rem] border border-lime-100/10 bg-[#0d1f10]/60 p-5">
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-2xl font-semibold text-[#f5f0dd]">Room booking</h2>
-                  <p className="mt-1 text-sm text-[#cdd6c9]">
-                    Weekday and weekend tariffs are shown per person. Breakfast is complimentary.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="rounded-xl border border-lime-100/15 px-4 py-2 text-xs font-semibold text-[#cdd6c9] disabled:opacity-40"
-                  onClick={() => setSearchResults(null)}
-                  disabled={!searchResults}
-                >
-                  Show all rooms
-                </button>
-              </div>
-
-              <div className="relative z-30 rounded-2xl border border-lime-100/10 bg-black/20 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-sm font-semibold text-[#f5f0dd]">Check availability for your dates</p>
-                  {searchResults ? (
-                    <p className="text-xs font-medium text-[#aab5a5]">
-                      Showing {formatStayDate(dateSearch.startDate)} to {formatStayDate(dateSearch.endDate)}
-                    </p>
-                  ) : null}
-                </div>
-
-                <div className="relative mx-auto mt-3 max-w-5xl">
-                  <div className="flex flex-col items-center justify-center gap-3 lg:flex-row">
-                    <div className="grid w-full max-w-3xl grid-cols-1 gap-2 rounded-2xl border border-lime-100/18 bg-[#142018]/78 p-1.5 sm:grid-cols-[1fr_auto_1fr] sm:items-stretch sm:gap-0">
-                      <button
-                        type="button"
-                        aria-expanded={datePickerOpen}
-                        onClick={() => openDatePicker('start')}
-                        className="flex min-h-[50px] items-center gap-3 rounded-xl px-3 text-left transition hover:bg-white/[0.06] focus:outline-none focus:ring-2 focus:ring-lime-200/50 sm:min-h-[56px] sm:px-4"
-                      >
-                        <CalendarDaysIcon className="h-5 w-5 shrink-0 text-lime-200" />
-                        <span className="min-w-0">
-                          <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#98a791] sm:tracking-[0.22em]">
-                            Check-in
-                          </span>
-                          <span className="block truncate text-sm font-semibold !text-[#f5f0dd] sm:text-base">
-                            {formatStayDate(dateSearch.startDate)}
-                          </span>
-                        </span>
-                      </button>
-
-                      <div className="hidden items-center justify-center px-1 text-[#879581] sm:flex">
-                        <ArrowRightIcon className="h-5 w-5" />
-                      </div>
-
-                      <button
-                        type="button"
-                        aria-expanded={datePickerOpen}
-                        onClick={() => openDatePicker('end')}
-                        className="flex min-h-[50px] items-center gap-3 rounded-xl px-3 text-left transition hover:bg-white/[0.06] focus:outline-none focus:ring-2 focus:ring-lime-200/50 sm:min-h-[56px] sm:px-4"
-                      >
-                        <CalendarDaysIcon className="h-5 w-5 shrink-0 text-lime-200" />
-                        <span className="min-w-0">
-                          <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#98a791] sm:tracking-[0.22em]">
-                            Check-out
-                          </span>
-                          <span className="block truncate text-sm font-semibold !text-[#f5f0dd] sm:text-base">
-                            {formatStayDate(dateSearch.endDate)}
-                          </span>
-                        </span>
-                      </button>
-                    </div>
-
-                    <button
-                      type="button"
-                      className="btn-primary h-14 gap-2 rounded-2xl px-5 py-2.5 disabled:opacity-60"
-                      onClick={() => runDateSearch()}
-                      disabled={searching || loading}
-                    >
-                      <MagnifyingGlassIcon className="h-5 w-5" />
-                      <span>{searching ? 'Checking...' : 'Check availability'}</span>
-                    </button>
-                  </div>
-
-                  <FloatingDateRangePicker
-                    open={datePickerOpen}
-                    startDate={dateSearch.startDate}
-                    endDate={dateSearch.endDate}
-                    initialStep={datePickerStep}
-                    onChange={handleDateRangeChange}
-                    onComplete={handleDateRangeComplete}
-                    onClose={() => setDatePickerOpen(false)}
-                  />
-                </div>
-              </div>
-
-              {loading ? (
-                <PageLoader label="Loading rooms..." />
-              ) : searchResults ? (
-                <div className="space-y-4">
-                  {searchResults.rooms.map(({ room, isAvailable, bookedDays, timelineBookedDays, nextAvailable }) => {
-                    const fullyBooked = !isAvailable && bookedDays.size >= searchResults.days.length;
-                    const statusLabel = isAvailable ? 'Available' : fullyBooked ? 'Booked' : 'Not fully available';
-                    const statusColor = isAvailable
-                      ? 'text-lime-300'
-                      : fullyBooked
-                        ? 'text-rose-400'
-                        : 'text-amber-300';
-
-                    return (
-                      <div key={room._id} className="overflow-hidden rounded-2xl border border-lime-100/10 bg-black/15">
-                        {/* Room image */}
-                        {room.images?.[0] && (
-                          <div className="relative h-44 w-full sm:h-52">
-                            <img
-                              src={room.images[0]}
-                              alt={room.name}
-                              className="h-full w-full object-cover"
-                            />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                            <div className="absolute bottom-3 left-4 right-4 flex items-end justify-between gap-3">
-                              <div>
-                                <h3 className="text-lg font-semibold text-white drop-shadow">{room.name}</h3>
-                                <p className={`text-sm font-semibold ${statusColor}`}>{statusLabel}</p>
-                              </div>
-                              <button
-                                type="button"
-                                className="btn-primary shrink-0 rounded-xl px-4 py-2 text-sm disabled:opacity-40"
-                                disabled={!isAvailable}
-                                onClick={() =>
-                                  openBookingPrompt(room, { startDate: dateSearch.startDate, endDate: dateSearch.endDate })
-                                }
-                              >
-                                Book Now
-                              </button>
-                            </div>
-                          </div>
-                        )}
-
-                        <div className="p-4">
-                        {/* Row 1: status + Book Now (fallback when no image) */}
-                        {!room.images?.[0] && (
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <h3 className="text-lg font-semibold text-[#f5f0dd]">{room.name}</h3>
-                            <p className={`text-sm font-semibold ${statusColor}`}>{statusLabel}</p>
-                          </div>
-                          <button
-                            type="button"
-                            className="btn-primary rounded-xl px-4 py-2 text-sm disabled:opacity-40"
-                            disabled={!isAvailable}
-                            onClick={() =>
-                              openBookingPrompt(room, { startDate: dateSearch.startDate, endDate: dateSearch.endDate })
-                            }
-                          >
-                            Book Now
-                          </button>
-                        </div>
-                        )}
-
-                        {/* Row 2: slidable day-by-day availability */}
-                        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                          {searchResults.days.map((day) => {
-                            const key = formatDateParam(day);
-                            const booked = bookedDays.has(key);
-                            return (
-                              <span
-                                key={key}
-                                className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-medium ${
-                                  booked
-                                    ? 'bg-rose-500/15 text-rose-300 line-through'
-                                    : 'bg-lime-200/10 text-lime-200'
-                                }`}
-                              >
-                                {day.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                              </span>
-                            );
-                          })}
-                        </div>
-
-                        {!isAvailable && nextAvailable ? (
-                          <p className="mt-3 text-xs text-[#cdd6c9]">
-                            Nearest available window:{' '}
-                            <button
-                              type="button"
-                              className="font-semibold text-lime-300 underline"
-                              onClick={() =>
-                                setDateSearch({
-                                  startDate: new Date(nextAvailable.startDate),
-                                  endDate: new Date(nextAvailable.endDate),
-                                })
-                              }
-                            >
-                              {new Date(nextAvailable.startDate).toLocaleDateString('en-IN', {
-                                day: 'numeric',
-                                month: 'short',
-                              })}{' '}
-                              –{' '}
-                              {new Date(nextAvailable.endDate).toLocaleDateString('en-IN', {
-                                day: 'numeric',
-                                month: 'short',
-                              })}
-                            </button>
-                          </p>
-                        ) : !isAvailable ? (
-                          <p className="mt-3 text-xs text-[#cdd6c9]">No availability found in the next 90 days.</p>
-                        ) : null}
-
-                        <p className="mt-3 text-xs text-[#aab5a5]">Available dates near your check-in dates</p>
-                        <div className="mt-1.5 flex gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                          {searchResults.timelineDays.map((day) => {
-                            const key = formatDateParam(day);
-                            const booked = timelineBookedDays.has(key);
-                            const isSelectedStayDate = day >= dateSearch.startDate && day <= dateSearch.endDate;
-                            const isPast = day < today();
-                            return (
-                              <span
-                                key={key}
-                                title={day.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                                className={`flex shrink-0 flex-col items-center justify-center rounded-md px-2 py-1 text-[10px] font-medium ${
-                                  isSelectedStayDate ? 'ring-1 ring-lime-300' : ''
-                                } ${
-                                  isSelectedStayDate
-                                    ? 'bg-lime-300 text-slate-950'
-                                    : isPast
-                                    ? 'bg-white/5 text-[#5b6457]'
-                                    : booked
-                                      ? 'bg-rose-500/15 text-rose-300'
-                                      : 'bg-lime-200/10 text-lime-200'
-                                }`}
-                              >
-                                <span>{day.getDate()}</span>
-                                <span className={`text-[8px] uppercase ${isSelectedStayDate ? 'text-slate-800' : 'text-[#8a9485]'}`}>
-                                  {day.toLocaleDateString('en-IN', { month: 'short' })}
-                                </span>
-                              </span>
-                            );
-                          })}
-                        </div>
-                        </div>{/* end p-4 */}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : rooms.length ? (
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                  {[...rooms, ...groupListings].map((listing) => (
-                    <ListingCard
-                      key={listing._id}
-                      listing={listing}
-                      onBookNow={openBookingPrompt}
-                      compact
-                      detailLabel="View More"
-                      showPrice
-                    />
-                  ))}
-                </div>
-              ) : (
-                <EmptyState title="No rooms yet" description="Add room listings from the admin panel." />
-              )}
+    <div className="overflow-hidden bg-transparent pb-6 text-[#f7f2e5]">
+      <section className="relative min-h-[calc(100svh-4.5rem)]">
+        <img
+          src={heroImage}
+          alt="Bowline Nature Stay beneath the mountains and a star-filled sky"
+          className="absolute inset-0 h-full w-full object-cover object-center"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-[#00152b]/20 to-[#07100a]/55" />
+        <div className="section-shell relative flex min-h-[calc(100svh-4.5rem)] flex-col items-center pt-[9vh] text-center sm:pt-[13vh]">
+          <div className="max-w-4xl">
+            <h1 className="font-display text-[2.7rem] font-extrabold leading-[0.98] tracking-[-0.045em] !text-white drop-shadow-[0_4px_28px_rgba(0,0,0,0.75)] sm:text-7xl lg:text-[5.5rem]">
+              Bowline<br className="sm:hidden" /> Nature Stay
+            </h1>
+            <p className="mt-4 text-base font-semibold tracking-[0.04em] !text-lime-200 drop-shadow-md sm:mt-5 sm:text-2xl">
+              <span aria-hidden="true">📍</span> Mudigere, Chikkamagaluru
+            </p>
+            <div className="mt-4 flex flex-col items-center justify-center gap-2 text-sm font-medium text-white/90 drop-shadow sm:mt-5 sm:flex-row sm:flex-wrap sm:gap-x-3 sm:text-base">
+              <span>🕥 5 hours from Bengaluru</span>
+              <span className="hidden text-white/50 sm:inline">·</span>
+              <span>🕥 3 hours from Mangaluru</span>
             </div>
           </div>
         </div>
       </section>
 
-      {activeBooking ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/65 px-4 pb-4 sm:items-center">
-          <div className="glass w-full max-w-xl overflow-y-auto rounded-[2rem] p-5 sm:p-6" style={{ maxHeight: 'calc(100dvh - 2rem)' }}>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.28em] text-lime-200/80">Book now</p>
-                <h3 className="mt-2 text-3xl font-semibold text-[#f5f0dd]">{activeBooking.name}</h3>
-              </div>
-              <button className="rounded-full border border-lime-100/12 p-2 text-white" onClick={() => setActiveBooking(null)} type="button">
-                <XMarkIcon className="h-5 w-5" />
-              </button>
-            </div>
+      <div className="px-4 py-5 text-center">
+        <a
+          className="inline-flex items-center justify-center gap-2 text-xs font-semibold leading-5 !text-[#dbe6d8] transition hover:!text-lime-200 sm:text-sm"
+          href={inquiryWhatsappUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <WhatsAppIcon className="h-4 w-4 shrink-0 text-[#25D366]" />
+          For any inquiries you can contact here.
+        </a>
+      </div>
 
-            {activeBooking.images?.length ? (
-              <div className="relative mt-4 overflow-hidden rounded-[1.5rem]">
-                <img
-                  src={activeBooking.images[modalImageIndex]}
-                  alt={`${activeBooking.name} photo ${modalImageIndex + 1}`}
-                  className="h-48 w-full object-cover sm:h-64"
-                />
-                {activeBooking.images.length > 1 ? (
-                  <>
-                    <button
-                      type="button"
-                      aria-label="Previous photo"
-                      onClick={() =>
-                        setModalImageIndex((prev) => (prev - 1 + activeBooking.images.length) % activeBooking.images.length)
-                      }
-                      className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full border border-lime-100/15 bg-black/50 p-2 text-white backdrop-blur transition hover:bg-black/70"
-                    >
-                      <ChevronLeftIcon className="h-5 w-5" />
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Next photo"
-                      onClick={() => setModalImageIndex((prev) => (prev + 1) % activeBooking.images.length)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full border border-lime-100/15 bg-black/50 p-2 text-white backdrop-blur transition hover:bg-black/70"
-                    >
-                      <ChevronRightIcon className="h-5 w-5" />
-                    </button>
-                    <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-1.5">
-                      {activeBooking.images.map((_, index) => (
-                        <button
-                          key={index}
-                          type="button"
-                          aria-label={`Go to photo ${index + 1}`}
-                          onClick={() => setModalImageIndex(index)}
-                          className={`h-1.5 w-4 rounded-full transition ${
-                            index === modalImageIndex ? 'bg-lime-200' : 'bg-white/30'
-                          }`}
-                        />
-                      ))}
-                    </div>
-                  </>
-                ) : null}
-              </div>
-            ) : null}
-
-            {bookingStep === 'details' ? (
-            <>
-            <div className="mt-5 rounded-[1.5rem] border border-lime-100/10 bg-[#0d1710]/80 p-4">
-              <RoomCalendar
-                listingId={activeBooking.isGroupBundle ? undefined : activeBooking._id}
-                listingIds={activeBooking.isGroupBundle ? getGroupBundleRooms(bundleRooms, activeBooking.bundle).map((room) => room._id) : undefined}
-                startDate={bookingDraft.startDate}
-                endDate={bookingDraft.endDate}
-                onStartDate={updateDraftStartDate}
-                onEndDate={(date) =>
-                  setBookingDraft((prev) => ({ ...prev, endDate: ensureCheckoutDate(prev.startDate, date, 1) }))
-                }
-              />
-            </div>
-
-            <div className="mt-5 space-y-3">
-              <div className="rounded-[1.25rem] border border-lime-100/10 bg-black/20 px-4 py-3 text-xs text-[#cdd6c9]">
-                <ul className="list-disc space-y-1 pl-4">
-                  <li>Breakfast is complimentary.</li>
-                  <li>Meal price is not included in the room total.</li>
-                  <li>Lunch and dinner are Rs 350 per person per meal.</li>
-                </ul>
-              </div>
-
-              <div className="flex items-center justify-between rounded-[1.25rem] border border-lime-100/10 bg-black/20 px-4 py-3">
-                <div>
-                  <p className="text-sm font-semibold text-[#f5f0dd]">Adults</p>
-                  <p className="text-xs text-[#aab5a5]">Age 13+</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    className="rounded-full border border-lime-100/15 p-2 text-white disabled:opacity-40"
-                    type="button"
-                    disabled={bookingDraft.adults <= (activeBooking?.minOccupancy || 1)}
-                    onClick={() => {
-                      const minOccupancy = activeBooking?.minOccupancy || 1;
-                      if (bookingDraft.adults <= minOccupancy) {
-                        toast.error(`Minimum occupants should be ${minOccupancy}`);
-                        return;
-                      }
-                      setBookingDraft((prev) => ({ ...prev, adults: increment(prev.adults, -1, minOccupancy, 20) }));
-                    }}
-                  >
-                    <MinusIcon className="h-4 w-4" />
-                  </button>
-                  <span className="w-6 text-center text-sm font-semibold text-[#f5f0dd]">{bookingDraft.adults}</span>
-                  <button
-                    className="rounded-full border border-lime-100/15 p-2 text-white disabled:opacity-40"
-                    type="button"
-                    disabled={activeBooking?.isGroupBundle && modalTotalGuests >= (activeBooking.maxOccupancy || 20)}
-                    onClick={() =>
-                      setBookingDraft((prev) =>
-                        ({ ...prev, adults: increment(prev.adults, 1, 1, activeBooking?.maxOccupancy || 20) })
-                      )
-                    }
-                  >
-                    <PlusIcon className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between rounded-[1.25rem] border border-lime-100/10 bg-black/20 px-4 py-3">
-                <div>
-                  <p className="text-sm font-semibold text-[#f5f0dd]">Children</p>
-                  <p className="text-xs text-[#aab5a5]">
-                    {activeBooking?.isGroupBundle ? 'Age 6-12 · same group tariff' : 'Age 6-12 · 50% of adult tariff'}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    className="rounded-full border border-lime-100/15 p-2 text-white disabled:opacity-40"
-                    type="button"
-                    disabled={bookingDraft.children <= 0}
-                    onClick={() => setBookingDraft((prev) => ({ ...prev, children: increment(prev.children, -1, 0, 20) }))}
-                  >
-                    <MinusIcon className="h-4 w-4" />
-                  </button>
-                  <span className="w-6 text-center text-sm font-semibold text-[#f5f0dd]">{bookingDraft.children}</span>
-                  <button
-                    className="rounded-full border border-lime-100/15 p-2 text-white disabled:opacity-40"
-                    type="button"
-                    disabled={activeBooking?.isGroupBundle && modalTotalGuests >= (activeBooking.maxOccupancy || 20)}
-                    onClick={() =>
-                      setBookingDraft((prev) =>
-                        ({ ...prev, children: increment(prev.children, 1, 0, activeBooking?.maxOccupancy || 20) })
-                      )
-                    }
-                  >
-                    <PlusIcon className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between rounded-[1.25rem] border border-lime-100/10 bg-black/20 px-4 py-3">
-                <div>
-                  <p className="text-sm font-semibold text-[#f5f0dd]">Pets</p>
-                  <p className="text-xs text-[#aab5a5]">{formatCurrency(petFee)} flat per pet, per stay</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    className="rounded-full border border-lime-100/15 p-2 text-white disabled:opacity-40"
-                    type="button"
-                    disabled={bookingDraft.pets <= 0}
-                    onClick={() => setBookingDraft((prev) => ({ ...prev, pets: increment(prev.pets, -1, 0, 10) }))}
-                  >
-                    <MinusIcon className="h-4 w-4" />
-                  </button>
-                  <span className="w-6 text-center text-sm font-semibold text-[#f5f0dd]">{bookingDraft.pets}</span>
-                  <button
-                    className="rounded-full border border-lime-100/15 p-2 text-white disabled:opacity-40"
-                    type="button"
-                    onClick={() => setBookingDraft((prev) => ({ ...prev, pets: increment(prev.pets, 1, 0, 10) }))}
-                  >
-                    <PlusIcon className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-
-            </div>
-
-            <div className="mt-5 rounded-[1.25rem] border border-lime-100/10 bg-black/20 p-4 text-sm text-[#cdd6c9]">
-              <div className="flex items-center justify-between text-base font-bold text-lime-200">
-                <span>Total</span>
-                <span>{formatCurrency(modalGrandTotal)}</span>
-              </div>
-            </div>
-
-            <div className="mt-6 flex gap-3">
-              {!activeBooking.isGroupBundle ? (
-                <button
-                  className="btn-secondary flex-1 border-lime-100/30 bg-lime-200/10 text-lime-100 hover:bg-lime-200/20 disabled:opacity-50"
-                  onClick={addCurrentRoomToCart}
-                  type="button"
-                >
-                  <span className="inline-flex items-center justify-center gap-2">
-                    <PlusIcon className="h-4 w-4" />
-                    Add Another Room
-                  </span>
-                </button>
-              ) : null}
-              <button
-                className="btn-primary flex-1 disabled:opacity-50"
-                onClick={() => setBookingStep('summary')}
-                type="button"
-              >
-                Book Now
-              </button>
-            </div>
-            </>
-            ) : bookingStep === 'summary' ? (
-              <div className="mt-5 space-y-3">
-                <div className="rounded-[1.5rem] border border-lime-100/10 bg-[#0d1710]/80 p-4">
-                  <p className="text-xs uppercase tracking-[0.22em] text-lime-200/80">Booking summary</p>
-                  <h4 className="mt-2 text-xl font-semibold text-[#f5f0dd]">{activeBooking.name}</h4>
-
-                  <div className="mt-4 grid grid-cols-2 gap-3 text-sm text-slate-300">
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-slate-500">Check-in</p>
-                      <p className="font-semibold text-white">
-                        {bookingDraft.startDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-slate-500">Check-out</p>
-                      <p className="font-semibold text-white">
-                        {bookingDraft.endDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 space-y-2 border-t border-white/10 pt-4 text-sm text-[#cdd6c9]">
-                    <div className="flex items-center justify-between">
-                      <span>Duration</span>
-                      <span className="font-semibold text-white">{modalNights} night{modalNights === 1 ? '' : 's'}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Adults</span>
-                      <span className="font-semibold text-white">{bookingDraft.adults}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Children</span>
-                      <span className="font-semibold text-white">{bookingDraft.children}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Pets</span>
-                      <span className="font-semibold text-white">{bookingDraft.pets}</span>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 rounded-[1.25rem] border border-lime-100/10 bg-black/20 px-4 py-3 text-xs text-[#cdd6c9]">
-                    <ul className="list-disc space-y-1 pl-4">
-                      <li>Breakfast is complimentary.</li>
-                      <li>Meal price is not included in the room total.</li>
-                      <li>Lunch and dinner are Rs 350 per person per meal.</li>
-                    </ul>
-                  </div>
-
-                  {roomCart.length > 0 ? (
-                    <div className="mt-4 space-y-2 border-t border-white/10 pt-4 text-sm text-[#cdd6c9]">
-                      <p className="text-xs uppercase tracking-[0.22em] text-lime-200/80">Other rooms in this booking</p>
-                      {roomCart.map((item) => (
-                        <div key={item.id} className="flex items-center justify-between gap-3 rounded-[1rem] border border-white/10 bg-black/20 px-3 py-2">
-                          <div className="min-w-0">
-                            <p className="truncate font-semibold text-white">{item.listing.name}</p>
-                            <p className="text-xs text-[#aab5a5]">
-                              {item.nights} night{item.nights === 1 ? '' : 's'} · {Number(item.draft.adults) + Number(item.draft.children)} guest
-                              {Number(item.draft.adults) + Number(item.draft.children) === 1 ? '' : 's'}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <span className="font-semibold text-white">{formatCurrency(item.grandTotal)}</span>
-                            <button
-                              className="rounded-full p-1 text-[#aab5a5] hover:text-rose-400"
-                              type="button"
-                              onClick={() => removeCartItem(item.id)}
-                            >
-                              <TrashIcon className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-
-                  <div className="mt-4 space-y-2 border-t border-white/10 pt-4 text-sm text-[#cdd6c9]">
-                    <div className="flex items-center justify-between">
-                      <span>This room ({modalNights} night{modalNights === 1 ? '' : 's'})</span>
-                      <span className="font-semibold text-white">{formatCurrency(modalRoomTotal)}</span>
-                    </div>
-                    {bookingDraft.pets > 0 ? (
-                      <div className="flex items-center justify-between">
-                        <span>Pet fee</span>
-                        <span className="font-semibold text-white">{formatCurrency(modalPetTotal)}</span>
-                      </div>
-                    ) : null}
-                    {roomCart.length > 0 ? (
-                      <div className="flex items-center justify-between">
-                        <span>Subtotal (all rooms)</span>
-                        <span className="font-semibold text-white">{formatCurrency(combinedPreTax)}</span>
-                      </div>
-                    ) : null}
-                    <div className="flex items-center justify-between">
-                      <span>GST (5%)</span>
-                      <span className="font-semibold text-white">{formatCurrency(combinedGst)}</span>
-                    </div>
-                    <div className="border-t border-white/10 pt-3">
-                      <div className="flex items-center gap-2 text-white">
-                        <TagIcon className="h-4 w-4 text-lime-200" />
-                        <span className="text-sm font-semibold">Apply coupon</span>
-                      </div>
-                      <div className="mt-3 flex gap-2">
-                        <input
-                          className="input uppercase"
-                          placeholder="Coupon code"
-                          value={couponCode}
-                          onChange={(e) => {
-                            setCouponCode(e.target.value);
-                            setCouponOffer(null);
-                          }}
-                        />
-                        <button
-                          className="btn-secondary min-h-[48px] shrink-0 px-4"
-                          onClick={applyCoupon}
-                          disabled={couponChecking}
-                          type="button"
-                        >
-                          {couponChecking ? 'Checking...' : 'Apply'}
-                        </button>
-                      </div>
-                      {couponOffer ? (
-                        <div className="mt-3 rounded-[1rem] border border-lime-300/20 bg-lime-300/5 p-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="font-semibold text-lime-200">{couponOffer.coupon.title}</p>
-                              <p className="mt-1 text-xs text-[#cdd6c9]">
-                                Coupon {couponOffer.coupon.code} saves {formatCurrency(couponOffer.discount)}.
-                              </p>
-                            </div>
-                            <button className="text-xs font-semibold text-rose-300" onClick={removeCoupon} type="button">
-                              Remove
-                            </button>
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-                    {modalCouponDiscount > 0 ? (
-                      <div className="flex items-center justify-between font-semibold text-lime-200">
-                        <span>Coupon discount</span>
-                        <span>-{formatCurrency(modalCouponDiscount)}</span>
-                      </div>
-                    ) : null}
-                    <div className="flex items-center justify-between text-base font-bold text-lime-200">
-                      <span>Revised total</span>
-                      <span>{formatCurrency(modalFinalTotal)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-[1.5rem] border border-lime-100/10 bg-[#0d1710]/80 p-4">
-                  <p className="text-xs uppercase tracking-[0.22em] text-lime-200/80">Know Before You Go</p>
-                  <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-[#cdd6c9]">
-                    <div className="rounded-[1rem] border border-lime-100/10 bg-black/20 px-3 py-2">
-                      <p className="text-xs uppercase tracking-wide text-[#aab5a5]">Check-in</p>
-                      <p className="font-semibold text-white">1:00 PM</p>
-                    </div>
-                    <div className="rounded-[1rem] border border-lime-100/10 bg-black/20 px-3 py-2">
-                      <p className="text-xs uppercase tracking-wide text-[#aab5a5]">Check-out</p>
-                      <p className="font-semibold text-white">10:00 AM</p>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="mt-3 flex w-full items-center justify-between rounded-[1rem] border border-lime-100/10 bg-black/20 px-3 py-2 text-left text-sm font-semibold text-white"
-                    onClick={() => setPolicyExpanded((prev) => !prev)}
-                  >
-                    Cancellation &amp; Rescheduling Policy
-                    <ChevronDownIcon className={`h-4 w-4 shrink-0 transition-transform ${policyExpanded ? 'rotate-180' : ''}`} />
-                  </button>
-
-                  {policyExpanded ? (
-                    <div className="mt-2 space-y-3 rounded-[1rem] border border-lime-100/10 bg-black/20 p-3 text-xs text-[#cdd6c9]">
-                      <div>
-                        <p className="font-semibold text-white">Cancellation &amp; Refund</p>
-                        <ul className="mt-1 list-disc space-y-1 pl-4">
-                          <li>Full refund for cancellations made up to 14 days before check-in.</li>
-                          <li>50% refund for cancellations made between 7 to 14 days before check-in date.</li>
-                          <li>No refund for cancellations made less than 7 days before check-in date.</li>
-                        </ul>
-                      </div>
-                      <div>
-                        <p className="font-semibold text-white">Rescheduling Policy</p>
-                        <ul className="mt-1 list-disc space-y-1 pl-4">
-                          <li>No charges for rescheduling if done more than 14 days before check-in date.</li>
-                          <li>A 10% fee will apply on the total stay cost for rescheduling made between 7 to 14 days before check-in date.</li>
-                          <li>Rescheduling is not permitted within 7 days of the check-in date.</li>
-                          <li>If a rescheduled booking is cancelled, the standard refund policy applies to its updated check-in date.</li>
-                        </ul>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  <button
-                    type="button"
-                    className="mt-2 flex w-full items-center justify-between rounded-[1rem] border border-lime-100/10 bg-black/20 px-3 py-2 text-left text-sm font-semibold text-white"
-                    onClick={() => setHouseRulesExpanded((prev) => !prev)}
-                  >
-                    House Rules
-                    <ChevronDownIcon className={`h-4 w-4 shrink-0 transition-transform ${houseRulesExpanded ? 'rotate-180' : ''}`} />
-                  </button>
-
-                  {houseRulesExpanded ? (
-                    <div className="mt-2 space-y-3 rounded-[1rem] border border-lime-100/10 bg-black/20 p-3 text-xs text-[#cdd6c9]">
-                      <p>
-                        To ensure a harmonious and enjoyable experience for all guests, we kindly request your cooperation with the
-                        following policies and house rules. If a group&apos;s conduct is found to disturb the peace, violate house
-                        rules, or go against the spirit of the stay, the hosts reserve the right to take necessary action, including
-                        on-the-spot cancellation without refund.
-                      </p>
-                      <div>
-                        <p className="font-semibold text-white">Age Restriction</p>
-                        <ul className="mt-1 list-disc space-y-1 pl-4">
-                          <li>The minimum age for booking is 18 years.</li>
-                          <li>
-                            Children below 18 years must be accompanied by their parents at all times during the stay to ensure
-                            safety and comfort for everyone.
-                          </li>
-                        </ul>
-                      </div>
-                      <div>
-                        <p className="font-semibold text-white">Identification Requirement</p>
-                        <ul className="mt-1 list-disc space-y-1 pl-4">
-                          <li>A valid government-issued ID with address is mandatory at the time of check-in for safety and security purposes.</li>
-                        </ul>
-                      </div>
-                      <div>
-                        <p className="font-semibold text-white">Self-Help Approach</p>
-                        <ul className="mt-1 list-disc space-y-1 pl-4">
-                          <li>There will be no luggage assistance or room service.</li>
-                          <li>Food will be served only in the common dining area.</li>
-                        </ul>
-                      </div>
-                      <div>
-                        <p className="font-semibold text-white">Zero Tolerance Policy</p>
-                        <ul className="mt-1 list-disc space-y-1 pl-4">
-                          <li>Drugs, narcotics, and other intoxicants are strictly prohibited in and around the property.</li>
-                        </ul>
-                      </div>
-                      <div>
-                        <p className="font-semibold text-white">Smoking &amp; Alcohol Policy</p>
-                        <ul className="mt-1 list-disc space-y-1 pl-4">
-                          <li>We do not provide alcohol or cigarettes on the premises.</li>
-                          <li>
-                            If you choose to consume alcohol, please do so in your private room and keep noise levels down to avoid
-                            disturbing others. If your group has booked the entire stay, you may use the common areas, but we still
-                            encourage moderation to ensure everyone&apos;s comfort.
-                          </li>
-                          <li>Smoking is strictly not allowed inside rooms or inside the house.</li>
-                          <li>Guests who wish to smoke may do so only outdoors, while respecting others and the surroundings.</li>
-                        </ul>
-                      </div>
-                      <div>
-                        <p className="font-semibold text-white">House Etiquette &amp; Quiet Hours</p>
-                        <ul className="mt-1 list-disc space-y-1 pl-4">
-                          <li>All rooms are inside one house — please be mindful of other guests.</li>
-                          <li>Silent hours: 10:00 PM – 8:00 AM.</li>
-                          <li>Common-area lights will be switched off by 10:00 PM (lights may be used inside your respective rooms).</li>
-                          <li>Kindly avoid loud music or noise — let the sounds of nature heal you.</li>
-                        </ul>
-                      </div>
-                      <div>
-                        <p className="font-semibold text-white">Living with Nature</p>
-                        <ul className="mt-1 list-disc space-y-1 pl-4">
-                          <li>We co-exist with creatures of all shapes and sizes.</li>
-                          <li>If you notice insects or animals, please do not panic — most are harmless and are part of the natural ecosystem.</li>
-                        </ul>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  <label className="mt-3 flex items-start gap-2 text-sm text-[#cdd6c9]">
-                    <input
-                      type="checkbox"
-                      className="mt-0.5 h-4 w-4 shrink-0 accent-lime-300"
-                      checked={policyAccepted}
-                      onChange={(e) => setPolicyAccepted(e.target.checked)}
-                    />
-                    <span>I have read and agree to the cancellation &amp; rescheduling policy and house rules.</span>
-                  </label>
-                </div>
-
-                <div className="rounded-[1.5rem] border border-lime-100/10 bg-[#0d1710]/80 p-4">
-                  <p className="text-xs uppercase tracking-[0.22em] text-lime-200/80">Your details</p>
-                  <div className="mt-3 space-y-3">
-                    <div>
-                      <label className="text-xs text-[#aab5a5]">Full name</label>
-                      <input
-                        type="text"
-                        className="input mt-1"
-                        placeholder="Your name"
-                        value={bookingDraft.contactName}
-                        onChange={(e) => setBookingDraft((prev) => ({ ...prev, contactName: e.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-[#aab5a5]">Email</label>
-                      <input
-                        type="email"
-                        className="input mt-1"
-                        placeholder="you@example.com"
-                        value={bookingDraft.contactEmail}
-                        onChange={(e) => setBookingDraft((prev) => ({ ...prev, contactEmail: e.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-[#aab5a5]">Phone number</label>
-                      <input
-                        type="tel"
-                        className="input mt-1"
-                        placeholder="Your phone number"
-                        value={bookingDraft.contactPhone}
-                        onChange={(e) => setBookingDraft((prev) => ({ ...prev, contactPhone: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex gap-3">
-                  <button
-                    className="btn-secondary flex-1 disabled:opacity-50"
-                    onClick={() => setBookingStep('details')}
-                    disabled={placingBooking}
-                    type="button"
-                  >
-                    Back
-                  </button>
-                  <button
-                    className="btn-primary flex-1 disabled:opacity-50"
-                    onClick={() => {
-                      if (!policyAccepted) {
-                        toast.error('Please read and check the cancellation & rescheduling policy and house rules.');
-                        return;
-                      }
-                      setBookingStep('payment');
-                    }}
-                    disabled={
-                      placingBooking ||
-                      !bookingDraft.contactName.trim() ||
-                      !bookingDraft.contactEmail.trim() ||
-                      !bookingDraft.contactPhone.trim()
-                    }
-                    type="button"
-                  >
-                    Proceed to Book
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="mt-5 space-y-3">
-                <div className="rounded-[1.5rem] border border-lime-100/10 bg-[#0d1710]/80 p-4">
-                  <p className="text-xs uppercase tracking-[0.22em] text-lime-200/80">How would you like to pay?</p>
-                  <div className="mt-3 grid grid-cols-2 gap-3">
-                    <label
-                      className={`cursor-pointer rounded-[1rem] border p-3 text-sm transition ${
-                        paymentPlan === 'deposit'
-                          ? 'border-lime-300 bg-lime-200/10 text-white'
-                          : 'border-lime-100/10 bg-black/20 text-[#cdd6c9]'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="paymentPlan"
-                        className="sr-only"
-                        checked={paymentPlan === 'deposit'}
-                        onChange={() => setPaymentPlan('deposit')}
-                      />
-                      <p className="font-semibold">Pay 50% now</p>
-                      <p className="mt-1 text-xs text-[#aab5a5]">
-                        {formatCurrency(Math.round(modalFinalTotal / 2))} now, rest at check-out
-                      </p>
-                    </label>
-                    <label
-                      className={`cursor-pointer rounded-[1rem] border p-3 text-sm transition ${
-                        paymentPlan === 'full'
-                          ? 'border-lime-300 bg-lime-200/10 text-white'
-                          : 'border-lime-100/10 bg-black/20 text-[#cdd6c9]'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="paymentPlan"
-                        className="sr-only"
-                        checked={paymentPlan === 'full'}
-                        onChange={() => setPaymentPlan('full')}
-                      />
-                      <p className="font-semibold">Pay 100% now</p>
-                      <p className="mt-1 text-xs text-[#aab5a5]">{formatCurrency(modalFinalTotal)} now, nothing due later</p>
-                    </label>
-                  </div>
-
-                  <div className="mt-4 flex items-center justify-between rounded-[1rem] border border-lime-100/10 bg-black/20 px-4 py-3 text-sm">
-                    <span className="text-[#cdd6c9]">Amount to pay now</span>
-                    <span className="text-lg font-bold text-lime-200">
-                      {formatCurrency(paymentPlan === 'full' ? modalFinalTotal : Math.round(modalFinalTotal / 2))}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex gap-3">
-                  <button
-                    className="btn-secondary flex-1 disabled:opacity-50"
-                    onClick={() => setBookingStep('summary')}
-                    disabled={placingBooking}
-                    type="button"
-                  >
-                    Back
-                  </button>
-                  <button
-                    className="btn-primary flex-1 disabled:opacity-50"
-                    onClick={proceedToBook}
-                    disabled={placingBooking}
-                    type="button"
-                  >
-                    {placingBooking
-                      ? 'Processing...'
-                      : `Pay ${formatCurrency(paymentPlan === 'full' ? modalFinalTotal : Math.round(modalFinalTotal / 2))} now`}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      ) : null}
-
-      {!activeBooking && roomCart.length > 0 ? (
-        <div className="fixed inset-x-0 bottom-4 z-40 flex justify-center px-4">
-          <div className="glass flex w-full max-w-xl items-center justify-between gap-4 rounded-full border border-lime-100/15 px-5 py-3 shadow-xl">
-            <div className="flex items-center gap-3">
-              <ShoppingBagIcon className="h-5 w-5 text-lime-200" />
-              <div>
-                <p className="text-sm font-semibold text-white">
-                  {roomCart.length} room{roomCart.length === 1 ? '' : 's'} added
-                </p>
-                <p className="text-xs text-[#aab5a5]">{formatCurrency(cartSubtotal)} so far · pick another room to continue</p>
-              </div>
-            </div>
+      <section id="stay" className="section-shell py-16 sm:py-20">
+        <div className="flex items-end justify-between gap-5">
+          <SectionHeading
+            eyebrow="The stay"
+            title="Choose the room that feels right."
+            copy="See each room’s photos, sleeping arrangement, guest capacity and live pricing. Compare every room and group option."
+          />
+          <div className="hidden shrink-0 gap-2 sm:flex" aria-label="Room carousel controls">
             <button
-              className="rounded-full p-2 text-[#aab5a5] hover:text-rose-400"
               type="button"
-              onClick={() => setRoomCart([])}
-              title="Clear cart"
+              aria-label="Previous room"
+              onClick={() => scrollRoomCarousel(-1)}
+              className="flex h-12 w-12 items-center justify-center rounded-full border border-lime-100/20 bg-white/[0.06] text-lime-100 transition hover:bg-lime-100/15 focus:outline-none focus:ring-2 focus:ring-lime-200/60"
             >
-              <TrashIcon className="h-5 w-5" />
+              <ChevronLeftIcon className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              aria-label="Next room"
+              onClick={() => scrollRoomCarousel(1)}
+              className="flex h-12 w-12 items-center justify-center rounded-full border border-lime-100/20 bg-white/[0.06] text-lime-100 transition hover:bg-lime-100/15 focus:outline-none focus:ring-2 focus:ring-lime-200/60"
+            >
+              <ChevronRightIcon className="h-5 w-5" />
             </button>
           </div>
         </div>
-      ) : null}
-    </>
+
+        {roomsLoading ? (
+          <div className="mt-12 grid gap-5 overflow-hidden sm:flex" aria-label="Loading rooms">
+            {[0, 1, 2].map((item) => (
+              <div key={item} className="h-[32rem] w-full animate-pulse rounded-[1.75rem] border border-white/10 bg-white/[0.05] sm:w-[22rem] sm:max-w-[24rem] sm:shrink-0 lg:w-[24rem]" />
+            ))}
+          </div>
+        ) : roomListings.length ? (
+          <div
+            ref={roomCarouselRef}
+            role="region"
+            aria-label="Rooms and group booking options"
+            tabIndex={0}
+            className="mt-12 grid items-stretch gap-5 pb-4 sm:flex sm:snap-x sm:snap-mandatory sm:overflow-x-auto sm:scroll-smooth sm:[-ms-overflow-style:none] sm:[scrollbar-width:none] sm:[&::-webkit-scrollbar]:hidden"
+          >
+            {roomListings.map((listing) => (
+              <div
+                key={listing._id}
+                data-room-card
+                className="w-full self-stretch sm:w-[22rem] sm:max-w-[24rem] sm:shrink-0 sm:snap-start lg:w-[24rem]"
+              >
+                <ListingCard listing={listing} compact showPrice />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-12 rounded-[1.75rem] border border-white/10 bg-white/[0.04] p-7 text-center">
+            <p className="font-semibold text-white">
+              {roomsError ? 'Room details could not be loaded right now.' : 'No rooms are currently listed.'}
+            </p>
+            <Link className="mt-5 inline-flex rounded-full bg-lime-200 px-6 py-3 font-bold !text-[#102013]" to="/stays">
+              Check availability
+            </Link>
+          </div>
+        )}
+
+        <div className="mt-8 flex flex-col items-center justify-between gap-5 rounded-[1.75rem] border border-lime-100/15 bg-lime-100/[0.06] p-6 text-center sm:flex-row sm:text-left">
+          <div>
+            <p className="font-semibold text-white">Want to compare dates across every room?</p>
+            <p className="mt-1 text-sm font-medium !text-[#c9d4c6]">Breakfast is included. Weekend rates may vary.</p>
+          </div>
+          <Link className="inline-flex shrink-0 items-center gap-2 rounded-full bg-[#dff5aa] px-6 py-3 font-bold !text-[#102013] transition hover:bg-[#e9fac2]" to="/stays">
+            View all availability <ArrowRightIcon className="h-4 w-4" />
+          </Link>
+        </div>
+      </section>
+
+      <section id="about" className="section-shell py-16 sm:py-20">
+        <div className="grid gap-12 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
+          <SectionHeading
+            eyebrow="About Bowline"
+            title="The feeling of home, without the hurry."
+            copy="Bowline is a small, offbeat homestay surrounded by mountains, native trees and fresh water. It is not designed around crowds or a packed resort schedule. Your hosts live on the property, help shape your days and share the places that only the local community knows."
+          />
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              ['5 hrs', 'from Bengaluru'],
+              ['3 hrs', 'from Mangaluru'],
+              ['20 min', 'to Devaramane'],
+              ['2 nights', 'recommended stay'],
+            ].map(([value, label]) => (
+              <div key={label} className="rounded-[1.75rem] border border-lime-100/15 bg-gradient-to-br from-white/[0.08] to-lime-100/[0.025] p-5 shadow-[0_20px_50px_rgba(0,0,0,0.16)] sm:p-6">
+                <p className="font-display text-3xl font-bold tracking-[-0.03em] text-lime-100 sm:text-4xl">{value}</p>
+                <p className="mt-2 text-sm font-medium leading-5 !text-[#d2dccf]">{label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="experiences" className="border-y border-white/10 bg-transparent py-16 sm:py-20">
+        <div className="section-shell">
+          <SectionHeading
+            eyebrow="Your days here"
+            title="Nature is the itinerary."
+            copy="Choose rest, adventure or a little of both. Complimentary experiences are arranged around weather, safety and the pace of the group."
+          />
+          <div className="mt-12 grid gap-px overflow-hidden rounded-[2rem] border border-white/10 bg-white/10 sm:grid-cols-2 lg:grid-cols-3">
+            {experiences.map(([title, copy], index) => (
+              <article key={title} className="bg-black/20 p-6 backdrop-blur-[2px] sm:p-8">
+                <span className="font-display text-2xl text-lime-200/50">0{index + 1}</span>
+                <h3 className="mt-8 text-xl font-semibold text-white">{title}</h3>
+                <p className="mt-3 font-medium leading-7 !text-[#d2dccf]">{copy}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="section-shell py-16 sm:py-20">
+        <div className="relative overflow-hidden rounded-[2.25rem]">
+          <img src={campfireImage} alt="Guests gathered around the Bowline campfire" className="h-[34rem] w-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/35 to-transparent" />
+          <div className="absolute inset-0 flex max-w-2xl flex-col justify-end p-7 sm:p-12">
+            <p className="text-sm font-semibold uppercase tracking-[0.28em] text-lime-200">Hosted, not serviced</p>
+            <h2 className="mt-4 font-display text-4xl font-bold leading-tight tracking-[-0.035em] text-white sm:text-6xl">Come as guests. Leave knowing the place.</h2>
+            <p className="mt-5 max-w-lg text-base font-medium leading-7 !text-white/90">Suhan guides the trails and adventures. Pavithra brings warmth and care to the stay. Together, they help plan each day around what you actually came here for.</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-y border-white/10 bg-transparent py-16 text-[#f7f2e5] sm:py-20">
+        <div className="section-shell grid gap-12 lg:grid-cols-2">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.28em] text-lime-200/80">A two-night rhythm</p>
+            <h2 className="mt-4 font-display text-4xl font-bold leading-tight tracking-[-0.035em] sm:text-5xl">Enough time to arrive, explore and slow down.</h2>
+          </div>
+          <ol className="space-y-7">
+            {[
+              ['Day 1', `Have lunch along the way, check in from ${CHECK_IN_TIME}, swim in the stream, visit Devaramane for sunset, then return for a pre-booked dinner and a campfire.`],
+              ['Day 2', 'Breakfast, a guided secret-trail trek, lunch, the hidden waterfall and an optional off-road drive before another slow evening.'],
+              ['Day 3', `A relaxed breakfast and check-out by ${CHECK_OUT_TIME}.`],
+            ].map(([day, copy]) => (
+              <li key={day} className="grid grid-cols-[4.5rem_1fr] gap-4 border-t border-white/15 pt-6">
+                <span className="font-semibold text-lime-200/80">{day}</span>
+                <p className="leading-7">{copy}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      <section className="section-shell py-16 sm:py-20">
+        <SectionHeading eyebrow="Included & available" title="Comfort where it matters." />
+        <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            [SparklesIcon, 'Home-cooked food', 'Complimentary breakfast; simple regional meals available.'],
+            [FireIcon, 'Campfire nights', 'A shared campfire and projector for easy evenings together.'],
+            [CheckIcon, 'Everyday essentials', 'Hot water, Wi-Fi, first aid and a shared kitchen.'],
+            [ClockIcon, 'A slower pace', 'Quiet hours from 10 PM to 8 AM keep the hills peaceful.'],
+          ].map(([Icon, title, copy]) => (
+            <div key={title} className="rounded-[1.75rem] border border-white/10 bg-white/[0.035] p-6">
+              <Icon className="h-6 w-6 text-lime-200" />
+              <h3 className="mt-7 text-lg font-semibold text-white">{title}</h3>
+              <p className="mt-2 text-sm font-medium leading-6 !text-[#d2dccf]">{copy}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section id="faqs" className="scroll-mt-[4.5rem] border-t border-white/10 bg-transparent py-16 sm:py-20">
+        <div className="section-shell grid gap-12 lg:grid-cols-[0.7fr_1.3fr]">
+          <div>
+            <SectionHeading eyebrow="Before you visit" title="Questions, answered honestly." />
+            <p className="mt-6 text-sm font-medium leading-6 !text-[#c9d4c6]">Need something more specific? WhatsApp the hosts directly and they’ll help.</p>
+          </div>
+          <div className="divide-y divide-white/10 border-y border-white/10">
+            {faqs.map((faq, index) => {
+              const isOpen = openFaq === index;
+              return (
+                <div key={faq.id || faq.question}>
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between gap-5 py-5 text-left text-base font-semibold text-white sm:text-lg"
+                    onClick={() => setOpenFaq(isOpen ? -1 : index)}
+                    aria-expanded={isOpen}
+                  >
+                    {faq.question}
+                    <ChevronDownIcon className={`h-5 w-5 shrink-0 text-lime-200 transition ${isOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  <AnimatePresence initial={false}>
+                    {isOpen && (
+                      <motion.div
+                        className="overflow-hidden"
+                        initial={reduceMotion ? false : { height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={reduceMotion ? undefined : { height: 0, opacity: 0 }}
+                        transition={{ duration: reduceMotion ? 0 : 0.28, ease: [0.22, 1, 0.36, 1] }}
+                      >
+                        <p className="max-w-2xl whitespace-pre-line break-words pb-6 pr-4 font-medium leading-7 !text-[#d2dccf] sm:pr-8">
+                          {faq.answer}
+                        </p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section className="section-shell py-16 text-center sm:py-20">
+        <p className="text-sm font-semibold uppercase tracking-[0.28em] text-lime-200/80">Ready when you are</p>
+        <h2 className="mx-auto mt-4 max-w-3xl font-display text-4xl font-bold leading-tight tracking-[-0.035em] sm:text-6xl">Your quieter corner of the Western Ghats.</h2>
+        <p className="mx-auto mt-5 max-w-xl font-medium leading-7 !text-[#d2dccf]">Check live room availability online or speak directly with Pavithra and Suhan on WhatsApp.</p>
+      </section>
+
+      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[#07100a]/95 px-3 py-3 shadow-[0_-16px_50px_rgba(0,0,0,0.42)] backdrop-blur-xl sm:px-5 sm:py-4">
+        <div className="mx-auto grid max-w-3xl grid-cols-2 gap-2.5 sm:gap-4">
+          <a
+            className="inline-flex min-h-[56px] items-center justify-center gap-2 rounded-2xl bg-[#25D366] px-3 text-center text-sm font-bold !text-[#05210e] shadow-[0_8px_24px_rgba(37,211,102,0.2)] transition hover:bg-[#35df73] sm:min-h-[60px] sm:gap-3 sm:rounded-full sm:text-base"
+            href={whatsappUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[#20b858] sm:h-9 sm:w-9">
+              <WhatsAppIcon className="h-5 w-5 sm:h-6 sm:w-6" />
+            </span>
+            <span>Book on WhatsApp</span>
+          </a>
+          <Link className="inline-flex min-h-[56px] items-center justify-center gap-2 rounded-2xl bg-[#dff5aa] px-3 text-center text-sm font-bold !text-[#102013] shadow-[0_8px_24px_rgba(223,245,170,0.12)] transition hover:bg-[#e9fac2] sm:min-h-[60px] sm:gap-3 sm:rounded-full sm:text-base" to="/stays">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#102013] text-lg sm:h-9 sm:w-9 sm:text-xl" aria-hidden="true">📅</span>
+            <span>Book on website</span>
+          </Link>
+        </div>
+      </div>
+    </div>
   );
 }
 

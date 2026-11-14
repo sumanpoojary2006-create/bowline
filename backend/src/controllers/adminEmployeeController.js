@@ -3,8 +3,11 @@ import Attendance from '../models/Attendance.js';
 import ChecklistSubmission from '../models/ChecklistSubmission.js';
 import ChecklistItem from '../models/ChecklistItem.js';
 import AppSetting from '../models/AppSetting.js';
+import Leave from '../models/Leave.js';
 import { getChecklistTemplate } from '../config/checklistTemplates.js';
 import { slugify } from '../utils/slugify.js';
+import { isValidIpRule } from '../utils/network.js';
+import { computeMonthlySalary } from '../utils/salary.js';
 
 const ATTENDANCE_WINDOW_DAYS = 30;
 
@@ -19,6 +22,8 @@ const formatEmployee = (employee) => ({
   role: employee.role,
   active: employee.active,
   joinDate: employee.joinDate,
+  monthlySalary: employee.monthlySalary,
+  leavesPerMonth: employee.leavesPerMonth,
 });
 
 export const getEmployees = async (req, res, next) => {
@@ -30,10 +35,13 @@ export const getEmployees = async (req, res, next) => {
     ]);
     const scoreMap = new Map(scores.map((entry) => [String(entry._id), Math.round(entry.avgScore)]));
 
+    const salaries = await Promise.all(employees.map((employee) => computeMonthlySalary(employee)));
+
     res.json({
-      employees: employees.map((employee) => ({
+      employees: employees.map((employee, index) => ({
         ...formatEmployee(employee),
         score: scoreMap.get(String(employee._id)) ?? null,
+        currentMonthSalary: salaries[index],
       })),
     });
   } catch (error) {
@@ -43,7 +51,7 @@ export const getEmployees = async (req, res, next) => {
 
 export const createEmployee = async (req, res, next) => {
   try {
-    const { name, phone, email, password, role } = req.body;
+    const { name, phone, email, password, role, monthlySalary, leavesPerMonth } = req.body;
 
     if (!name || !phone || !password || !role) {
       res.status(400);
@@ -56,7 +64,15 @@ export const createEmployee = async (req, res, next) => {
       throw new Error('An employee with this phone number already exists');
     }
 
-    const employee = await Employee.create({ name, phone, email, password, role });
+    const employee = await Employee.create({
+      name,
+      phone,
+      email,
+      password,
+      role,
+      monthlySalary: Math.max(0, Number(monthlySalary) || 0),
+      leavesPerMonth: Math.max(0, Number(leavesPerMonth) || 0),
+    });
 
     res.status(201).json({ employee: formatEmployee(employee) });
   } catch (error) {
@@ -73,17 +89,51 @@ export const updateEmployee = async (req, res, next) => {
       throw new Error('Employee not found');
     }
 
-    const { name, email, role, active, password } = req.body;
+    const { name, email, role, active, password, monthlySalary, leavesPerMonth } = req.body;
 
     if (name !== undefined) employee.name = name;
     if (email !== undefined) employee.email = email;
     if (role !== undefined) employee.role = role;
     if (active !== undefined) employee.active = active;
     if (password) employee.password = password;
+    if (monthlySalary !== undefined) employee.monthlySalary = Math.max(0, Number(monthlySalary) || 0);
+    if (leavesPerMonth !== undefined) employee.leavesPerMonth = Math.max(0, Number(leavesPerMonth) || 0);
 
     await employee.save();
 
     res.json({ employee: formatEmployee(employee) });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getEmployeeSalary = async (req, res, next) => {
+  try {
+    const employee = await Employee.findById(req.params.id);
+    if (!employee) {
+      res.status(404);
+      throw new Error('Employee not found');
+    }
+
+    const summary = await computeMonthlySalary(employee, req.query.month);
+    res.json({ salary: summary });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getAllLeaves = async (req, res, next) => {
+  try {
+    const { employeeId, month } = req.query;
+    const filter = {};
+    if (employeeId) filter.employee = employeeId;
+    if (/^\d{4}-\d{2}$/.test(month)) {
+      filter.date = { $gte: `${month}-01`, $lte: `${month}-31` };
+    }
+
+    const leaves = await Leave.find(filter).sort({ date: -1 }).populate('employee', 'name role');
+
+    res.json({ leaves });
   } catch (error) {
     next(error);
   }
@@ -174,9 +224,15 @@ export const updateWifiSetting = async (req, res, next) => {
       throw new Error('allowedIps must be an array of IP addresses');
     }
 
+    const cleanedIps = [...new Set(allowedIps.map((ip) => String(ip).trim()).filter(Boolean))];
+    if (cleanedIps.some((ip) => !isValidIpRule(ip))) {
+      res.status(400);
+      throw new Error('Enter valid IPv4, IPv6, or network range values');
+    }
+
     const setting = await AppSetting.findOneAndUpdate(
       { key: 'employee_wifi' },
-      { allowedIps: allowedIps.map((ip) => String(ip).trim()).filter(Boolean) },
+      { allowedIps: cleanedIps },
       { upsert: true, new: true }
     );
 

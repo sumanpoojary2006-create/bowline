@@ -83,9 +83,9 @@ function BrowseRoomsPage() {
     addItem(room, filters.startDate, filters.endDate, filters.guests);
   };
 
-  const handleBook = (room) => {
+  const handleBook = () => {
     navigate(
-      `/book/${room.slug}?startDate=${formatDateParam(filters.startDate)}&endDate=${formatDateParam(filters.endDate)}&guests=${filters.guests}`
+      `/book-stay?startDate=${formatDateParam(filters.startDate)}&endDate=${formatDateParam(filters.endDate)}&guests=${filters.guests}`
     );
   };
 
@@ -110,7 +110,7 @@ function BrowseRoomsPage() {
                 }))
               }
               className="w-full bg-transparent text-base font-medium text-slate-900 outline-none"
-              minDate={new Date()}
+              minDate={addDays(new Date(), 1)}
               dateFormat="MMM d"
             />
           </label>
@@ -216,7 +216,7 @@ function BrowseRoomsPage() {
                           + Add to Cart
                         </button>
                         <button
-                          onClick={() => handleBook(room)}
+                          onClick={handleBook}
                           className="btn-primary flex-1 text-sm"
                         >
                           Book Now

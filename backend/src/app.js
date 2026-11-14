@@ -15,43 +15,17 @@ import paymentRoutes from './routes/paymentRoutes.js';
 import whatsappRoutes from './routes/whatsappRoutes.js';
 import webhookRoutes from './routes/webhookRoutes.js';
 import employeeRoutes from './routes/employeeRoutes.js';
+import contentRoutes from './routes/contentRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
 import { errorHandler, notFound } from './middleware/error.js';
+import { createOriginChecker } from './utils/cors.js';
 
 dotenv.config();
 
 const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const allowedOrigins = (process.env.CLIENT_URL || '')
-  .split(',')
-  .map((value) => value.trim())
-  .filter(Boolean);
-
-const isAllowedOrigin = (origin) => {
-  if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
-    return true;
-  }
-
-  try {
-    const { hostname } = new URL(origin);
-
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return true;
-    }
-
-    if (
-      hostname.endsWith('.vercel.app') &&
-      (hostname.startsWith('bowline-') || hostname === 'bowline-omega.vercel.app')
-    ) {
-      return true;
-    }
-  } catch {
-    return false;
-  }
-
-  return false;
-};
+const isAllowedOrigin = createOriginChecker(process.env.CLIENT_URL);
 
 app.use(
   cors({
@@ -83,6 +57,7 @@ app.get('/api/health', (_, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/listings', listingRoutes);
+app.use('/api/content', contentRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/admin', adminRoutes);

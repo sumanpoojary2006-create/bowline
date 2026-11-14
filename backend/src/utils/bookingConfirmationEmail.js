@@ -1,7 +1,7 @@
-import dayjs from 'dayjs';
 import { isEmailConfigured, sendMail } from './email.js';
 import { generateBookingReceiptPdf } from './receiptPdf.js';
 import { getAmountPaid, getAmountDue } from '../controllers/paymentController.js';
+import { formatBookingDate, nightsBetweenBookingDates } from './bookingDates.js';
 
 const isRealEmail = (email) => Boolean(email) && !/@bowline\.guest$/i.test(email);
 
@@ -24,8 +24,8 @@ export const sendBookingConfirmationEmail = async (bookings) => {
   const lines = [`Hi ${first.contactName},`, '', 'Your booking with Bowline Nature Stay is confirmed!', ''];
 
   list.forEach((booking) => {
-    const nights = Math.max(dayjs(booking.endDate).diff(dayjs(booking.startDate), 'day'), 1);
-    const dates = `${dayjs(booking.startDate).format('D MMM YYYY')} - ${dayjs(booking.endDate).format('D MMM YYYY')}`;
+    const nights = Math.max(nightsBetweenBookingDates(booking.startDate, booking.endDate), 1);
+    const dates = `${formatBookingDate(booking.startDate)} - ${formatBookingDate(booking.endDate)}`;
 
     lines.push(
       `${booking.listing?.name || 'Booking'}`,
@@ -47,8 +47,8 @@ export const sendBookingConfirmationEmail = async (bookings) => {
       <p>Your booking with <strong>Bowline Nature Stay</strong> is confirmed. Here's a summary:</p>
       ${list
         .map((booking) => {
-          const nights = Math.max(dayjs(booking.endDate).diff(dayjs(booking.startDate), 'day'), 1);
-          const dates = `${dayjs(booking.startDate).format('D MMM YYYY')} - ${dayjs(booking.endDate).format('D MMM YYYY')}`;
+          const nights = Math.max(nightsBetweenBookingDates(booking.startDate, booking.endDate), 1);
+          const dates = `${formatBookingDate(booking.startDate)} - ${formatBookingDate(booking.endDate)}`;
           return `
             <div style="border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 12px;">
               <p style="margin: 0; font-weight: bold; font-size: 16px;">${booking.listing?.name || 'Booking'}</p>

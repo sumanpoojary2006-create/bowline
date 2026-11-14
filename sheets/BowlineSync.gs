@@ -109,6 +109,14 @@ function doPost(e) {
       upsertWhatsAppContact(data.phone, data.profileName, data.firstSeenAt, data.lastSeenAt, data.messageCount);
       result.action = 'upsertContact';
 
+    } else if (data.action === 'upsertAttendance') {
+      upsertAttendanceRecord(data);
+      result.action = 'upsertAttendance';
+
+    } else if (data.action === 'upsertSalarySummary') {
+      upsertSalarySummaryRow(data);
+      result.action = 'upsertSalarySummary';
+
     } else {
       result.ok = false;
       result.error = 'Unknown action: ' + data.action;
@@ -141,6 +149,7 @@ function upsertBookingCells(roomName, startDateStr, endDateStr, guestName, statu
   while (d < end) {
     var sheet = getOrCreateMonthSheet(d);
     if (sheet) {
+      clearCalendarStrikethrough(sheet);
       var row = getRowForDate(sheet, d);
       if (row > 0) {
         var cell = sheet.getRange(row, col);
@@ -184,6 +193,7 @@ function bulkUpsertBookingCells(items) {
   for (var sheetName in months) {
     var month = months[sheetName];
     var sheet = getOrCreateMonthSheet(month.date);
+    clearCalendarStrikethrough(sheet);
     var numRows = sheet.getLastRow() - 1;
     if (numRows < 1) continue;
 
@@ -215,6 +225,7 @@ function clearBookingCells(roomName, startDateStr, endDateStr) {
   while (d < end) {
     var sheet = getMonthSheet(d);
     if (sheet) {
+      clearCalendarStrikethrough(sheet);
       var row = getRowForDate(sheet, d);
       if (row > 0) {
         var cell = sheet.getRange(row, col);
@@ -544,6 +555,7 @@ function formatMonthSheet(sheet) {
   var backgrounds = [];
 
   dateRange.setNumberFormat(DATE_DISPLAY_FORMAT);
+  clearCalendarStrikethrough(sheet);
 
   for (var i = 0; i < dates.length; i++) {
     var value = dates[i][0];
@@ -556,6 +568,16 @@ function formatMonthSheet(sheet) {
   }
 
   dateRange.setBackgrounds(backgrounds);
+}
+
+// Strike-through has no status meaning in the Bowline calendar. It can be
+// applied accidentally to a row in Google Sheets and then survives value and
+// colour updates, making a live booking look cancelled. Normalize it on every
+// calendar write and whenever month tabs are formatted.
+function clearCalendarStrikethrough(sheet) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+  sheet.getRange(2, 1, lastRow - 1, 6).setFontLine('none');
 }
 
 function getRowForDate(sheet, date) {
@@ -591,4 +613,100 @@ function upsertLaundrySubmission(record) {
     });
     var start = sheet.getLastRow()+1;
     sheet.getRange(start,1,values.length,9).setValues(values);
+}
+
+// ── Staff attendance — 12 month tabs (reused every year), 3 columns only ───
+var ATTENDANCE_MONTH_NAMES = [
+  'January','February','March','April','May','June',
+  'July','August','September','October','November','December'
+];
+
+function attendanceSheetNameForDate(dateStr) {
+  // dateStr is 'YYYY-MM-DD'; parse the month without relying on Date's
+  // timezone handling of a date-only ISO string.
+  var monthIndex = parseInt(dateStr.slice(5, 7), 10) - 1;
+  return ATTENDANCE_MONTH_NAMES[monthIndex] || ATTENDANCE_MONTH_NAMES[0];
+}
+
+function formatAttendanceTimestamp(iso) {
+  if (!iso) return '';
+  return Utilities.formatDate(new Date(iso), 'Asia/Kolkata', 'dd MMM yyyy, hh:mm a');
+}
+
+function getOrCreateAttendanceSheet(name) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(name);
+  if (sheet) return sheet;
+  sheet = ss.insertSheet(name);
+  sheet.getRange(1, 1, 1, 3).setValues([['Employee Name', 'Check-in', 'Check-out']]);
+  sheet.setFrozenRows(1);
+  sheet.getRange(1, 1, 1, 3).setFontWeight('bold');
+  return sheet;
+}
+
+// One row per employee per shift. A check-in appends a new row with the
+// check-out cell blank; the matching check-out fills in that same row
+// (found by scanning upward for the most recent blank check-out for that
+// employee) instead of adding a second row.
+function upsertAttendanceRecord(data) {
+  if (!data || !data.employeeName || !data.date) return;
+  var sheet = getOrCreateAttendanceSheet(attendanceSheetNameForDate(data.date));
+  var safeName = /^[=+@\-]/.test(data.employeeName) ? "'" + data.employeeName : data.employeeName;
+  var checkIn = formatAttendanceTimestamp(data.checkInAt);
+  var checkOut = formatAttendanceTimestamp(data.checkOutAt);
+
+  if (checkOut) {
+    var lastRow = sheet.getLastRow();
+    if (lastRow >= 2) {
+      var values = sheet.getRange(2, 1, lastRow - 1, 3).getValues();
+      for (var i = values.length - 1; i >= 0; i--) {
+        if (values[i][0] === data.employeeName && !values[i][2]) {
+          sheet.getRange(i + 2, 2, 1, 2).setValues([[checkIn || values[i][1], checkOut]]);
+          return;
+        }
+      }
+    }
+  }
+
+  sheet.appendRow([safeName, checkIn, checkOut]);
+}
+
+// ── Monthly salary summary — one tab per calendar month+year ───────────────
+function salarySummarySheetName(month) {
+  var parts = month.split('-');
+  var monthName = ATTENDANCE_MONTH_NAMES[parseInt(parts[1], 10) - 1] || '';
+  return 'Salary Summary ' + monthName + ' ' + parts[0];
+}
+
+var SALARY_SUMMARY_HEADERS = ['Employee Name', 'Full Days', 'Half Days', 'Leave Days', 'Excess Leave Days', 'Calculated Salary'];
+
+function upsertSalarySummaryRow(data) {
+  if (!data || !data.employeeName || !data.month) return;
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var name = salarySummarySheetName(data.month);
+  var sheet = ss.getSheetByName(name);
+  if (!sheet) {
+    sheet = ss.insertSheet(name);
+    sheet.getRange(1, 1, 1, SALARY_SUMMARY_HEADERS.length).setValues([SALARY_SUMMARY_HEADERS]);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, SALARY_SUMMARY_HEADERS.length).setFontWeight('bold');
+  }
+
+  var safeName = /^[=+@\-]/.test(data.employeeName) ? "'" + data.employeeName : data.employeeName;
+  var values = [safeName, data.fullDays || 0, data.halfDays || 0, data.leaveDays || 0, data.excessLeaveDays || 0, data.calculatedSalary || 0];
+
+  var lastRow = sheet.getLastRow();
+  var row = -1;
+  if (lastRow >= 2) {
+    var names = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    for (var i = 0; i < names.length; i++) {
+      if (names[i][0] === data.employeeName) { row = i + 2; break; }
+    }
+  }
+
+  if (row === -1) {
+    sheet.appendRow(values);
+  } else {
+    sheet.getRange(row, 1, 1, values.length).setValues([values]);
+  }
 }

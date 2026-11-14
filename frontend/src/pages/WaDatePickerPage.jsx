@@ -39,7 +39,9 @@ function CalendarGrid({ year, month, start, end, hovered, step, bookedRanges, lo
       <div className="grid grid-cols-7 gap-y-1">
         {cells.map((date, i) => {
           if (!date) return <div key={`e${i}`} />;
-          const isPast = date < today;
+          // WhatsApp bookings follow the same policy as the main website:
+          // check-in starts tomorrow, never today.
+          const isPast = date <= today;
           const isStart = sameDay(date, start);
           const isEnd   = sameDay(date, end);
           const inRange = start && rangeEnd && date > start && date < rangeEnd;

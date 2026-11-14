@@ -16,6 +16,7 @@ export function EmployeeAuthProvider({ children }) {
       attendanceSummary: data.attendanceSummary,
       score: data.score,
       today: data.today,
+      isOnLeaveToday: data.isOnLeaveToday,
     });
     return data;
   };
