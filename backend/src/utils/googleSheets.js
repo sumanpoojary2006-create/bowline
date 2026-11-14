@@ -57,15 +57,17 @@ export function isSheetsConfigured() {
 // The staff attendance spreadsheet is a separate Apps Script deployment from
 // the main bookings/laundry one, so booking/laundry writes never touch it
 // and vice versa.
+// Deliberately ignores APPS_SCRIPT_OUTBOUND_SECRET — that var exists only to
+// migrate the main sheet's older receiver secret, and would otherwise take
+// priority over SHEETS_WEBHOOK_SECRET for this unrelated spreadsheet too.
 export function isAttendanceSheetsConfigured() {
-  return Boolean(
-    process.env.ATTENDANCE_APPS_SCRIPT_WEB_APP_URL &&
-      (process.env.APPS_SCRIPT_OUTBOUND_SECRET || process.env.SHEETS_WEBHOOK_SECRET)
-  );
+  return Boolean(process.env.ATTENDANCE_APPS_SCRIPT_WEB_APP_URL && process.env.SHEETS_WEBHOOK_SECRET);
 }
 
 const getAppsScriptSecret = () =>
   process.env.APPS_SCRIPT_OUTBOUND_SECRET || process.env.SHEETS_WEBHOOK_SECRET || '';
+
+const getAttendanceAppsScriptSecret = () => process.env.SHEETS_WEBHOOK_SECRET || '';
 
 // ── Call the Apps Script web app ───────────────────────────────────────────
 // Apps Script has no locking around the spreadsheet, so concurrent doPost
@@ -85,14 +87,14 @@ function enqueueAppsScriptCall(task) {
   return result;
 }
 
-async function callAppsScript(payload, urlOverride) {
+async function callAppsScript(payload, urlOverride, secretOverride) {
   const url = urlOverride || process.env.APPS_SCRIPT_WEB_APP_URL;
   if (!url) return;
 
   return enqueueAppsScriptCall(async () => {
     const body = JSON.stringify({
       ...payload,
-      secret: getAppsScriptSecret(),
+      secret: secretOverride || getAppsScriptSecret(),
     });
 
     // Every operation is an idempotent upsert/clear, so retrying transient
@@ -159,7 +161,11 @@ export async function checkAttendanceSheetsConnection() {
   }
 
   try {
-    await callAppsScript({ action: 'bulkUpsert', items: [] }, process.env.ATTENDANCE_APPS_SCRIPT_WEB_APP_URL);
+    await callAppsScript(
+      { action: 'bulkUpsert', items: [] },
+      process.env.ATTENDANCE_APPS_SCRIPT_WEB_APP_URL,
+      getAttendanceAppsScriptSecret()
+    );
     return { connected: true, error: null };
   } catch (error) {
     return { connected: false, error: error.message };
@@ -392,7 +398,8 @@ export async function writeAttendanceToSheet({ employeeName, date, checkInAt, ch
       checkInAt: checkInAt ? new Date(checkInAt).toISOString() : '',
       checkOutAt: checkOutAt ? new Date(checkOutAt).toISOString() : '',
     },
-    process.env.ATTENDANCE_APPS_SCRIPT_WEB_APP_URL
+    process.env.ATTENDANCE_APPS_SCRIPT_WEB_APP_URL,
+    getAttendanceAppsScriptSecret()
   );
 }
 
@@ -411,7 +418,8 @@ export async function writeSalarySummaryToSheet({ month, employeeName, summary }
       excessLeaveDays: summary.excessLeaveDays,
       calculatedSalary: summary.calculatedSalary,
     },
-    process.env.ATTENDANCE_APPS_SCRIPT_WEB_APP_URL
+    process.env.ATTENDANCE_APPS_SCRIPT_WEB_APP_URL,
+    getAttendanceAppsScriptSecret()
   );
 }
 
