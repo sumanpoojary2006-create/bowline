@@ -104,7 +104,6 @@ function EmployeeDashboardPage() {
   const { employee, summary, refresh, logout, loading } = useEmployeeAuth();
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
-  const [leavePanelOpen, setLeavePanelOpen] = useState(false);
   const now = useNow(30000);
 
   useEffect(() => {
@@ -163,7 +162,7 @@ function EmployeeDashboardPage() {
 
       {checkedIn ? (
         <div className="mt-6">
-          <AttendanceCalendar onLeaveApplied={refresh} />
+          <AttendanceCalendar />
         </div>
       ) : null}
 
@@ -190,18 +189,6 @@ function EmployeeDashboardPage() {
                 <span className="mt-1 text-xs font-medium opacity-70">Tap to start shift</span>
               </button>
             </StatusRing>
-            <button
-              type="button"
-              className="mt-6 text-xs font-semibold text-lime-200 underline"
-              onClick={() => setLeavePanelOpen((open) => !open)}
-            >
-              {leavePanelOpen ? 'Hide leave calendar' : 'Need to apply for leave?'}
-            </button>
-            {leavePanelOpen ? (
-              <div className="mt-4 w-full">
-                <AttendanceCalendar onLeaveApplied={refresh} />
-              </div>
-            ) : null}
           </>
         ) : status === 'checked-in' ? (
           canCheckOut ? (

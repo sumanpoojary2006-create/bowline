@@ -20,35 +20,31 @@ function todayKey() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
-function AttendanceCalendar({ onLeaveApplied }) {
+function AttendanceCalendar() {
   const [cursor, setCursor] = useState(() => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
   });
   const [days, setDays] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [leaveMode, setLeaveMode] = useState(false);
-  const [selectedDates, setSelectedDates] = useState([]);
-  const [submitting, setSubmitting] = useState(false);
 
   const today = todayKey();
   const key = monthKey(cursor.year, cursor.month);
 
-  const fetchCalendar = async () => {
-    setLoading(true);
-    try {
-      const { data } = await employeeApi.get('/employee/attendance-calendar', { params: { month: key } });
-      setDays(data.days);
-    } catch {
-      toast.error('Unable to load attendance calendar');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
+    const fetchCalendar = async () => {
+      setLoading(true);
+      try {
+        const { data } = await employeeApi.get('/employee/attendance-calendar', { params: { month: key } });
+        setDays(data.days);
+      } catch {
+        toast.error('Unable to load attendance calendar');
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchCalendar();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
   const statusByDate = useMemo(() => new Map(days.map((d) => [d.date, d.status])), [days]);
@@ -66,37 +62,6 @@ function AttendanceCalendar({ onLeaveApplied }) {
       const next = new Date(prev.year, prev.month + delta, 1);
       return { year: next.getFullYear(), month: next.getMonth() };
     });
-  };
-
-  const isSelectable = (date) => date >= today && !statusByDate.get(date);
-
-  const toggleDate = (date) => {
-    if (!leaveMode || !isSelectable(date)) return;
-    setSelectedDates((prev) =>
-      prev.includes(date) ? prev.filter((d) => d !== date) : [...prev, date]
-    );
-  };
-
-  const cancelLeaveMode = () => {
-    setLeaveMode(false);
-    setSelectedDates([]);
-  };
-
-  const submitLeave = async () => {
-    if (!selectedDates.length) return;
-    setSubmitting(true);
-    try {
-      await employeeApi.post('/employee/leave', { dates: selectedDates });
-      toast.success('Leave application submitted');
-      setLeaveMode(false);
-      setSelectedDates([]);
-      await fetchCalendar();
-      onLeaveApplied?.();
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Unable to submit leave application');
-    } finally {
-      setSubmitting(false);
-    }
   };
 
   return (
@@ -133,30 +98,20 @@ function AttendanceCalendar({ onLeaveApplied }) {
         {cells.map((date, idx) => {
           if (!date) return <div key={`empty-${idx}`} />;
           const status = statusByDate.get(date);
-          const selected = selectedDates.includes(date);
-          const selectable = leaveMode && isSelectable(date);
           const dayNum = Number(date.slice(-2));
 
-          let classes = 'flex h-9 items-center justify-center rounded-lg text-xs font-semibold transition';
-          if (selected) {
-            classes += ' bg-sky-400 text-slate-950 ring-2 ring-sky-200';
-          } else if (status && STATUS_STYLES[status]) {
+          let classes = 'flex h-9 items-center justify-center rounded-lg text-xs font-semibold';
+          if (status && STATUS_STYLES[status]) {
             classes += ` ${STATUS_STYLES[status]}`;
           } else {
-            classes += selectable ? ' bg-white/10 text-slate-300 hover:bg-white/20 cursor-pointer' : ' bg-white/5 text-slate-500';
+            classes += ' bg-white/5 text-slate-500';
           }
           if (date === today) classes += ' outline outline-1 outline-lime-200/70';
 
           return (
-            <button
-              key={date}
-              type="button"
-              disabled={!selectable}
-              onClick={() => toggleDate(date)}
-              className={classes}
-            >
+            <div key={date} className={classes}>
               {dayNum}
-            </button>
+            </div>
           );
         })}
       </div>
@@ -170,42 +125,6 @@ function AttendanceCalendar({ onLeaveApplied }) {
       {loading ? (
         <p className="mt-3 text-center text-xs text-slate-500">Loading…</p>
       ) : null}
-
-      <div className="mt-4 border-t border-white/10 pt-4">
-        {!leaveMode ? (
-          <button
-            type="button"
-            className="w-full rounded-full border border-white/10 bg-white/5 py-2 text-xs font-semibold text-lime-200"
-            onClick={() => setLeaveMode(true)}
-          >
-            Apply Leave
-          </button>
-        ) : (
-          <div className="space-y-2">
-            <p className="text-center text-[11px] text-slate-400">
-              Tap the dates you want to take leave for, then submit.
-            </p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                className="flex-1 rounded-full border border-white/10 py-2 text-xs font-semibold text-slate-300"
-                onClick={cancelLeaveMode}
-                disabled={submitting}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="flex-1 rounded-full bg-lime-200 py-2 text-xs font-semibold text-slate-950 disabled:opacity-50"
-                onClick={submitLeave}
-                disabled={!selectedDates.length || submitting}
-              >
-                {submitting ? 'Submitting…' : `Submit Your Leave Application${selectedDates.length ? ` (${selectedDates.length})` : ''}`}
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   );
 }

@@ -6,8 +6,10 @@ import Leave from '../models/Leave.js';
 import { getChecklistTemplate } from '../config/checklistTemplates.js';
 import { slugify } from '../utils/slugify.js';
 import { computeMonthlySalary } from '../utils/salary.js';
+import { buildAttendanceCalendar } from '../utils/attendanceCalendar.js';
 
 const ATTENDANCE_WINDOW_DAYS = 30;
+const ADMIN_OVERRIDE_HOURS = { full: 8, half: 4 };
 
 const CHECKLIST_ROLES = ['housekeeping', 'kitchen'];
 const CHECKLIST_FIELD_TYPES = ['boolean', 'status', 'number', 'text'];
@@ -132,6 +134,70 @@ export const getAllLeaves = async (req, res, next) => {
     const leaves = await Leave.find(filter).sort({ date: -1 }).populate('employee', 'name role');
 
     res.json({ leaves });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getEmployeeAttendanceCalendar = async (req, res, next) => {
+  try {
+    const employee = await Employee.findById(req.params.id);
+    if (!employee) {
+      res.status(404);
+      throw new Error('Employee not found');
+    }
+
+    const result = await buildAttendanceCalendar(employee._id, req.query.month);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Admin override for a single day: mark a full or half day worked, mark the
+// employee absent (clears any record for that date), or put them on leave
+// (which, like staff-applied leave, blocks check-in for that date).
+export const setAttendanceOverride = async (req, res, next) => {
+  try {
+    const employee = await Employee.findById(req.params.id);
+    if (!employee) {
+      res.status(404);
+      throw new Error('Employee not found');
+    }
+
+    const { date, status } = req.body;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      res.status(400);
+      throw new Error('A valid date is required');
+    }
+    if (!['full', 'half', 'absent', 'leave'].includes(status)) {
+      res.status(400);
+      throw new Error('Status must be full, half, absent, or leave');
+    }
+
+    if (status === 'leave') {
+      await Attendance.deleteOne({ employee: employee._id, date });
+      await Leave.findOneAndUpdate(
+        { employee: employee._id, date },
+        { employee: employee._id, date },
+        { upsert: true }
+      );
+    } else if (status === 'absent') {
+      await Attendance.deleteOne({ employee: employee._id, date });
+      await Leave.deleteOne({ employee: employee._id, date });
+    } else {
+      const checkInAt = new Date(`${date}T09:00:00`);
+      const checkOutAt = new Date(checkInAt.getTime() + ADMIN_OVERRIDE_HOURS[status] * 60 * 60 * 1000);
+      await Leave.deleteOne({ employee: employee._id, date });
+      await Attendance.findOneAndUpdate(
+        { employee: employee._id, date },
+        { employee: employee._id, date, checkInAt, checkOutAt, status: 'checked-out', checkInIp: '' },
+        { upsert: true }
+      );
+    }
+
+    const result = await buildAttendanceCalendar(employee._id, date.slice(0, 7));
+    res.json(result);
   } catch (error) {
     next(error);
   }

@@ -7,7 +7,8 @@ import { resolveChecklistFields } from '../utils/checklistFields.js';
 import { buildChecklistResponses, computeChecklistScore } from '../utils/scoring.js';
 import { getClientIp } from '../utils/network.js';
 import { writeAttendanceToSheet, writeSalarySummaryToSheet } from '../utils/googleSheets.js';
-import { computeMonthlySalary, FULL_SHIFT_HOURS } from '../utils/salary.js';
+import { computeMonthlySalary } from '../utils/salary.js';
+import { buildAttendanceCalendar } from '../utils/attendanceCalendar.js';
 
 const MIN_SHIFT_HOURS = 5;
 const ATTENDANCE_WINDOW_DAYS = 30;
@@ -239,107 +240,10 @@ export const getAttendanceHistory = async (req, res, next) => {
   }
 };
 
-// One status per calendar day: 'full' (green), 'partial' (yellow), or
-// 'leave'/'absent' (both rendered red — on leave or no check-in at all).
-// Days in the future with no leave applied are omitted (status unknown yet).
 export const getAttendanceCalendar = async (req, res, next) => {
   try {
-    const month = /^\d{4}-\d{2}$/.test(req.query.month) ? req.query.month : dayjs().format('YYYY-MM');
-    const start = `${month}-01`;
-    const daysInMonth = dayjs(start).daysInMonth();
-    const end = `${month}-${String(daysInMonth).padStart(2, '0')}`;
-    const today = todayKey();
-
-    const [attendance, leaves] = await Promise.all([
-      Attendance.find({ employee: req.employee._id, date: { $gte: start, $lte: end } }),
-      Leave.find({ employee: req.employee._id, date: { $gte: start, $lte: end } }),
-    ]);
-
-    const attendanceByDate = new Map(attendance.map((record) => [record.date, record]));
-    const leaveDates = new Set(leaves.map((leave) => leave.date));
-
-    const days = [];
-    for (let d = 1; d <= daysInMonth; d += 1) {
-      const date = `${month}-${String(d).padStart(2, '0')}`;
-      let status = null;
-
-      if (leaveDates.has(date)) {
-        status = 'leave';
-      } else {
-        const record = attendanceByDate.get(date);
-        if (record) {
-          if (record.status === 'checked-out' && record.checkOutAt) {
-            const hours = dayjs(record.checkOutAt).diff(dayjs(record.checkInAt), 'minute') / 60;
-            status = hours >= FULL_SHIFT_HOURS ? 'full' : 'partial';
-          } else {
-            status = 'partial';
-          }
-        } else if (date <= today) {
-          status = 'absent';
-        }
-      }
-
-      days.push({ date, status });
-    }
-
-    res.json({ month, days });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// Staff apply their own leave; it takes effect immediately (no admin
-// approval step) and blocks check-in for those dates from then on.
-export const applyLeave = async (req, res, next) => {
-  try {
-    const { dates } = req.body;
-
-    if (!Array.isArray(dates) || !dates.length) {
-      res.status(400);
-      throw new Error('Select at least one date for your leave application');
-    }
-
-    const cleanDates = [...new Set(dates)].filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date));
-    if (!cleanDates.length) {
-      res.status(400);
-      throw new Error('Invalid date selection');
-    }
-
-    const worked = await Attendance.find({ employee: req.employee._id, date: { $in: cleanDates } }).select(
-      'date'
-    );
-    if (worked.length) {
-      res.status(400);
-      throw new Error(`You already have attendance recorded for ${worked.map((w) => w.date).join(', ')}`);
-    }
-
-    const created = [];
-    for (const date of cleanDates) {
-      // eslint-disable-next-line no-await-in-loop
-      const leave = await Leave.findOneAndUpdate(
-        { employee: req.employee._id, date },
-        { employee: req.employee._id, date },
-        { upsert: true, new: true }
-      );
-      created.push(leave.date);
-    }
-
-    res.status(201).json({ dates: created });
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const getMyLeaves = async (req, res, next) => {
-  try {
-    const { month } = req.query;
-    const filter = { employee: req.employee._id };
-    if (/^\d{4}-\d{2}$/.test(month)) {
-      filter.date = { $gte: `${month}-01`, $lte: `${month}-31` };
-    }
-
-    const leaves = await Leave.find(filter).sort({ date: 1 });
-    res.json({ leaves: leaves.map((leave) => leave.date) });
+    const result = await buildAttendanceCalendar(req.employee._id, req.query.month);
+    res.json(result);
   } catch (error) {
     next(error);
   }

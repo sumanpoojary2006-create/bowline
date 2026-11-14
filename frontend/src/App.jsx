@@ -37,6 +37,7 @@ const EmployeeDashboardPage = lazy(() => import('./pages/employee/EmployeeDashbo
 const EmployeeChecklistPage = lazy(() => import('./pages/employee/EmployeeChecklistPage'));
 const AdminEmployeesPage = lazy(() => import('./pages/AdminEmployeesPage'));
 const AdminAttendancePage = lazy(() => import('./pages/AdminAttendancePage'));
+const AdminStaffCalendarPage = lazy(() => import('./pages/AdminStaffCalendarPage'));
 const AdminChecklistsPage = lazy(() => import('./pages/AdminChecklistsPage'));
 const AdminChecklistTemplatesPage = lazy(() => import('./pages/AdminChecklistTemplatesPage'));
 const AdminFaqsPage = lazy(() => import('./pages/AdminFaqsPage'));
@@ -122,6 +123,7 @@ function App() {
           <Route path="coupons" element={<AdminCouponsPage />} />
           <Route path="employees" element={<AdminEmployeesPage />} />
           <Route path="attendance" element={<AdminAttendancePage />} />
+          <Route path="staff-calendar" element={<AdminStaffCalendarPage />} />
           <Route path="checklists" element={<AdminChecklistsPage />} />
           <Route path="checklist-editor" element={<AdminChecklistTemplatesPage />} />
           <Route path="faqs" element={<AdminFaqsPage />} />

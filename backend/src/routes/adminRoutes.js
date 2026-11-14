@@ -35,9 +35,11 @@ import {
   getAllLeaves,
   getChecklistItems,
   getChecklistSubmissions,
+  getEmployeeAttendanceCalendar,
   getEmployeeSalary,
   getEmployees,
   reorderChecklistItems,
+  setAttendanceOverride,
   reviewChecklistSubmission,
   updateChecklistItem,
   updateEmployee,
@@ -73,6 +75,8 @@ router.put('/employees/:id', updateEmployee);
 router.get('/attendance', getAllAttendance);
 router.get('/leaves', getAllLeaves);
 router.get('/employees/:id/salary', getEmployeeSalary);
+router.get('/employees/:id/attendance-calendar', getEmployeeAttendanceCalendar);
+router.post('/employees/:id/attendance', setAttendanceOverride);
 router.get('/checklists', getChecklistSubmissions);
 router.put('/checklists/:id', reviewChecklistSubmission);
 
