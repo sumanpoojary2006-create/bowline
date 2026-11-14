@@ -21,6 +21,15 @@ import AppSetting from '../models/AppSetting.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+// First/last 4 characters only — enough to spot a mismatched or truncated
+// env var value in a diagnostic response without exposing the secret.
+const fingerprint = (value) => {
+  if (!value) return null;
+  const str = String(value);
+  if (str.length <= 8) return `${str.length} chars`;
+  return `${str.slice(0, 4)}...${str.slice(-4)} (${str.length} chars)`;
+};
+
 // Escape regex metacharacters (e.g. the parentheses in "Dormitory (Open Loft)")
 // so room names are matched literally, not as regex syntax.
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -53,6 +62,10 @@ export const getSyncStatus = async (req, res) => {
     attendanceAppsScriptUrl: process.env.ATTENDANCE_APPS_SCRIPT_WEB_APP_URL
       ? '(set)'
       : null,
+    // Partial fingerprints only (first/last 4 chars) — enough to confirm a
+    // value matches expectations without exposing the secret itself.
+    attendanceSecretFingerprint: fingerprint(process.env.ATTENDANCE_SHEETS_WEBHOOK_SECRET),
+    deployedCommit: process.env.VERCEL_GIT_COMMIT_SHA || null,
   });
 };
 
