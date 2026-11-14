@@ -73,21 +73,22 @@ function StatusRing({ progress, children, tone = 'lime' }) {
   );
 }
 
-function LeavePieChart({ score }) {
+function AttendancePieChart({ score }) {
   const value = score != null ? Math.max(0, Math.min(100, score)) : 100;
   const radius = 38;
   const stroke = 10;
   const normalizedRadius = radius - stroke / 2;
   const circumference = normalizedRadius * 2 * Math.PI;
   const offset = circumference - (value / 100) * circumference;
-  const color = value >= 100 ? '#bef264' : value > 0 ? '#fcd34d' : '#fb7185';
 
   return (
     <div className="relative mx-auto mt-2 flex h-[92px] w-[92px] items-center justify-center">
       <svg height={radius * 2} width={radius * 2} className="pointer-events-none absolute -rotate-90">
-        <circle stroke="rgba(255,255,255,0.08)" fill="transparent" strokeWidth={stroke} r={normalizedRadius} cx={radius} cy={radius} />
+        {/* Red track shows through wherever the green arc falls short, so
+            excess leave reads directly as a red wedge. */}
+        <circle stroke="#fb7185" fill="transparent" strokeWidth={stroke} r={normalizedRadius} cx={radius} cy={radius} />
         <circle
-          stroke={color}
+          stroke="#bef264"
           fill="transparent"
           strokeWidth={stroke}
           strokeLinecap="round"
@@ -135,6 +136,7 @@ function EmployeeDashboardPage() {
   const { employee, summary, refresh, logout, loading } = useEmployeeAuth();
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
+  const [showLateWarning, setShowLateWarning] = useState(false);
   const now = useNow(30000);
 
   useEffect(() => {
@@ -150,8 +152,11 @@ function EmployeeDashboardPage() {
   const handleCheckIn = async () => {
     setBusy(true);
     try {
-      await employeeApi.post('/employee/checkin');
+      const { data } = await employeeApi.post('/employee/checkin');
       toast.success('Checked in! Have a great shift.');
+      if (data?.attendance?.lateCheckIn) {
+        setShowLateWarning(true);
+      }
       await refresh();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Unable to check in');
@@ -292,13 +297,37 @@ function EmployeeDashboardPage() {
           <p className="text-xs text-slate-400">days this month</p>
         </div>
         <div className="glass rounded-[1.5rem] p-4 text-center">
-          <p className="text-xs uppercase tracking-[0.25em] text-lime-200/60">Leave usage</p>
-          <LeavePieChart score={summary?.leaveScore} />
+          <p className="text-xs uppercase tracking-[0.25em] text-lime-200/60">Attendance score</p>
+          <AttendancePieChart score={summary?.leaveScore} />
           <p className="mt-2 text-xs text-slate-400">
             {summary?.leaveAllowance != null ? `${summary.leaveAllowance} leaves/month allowed` : 'this month'}
           </p>
         </div>
       </div>
+
+      {showLateWarning ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setShowLateWarning(false)}
+        >
+          <div
+            className="w-full max-w-xs rounded-[1.5rem] bg-slate-900 p-6 text-center shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <span className="text-3xl">⏰</span>
+            <h3 className="mt-3 text-lg font-semibold text-white">Late check-in</h3>
+            <p className="mt-2 text-sm text-slate-400">
+              You checked in after 7:00 AM. Try to check in on time tomorrow.
+            </p>
+            <button
+              className="mt-5 w-full rounded-full bg-lime-200 py-2.5 text-sm font-semibold text-slate-950"
+              onClick={() => setShowLateWarning(false)}
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

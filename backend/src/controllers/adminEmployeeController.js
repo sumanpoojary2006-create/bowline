@@ -8,9 +8,12 @@ import { getChecklistTemplate } from '../config/checklistTemplates.js';
 import { slugify } from '../utils/slugify.js';
 import { computeMonthlySalary } from '../utils/salary.js';
 import { buildAttendanceCalendar } from '../utils/attendanceCalendar.js';
+import { istWallTimeToDate } from '../utils/istTime.js';
 
 const ATTENDANCE_WINDOW_DAYS = 30;
-const ADMIN_OVERRIDE_HOURS = { full: 8, half: 4 };
+// Checkout clock-times (IST) that land each override on the correct side of
+// salary.js's full/half cutoffs (before 8pm = half, 10pm or later = full).
+const ADMIN_OVERRIDE_CHECKOUT_HOUR = { full: 22, half: 13 };
 
 const CHECKLIST_ROLES = ['housekeeping', 'kitchen'];
 const CHECKLIST_FIELD_TYPES = ['boolean', 'status', 'number', 'text'];
@@ -212,8 +215,8 @@ export const setAttendanceOverride = async (req, res, next) => {
       await Attendance.deleteOne({ employee: employee._id, date });
       await Leave.deleteOne({ employee: employee._id, date });
     } else {
-      const checkInAt = new Date(`${date}T09:00:00`);
-      const checkOutAt = new Date(checkInAt.getTime() + ADMIN_OVERRIDE_HOURS[status] * 60 * 60 * 1000);
+      const checkInAt = istWallTimeToDate(date, 9);
+      const checkOutAt = istWallTimeToDate(date, ADMIN_OVERRIDE_CHECKOUT_HOUR[status]);
       await Leave.deleteOne({ employee: employee._id, date });
       await Attendance.findOneAndUpdate(
         { employee: employee._id, date },

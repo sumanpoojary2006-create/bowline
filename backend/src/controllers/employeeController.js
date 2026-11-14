@@ -9,8 +9,12 @@ import { getClientIp } from '../utils/network.js';
 import { writeAttendanceToSheet, writeSalarySummaryToSheet } from '../utils/googleSheets.js';
 import { computeMonthlySalary } from '../utils/salary.js';
 import { buildAttendanceCalendar } from '../utils/attendanceCalendar.js';
+import { istTimeOfDay } from '../utils/istTime.js';
 
 const MIN_SHIFT_HOURS = 5;
+// Check-in after this hour (IST) is flagged as late — a warning only, never
+// a block, since staff must always be able to check in.
+const LATE_CHECK_IN_HOUR = 7;
 // Falls back to this when an admin hasn't set a specific leave allowance for
 // an employee yet (Employee.leavesPerMonth defaults to 0, which would
 // otherwise read as "no leave allowed at all").
@@ -78,6 +82,7 @@ export const getMe = async (req, res, next) => {
             status: todayAttendance.status,
             checkInAt: todayAttendance.checkInAt,
             checkOutAt: todayAttendance.checkOutAt,
+            lateCheckIn: todayAttendance.lateCheckIn,
           }
         : null,
       isOnLeaveToday: Boolean(todayLeave),
@@ -109,12 +114,15 @@ export const checkIn = async (req, res, next) => {
     }
 
     const clientIp = getClientIp(req);
+    const checkInAt = new Date();
+    const lateCheckIn = istTimeOfDay(checkInAt) > LATE_CHECK_IN_HOUR;
 
     const attendance = await Attendance.create({
       employee: req.employee._id,
       date,
-      checkInAt: new Date(),
+      checkInAt,
       checkInIp: clientIp,
+      lateCheckIn,
     });
 
     // Awaited, not fire-and-forget: on a serverless platform the function
@@ -131,6 +139,7 @@ export const checkIn = async (req, res, next) => {
       attendance: {
         status: attendance.status,
         checkInAt: attendance.checkInAt,
+        lateCheckIn: attendance.lateCheckIn,
       },
     });
   } catch (error) {

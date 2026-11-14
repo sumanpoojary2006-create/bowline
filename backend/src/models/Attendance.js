@@ -28,6 +28,10 @@ const attendanceSchema = new mongoose.Schema(
       enum: ['checked-in', 'checked-out'],
       default: 'checked-in',
     },
+    lateCheckIn: {
+      type: Boolean,
+      default: false,
+    },
     checklist: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ChecklistSubmission',
