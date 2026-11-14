@@ -1,5 +1,6 @@
 import { sendUpcomingCheckinReport } from '../jobs/dailyGuestEmailJob.js';
 import { sendMonthlyLaundryDamageReport } from '../jobs/monthlyLaundryDamageReportJob.js';
+import { sendMonthlySalarySlips } from '../jobs/monthlySalarySlipJob.js';
 
 const verifyCron = (req, res) => {
   const auth = req.headers.authorization || '';
@@ -23,6 +24,16 @@ export const sendMonthlyLaundryDamageCron = async (req, res, next) => {
   try {
     verifyCron(req, res);
     const result = await sendMonthlyLaundryDamageReport();
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const sendMonthlySalarySlipsCron = async (req, res, next) => {
+  try {
+    verifyCron(req, res);
+    const result = await sendMonthlySalarySlips();
     res.json(result);
   } catch (error) {
     next(error);

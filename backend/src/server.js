@@ -5,6 +5,7 @@ import { scheduleDailyGuestEmailJob } from './jobs/dailyGuestEmailJob.js';
 import { scheduleAirbnbSyncJob } from './jobs/airbnbSyncJob.js';
 import { scheduleMonthlyLaundryDamageReport } from './jobs/monthlyLaundryDamageReportJob.js';
 import { scheduleAutoSignOutJob } from './jobs/autoSignOutJob.js';
+import { scheduleMonthlySalarySlipJob } from './jobs/monthlySalarySlipJob.js';
 
 dotenv.config();
 
@@ -19,6 +20,7 @@ connectDb()
     scheduleAirbnbSyncJob();
     scheduleMonthlyLaundryDamageReport();
     scheduleAutoSignOutJob();
+    scheduleMonthlySalarySlipJob();
   })
   .catch((error) => {
     console.error('Failed to start server', error);
