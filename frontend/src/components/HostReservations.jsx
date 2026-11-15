@@ -37,7 +37,7 @@ function BookingDetailDialog({ booking, onClose }) {
   );
 }
 
-export default function HostReservations() {
+export default function HostReservations({ syncButton }) {
   const [tab, setTab] = useState('today');
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -70,7 +70,7 @@ export default function HostReservations() {
   const visible = (searching ? confirmed.filter(matchesQuery) : confirmed.filter(b => tab === 'upcoming' ? key(b.startDate) > today : key(b.startDate) <= today && key(b.endDate) > today)).sort((a,b) => new Date(a.startDate) - new Date(b.startDate));
   const arrivals = confirmed.filter(b => key(b.startDate) === today).length;
   return <section className="host-welcome">
-    <div className="host-welcome-top"><div><p className="host-eyebrow">BOWLINE HOSTING</p><h1>{searching ? 'Search results' : tab === 'today' ? 'Today at Bowline' : 'Upcoming reservations'}</h1><p>{searching ? 'Matching reservations across every date.' : tab === 'today' ? 'Arrivals, departures and current stays in one calm view.' : 'Everything you need to prepare for the stays ahead.'}</p></div><Link to="/admin/bookings" className="host-outline-button">Manage reservations <ArrowUpRightIcon /></Link></div>
+    <div className="host-welcome-top"><div><p className="host-eyebrow">BOWLINE HOSTING</p><h1>{searching ? 'Search results' : tab === 'today' ? 'Today at Bowline' : 'Upcoming reservations'}</h1><p>{searching ? 'Matching reservations across every date.' : tab === 'today' ? 'Arrivals, departures and current stays in one calm view.' : 'Everything you need to prepare for the stays ahead.'}</p></div><div className="host-welcome-actions">{syncButton}<Link to="/admin/bookings" className="host-outline-button host-manage-link">Manage reservations <ArrowUpRightIcon /></Link></div></div>
     <div className="host-reservation-toolbar"><div className="host-segmented" aria-label="Reservation period">{['today', 'upcoming'].map(t => <button key={t} className={tab === t ? 'selected' : ''} onClick={() => setTab(t)}>{t === 'today' ? 'Today' : 'Upcoming'}</button>)}</div><div className="flex items-center gap-2"><button className="host-icon-button" aria-label="Search reservations" aria-expanded={searchOpen} onClick={() => setSearchOpen(!searchOpen)}><MagnifyingGlassIcon /></button><button className="host-icon-button" aria-label="Filter reservations" aria-expanded={filterOpen} onClick={() => setFilterOpen(!filterOpen)}><AdjustmentsHorizontalIcon /></button></div></div>
     {searchOpen && <label className="host-filter">Search<input type="search" className="input" placeholder="Name, phone, email or room" value={query} onChange={e => setQuery(e.target.value)} /></label>}
     {filterOpen && <label className="host-filter">Booking source<select value={source} onChange={e => setSource(e.target.value)}><option value="all">All sources</option>{['website','airbnb','whatsapp','admin','sheet'].map(s => <option key={s} value={s}>{s}</option>)}</select></label>}

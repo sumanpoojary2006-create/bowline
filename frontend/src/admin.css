@@ -295,3 +295,10 @@
   .host-month-compact .host-day-guest{display:none}
   .host-month-compact .host-day.is-booked:after{content:'';position:absolute;bottom:6px;right:6px;width:6px;height:6px;border-radius:50%;background:var(--host-accent,#d90850)}
 }
+
+/* Sync Airbnb now lives inline in the reservations header, top-right —
+   no separate "keep availability accurate" card. */
+.host-welcome-actions{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.host-sync-button{background:var(--host-ink,#222);color:#fff;border-color:var(--host-ink,#222)}
+.host-sync-button:hover{background:#343434;border-color:#343434}
+@media(max-width:900px){.host-manage-link{display:none}}

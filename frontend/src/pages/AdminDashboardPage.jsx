@@ -41,7 +41,7 @@ function AdminDashboardPage() {
 
   const syncButton = (
     <button
-      className="btn-primary flex shrink-0 items-center gap-2"
+      className="host-outline-button host-sync-button flex shrink-0 items-center gap-2"
       onClick={syncAllAirbnb}
       disabled={syncing}
     >
@@ -54,14 +54,7 @@ function AdminDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.5rem] border border-lime-100/15 bg-white/5 px-5 py-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7c8a76]">Keep availability accurate</p>
-          <p className="mt-1 text-sm text-[#cdd6c9]">Sync every room's Airbnb calendar to catch new bookings and blocked dates.</p>
-        </div>
-        {syncButton}
-      </div>
-      <HostReservations />
+      <HostReservations syncButton={syncButton} />
       <UniversalCalendar />
     </div>
   );
