@@ -88,7 +88,29 @@ export default function AdminCalendarPage() {
       <div className="host-calendar-legend"><span><i />Reserved / blocked</span><span><i className="today" />Today</span><span><i className="selected" />Selected dates</span></div>
       </div>
       {selection.length > 0 && <section className="host-date-panel" aria-label="Edit selected dates"><div className="host-date-panel-top"><strong>{formatDate(selection[0])}{selection[1] && ` – ${formatDate(selection[1])}`}</strong><button aria-label="Clear selection" onClick={() => setSelection([])}><XMarkIcon className="h-5 w-5" /></button></div><div className="host-date-panel-grid"><label>Price per guest / night (₹)<input type="number" min="1" placeholder={String(calendarNightRate(room,selection[0],rules))} value={price} onChange={e => setPrice(e.target.value)} /></label><label>Reason for blocking<input placeholder="e.g. Maintenance" value={note} onChange={e => setNote(e.target.value)} /></label></div><div className="host-date-panel-actions"><button className="host-save" disabled={saving} onClick={() => save('price')}>Save price</button><button className="host-save" disabled={saving} onClick={() => save('block')}>Block dates</button><Link to="/admin/pricing">Custom pricing rules ↗</Link></div></section>}
-      {detail && <section className="host-date-panel" aria-label="Reservation details"><div className="host-date-panel-top"><strong>{detail.status === 'blocked' ? 'Blocked by you' : detail.contactName || detail.user?.name || 'Reservation'}</strong><button aria-label="Close details" onClick={() => setDetail(null)}><XMarkIcon className="h-5 w-5" /></button></div><p>{formatDate(detail.startDate)} – {formatDate(detail.endDate)} · {room.name}</p><p className="mt-3 text-sm">{detail.blockNote || detail.specialRequests || `${detail.guests || 1} guests · ${formatCurrency(detail.totalPrice)}`}</p><div className="host-date-panel-actions">{detail.status === 'blocked' ? <button className="host-save" disabled={saving} onClick={unblock}>Make available · remove entire block</button> : <Link to="/admin/bookings">Manage reservation ↗</Link>}</div></section>}
+      {detail && <section className="host-date-panel" aria-label="Reservation details">
+        <div className="host-date-panel-top">
+          <strong>{detail.status === 'blocked' ? 'Blocked by you' : detail.contactName || detail.user?.name || 'Reservation'}</strong>
+          <button aria-label="Close details" onClick={() => setDetail(null)}><XMarkIcon className="h-5 w-5" /></button>
+        </div>
+        <p>{formatDate(detail.startDate)} – {formatDate(detail.endDate)} · {room.name}</p>
+        {detail.status === 'blocked' ? (
+          <p className="mt-3 text-sm">{detail.blockNote}</p>
+        ) : (
+          <div className="mt-3 space-y-1 text-sm">
+            <p>
+              {detail.adultGuests ?? detail.guests ?? 1} adult{(detail.adultGuests ?? detail.guests ?? 1) === 1 ? '' : 's'}
+              {detail.childGuests ? ` · ${detail.childGuests} child${detail.childGuests === 1 ? '' : 'ren'}` : ''}
+              {detail.pets ? ` · ${detail.pets} pet${detail.pets === 1 ? '' : 's'}` : ''}
+            </p>
+            {detail.contactPhone && <p>📞 {detail.contactPhone}</p>}
+            {(detail.contactEmail || detail.user?.email) && <p>✉️ {detail.contactEmail || detail.user?.email}</p>}
+            <p>{formatCurrency(detail.totalPrice)} · <span className="capitalize">{detail.paymentStatus?.replace('_', ' ')}</span>{detail.source ? ` · ${detail.source}` : ''}</p>
+            {detail.specialRequests && <p className="text-[#717171]">&ldquo;{detail.specialRequests}&rdquo;</p>}
+          </div>
+        )}
+        <div className="host-date-panel-actions">{detail.status === 'blocked' ? <button className="host-save" disabled={saving} onClick={unblock}>Make available · remove entire block</button> : <Link to="/admin/bookings">Manage reservation ↗</Link>}</div>
+      </section>}
       </div>
     </>}
   </div>;
