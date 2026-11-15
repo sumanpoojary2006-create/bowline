@@ -1,0 +1,348 @@
+import { useEffect, useState } from 'react';
+import {
+  BanknotesIcon,
+  BellAlertIcon,
+  BuildingOffice2Icon,
+  CalendarDaysIcon,
+  ChatBubbleLeftRightIcon,
+  UsersIcon,
+} from '@heroicons/react/24/outline';
+import toast from 'react-hot-toast';
+import api from '../lib/api';
+import { formatCurrency, formatDate } from '../lib/formatters';
+import PageLoader from '../components/PageLoader';
+import SectionHeader from '../components/SectionHeader';
+import EmptyState from '../components/EmptyState';
+
+const TYPE_LABELS = {
+  room: 'Stays',
+  trek: 'Treks',
+  camp: 'Camps',
+};
+
+const SOURCE_LABELS = {
+  website: 'Website',
+  airbnb: 'Airbnb',
+  whatsapp: 'WhatsApp',
+  admin: 'Admin',
+  sheet: 'Sheets',
+};
+
+function currentYearMonth() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function timeAgo(value) {
+  const diffMs = Date.now() - new Date(value).getTime();
+  const minutes = Math.round(diffMs / (1000 * 60));
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  return `${days}d ago`;
+}
+
+function StatCard({ icon: Icon, label, value, hint }) {
+  return (
+    <div className="glass flex h-full min-w-0 flex-col overflow-hidden rounded-[1.75rem] p-5 transition hover:border-lime-100/25">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-lime-200/10 text-lime-200">
+          <Icon className="h-5 w-5" />
+        </div>
+        <p className="text-sm text-[#b7c2b2]">{label}</p>
+      </div>
+      <p className="mt-4 break-words text-[1.65rem] font-bold leading-tight text-white tabular-nums sm:text-3xl">
+        {value}
+      </p>
+      {hint ? <p className="mt-auto pt-2 text-xs text-lime-100/45">{hint}</p> : null}
+    </div>
+  );
+}
+
+function AdminPerformancePage() {
+  const [payload, setPayload] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [month, setMonth] = useState(currentYearMonth());
+  const [analytics, setAnalytics] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
+  const [downloading, setDownloading] = useState(false);
+  const [whatsappContactCount, setWhatsappContactCount] = useState(null);
+
+  useEffect(() => {
+    document.title = 'Bowline Admin | Performance';
+    const fetchOverview = async () => {
+      try {
+        const { data } = await api.get('/admin/overview');
+        setPayload(data);
+      } catch { toast.error("Unable to load overview"); } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOverview();
+
+    api
+      .get('/admin/whatsapp-contacts')
+      .then(({ data }) => setWhatsappContactCount(data.totalContacts))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      setAnalyticsLoading(true);
+      try {
+        const { data } = await api.get('/admin/analytics/monthly', { params: { month } });
+        setAnalytics(data);
+      } catch { toast.error("Unable to load analytics"); } finally {
+        setAnalyticsLoading(false);
+      }
+    };
+
+    fetchAnalytics();
+  }, [month]);
+
+  const [fullHouseUrl, setFullHouseUrl] = useState('');
+  const [fullHouseUrlSaved, setFullHouseUrlSaved] = useState('');
+  const [savingFullHouseUrl, setSavingFullHouseUrl] = useState(false);
+
+  useEffect(() => {
+    const fetchFullHouseUrl = async () => {
+      try {
+        const { data } = await api.get('/sync/airbnb/full-house-url');
+        setFullHouseUrl(data.icalUrl || '');
+        setFullHouseUrlSaved(data.icalUrl || '');
+      } catch {
+        // non-critical — leave the field blank if it can't be loaded
+      }
+    };
+    fetchFullHouseUrl();
+  }, []);
+
+  const saveFullHouseUrl = async () => {
+    setSavingFullHouseUrl(true);
+    try {
+      const { data } = await api.put('/sync/airbnb/full-house-url', { icalUrl: fullHouseUrl.trim() });
+      setFullHouseUrl(data.icalUrl || '');
+      setFullHouseUrlSaved(data.icalUrl || '');
+      toast.success('Full House Airbnb calendar saved');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Could not save the Full House calendar URL');
+    } finally {
+      setSavingFullHouseUrl(false);
+    }
+  };
+
+  const downloadMonthlyCsv = async () => {
+    setDownloading(true);
+    try {
+      const { data } = await api.get('/admin/analytics/monthly/csv', {
+        params: { month },
+        responseType: 'blob',
+      });
+
+      const url = window.URL.createObjectURL(new Blob([data], { type: 'text/csv' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `bookings-${month}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Unable to download report');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  if (loading) {
+    return <PageLoader label="Loading performance & operations..." />;
+  }
+
+  if (!payload) return <div className="host-empty">Unable to load your workspace. <button onClick={() => window.location.reload()}>Try again</button></div>;
+  const { overview, notifications } = payload;
+  const breakdownEntries = Object.entries(overview.breakdown || {}).filter(([, count]) => count > 0);
+
+  return (
+    <div className="space-y-6">
+      <SectionHeader
+        eyebrow="PERFORMANCE & OPERATIONS"
+        title="The bigger picture"
+        description="A snapshot of confirmed bookings, revenue, and what needs your attention."
+      />
+
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
+        <StatCard icon={CalendarDaysIcon} label="Total bookings" value={overview.totalBookings} />
+        <StatCard icon={BanknotesIcon} label="Estimated booking value" value={formatCurrency(overview.revenue)} />
+        <StatCard icon={BuildingOffice2Icon} label="Active listings" value={overview.activeListings} />
+        <StatCard icon={UsersIcon} label="Active users" value={overview.activeUsers} />
+        <StatCard
+          icon={ChatBubbleLeftRightIcon}
+          label="WhatsApp contacts"
+          value={whatsappContactCount === null ? '—' : whatsappContactCount}
+        />
+      </div>
+
+      {breakdownEntries.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7c8a76]">
+            Bookings by type
+          </span>
+          {breakdownEntries.map(([type, count]) => (
+            <div key={type} className="glass rounded-full px-4 py-1.5 text-sm text-[#cdd6c9]">
+              <span className="font-semibold text-white">{count}</span> {TYPE_LABELS[type] || type}
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
+        <div className="glass rounded-[2rem] p-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-semibold text-white">Monthly analytics</h2>
+              <p className="mt-1 text-sm text-[#b7c2b2]">Revenue and booking activity for the selected month.</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <input
+                type="month"
+                className="input"
+                value={month}
+                onChange={(event) => setMonth(event.target.value)}
+              />
+              <button className="btn-secondary" onClick={downloadMonthlyCsv} disabled={downloading}>
+                {downloading ? 'Preparing...' : 'Download CSV'}
+              </button>
+            </div>
+          </div>
+
+          {analyticsLoading || !analytics ? (
+            <p className="mt-6 text-sm text-[#b7c2b2]">Loading analytics...</p>
+          ) : (
+            <>
+              <div className="mt-6 grid gap-4 sm:grid-cols-3">
+                <StatCard icon={BanknotesIcon} label="Monthly revenue" value={formatCurrency(analytics.revenue)} hint="Confirmed bookings only" />
+                <StatCard icon={CalendarDaysIcon} label="Confirmed bookings" value={analytics.confirmedBookings} />
+                <StatCard icon={CalendarDaysIcon} label="Cancelled bookings" value={analytics.cancelledBookings} />
+              </div>
+
+              {Object.keys(analytics.bySource || {}).length > 0 ? (
+                <div className="mt-6">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7c8a76]">By source</p>
+                  <div className="mt-3 flex flex-wrap gap-3">
+                    {Object.entries(analytics.bySource).map(([source, stats]) => (
+                      <div
+                        key={source}
+                        className="rounded-[1.25rem] border border-lime-100/10 bg-[#0f1912]/90 px-4 py-3 text-sm text-[#cdd6c9]"
+                      >
+                        <p className="font-semibold text-white">{SOURCE_LABELS[source] || source}</p>
+                        <p className="mt-1 text-xs text-[#8b9686]">
+                          {stats.count} booking{stats.count === 1 ? '' : 's'} · {formatCurrency(stats.revenue)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </>
+          )}
+        </div>
+
+        <div className="glass rounded-[2rem] p-6">
+          <h2 className="text-lg font-semibold text-white">Airbnb "Full House" calendar</h2>
+          <p className="mt-2 text-sm text-[#b7c2b2]">
+            Airbnb sells the whole property as its own separate listing, with its own calendar URL.
+            Paste that listing's export calendar link here so a Full House reservation blocks every
+            room (including ones without their own Airbnb listing) — it isn't linked automatically.
+          </p>
+          <div className="mt-4 space-y-3">
+            <input
+              type="url"
+              className="input"
+              placeholder="https://www.airbnb.co.in/calendar/ical/....ics?t=..."
+              value={fullHouseUrl}
+              onChange={(event) => setFullHouseUrl(event.target.value)}
+            />
+            <button
+              className="btn-secondary w-full"
+              onClick={saveFullHouseUrl}
+              disabled={savingFullHouseUrl || fullHouseUrl.trim() === fullHouseUrlSaved.trim()}
+            >
+              {savingFullHouseUrl ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+        <div className="glass rounded-[2rem] p-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-semibold text-white">Upcoming bookings</h2>
+            <span className="rounded-full bg-lime-200/10 px-3 py-1 text-xs font-semibold text-lime-200">
+              Confirmed
+            </span>
+          </div>
+
+          <div className="mt-5 max-h-[480px] space-y-3 overflow-y-auto pr-1">
+            {overview.upcomingBookings.length === 0 ? (
+              <EmptyState
+                title="Nothing on the horizon"
+                description="Confirmed bookings with an upcoming check-in date will show up here."
+              />
+            ) : (
+              overview.upcomingBookings.map((booking) => (
+                <div
+                  key={booking._id}
+                  className="flex items-center justify-between gap-4 rounded-[1.5rem] border border-lime-100/10 bg-[#0f1912]/90 p-4"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-lime-200/10 text-lime-200">
+                      <CalendarDaysIcon className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-lg font-semibold text-white">{booking.listing?.name}</p>
+                      <p className="mt-1 text-sm text-[#8b9686]">{booking.user?.name}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-white">{formatDate(booking.startDate)}</p>
+                    <p className="mt-1 text-xs text-[#8b9686]">{formatCurrency(booking.totalPrice)}</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="glass rounded-[2rem] p-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-semibold text-white">Admin alerts</h2>
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-lime-200/10 text-lime-200">
+              <BellAlertIcon className="h-5 w-5" />
+            </div>
+          </div>
+
+          <div className="mt-5 max-h-[480px] space-y-3 overflow-y-auto pr-1">
+            {notifications.length === 0 ? (
+              <EmptyState title="All quiet" description="New booking and payment alerts will show up here." />
+            ) : (
+              notifications.map((notification) => (
+                <div key={notification._id} className="rounded-[1.5rem] border border-lime-100/10 bg-[#0f1912]/90 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-semibold text-white">{notification.title}</p>
+                    <p className="shrink-0 text-xs text-[#8b9686]">{timeAgo(notification.createdAt)}</p>
+                  </div>
+                  <p className="mt-2 text-sm text-[#c3cebf]">{notification.message}</p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default AdminPerformancePage;

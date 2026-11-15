@@ -258,3 +258,40 @@
   .host-block-room-heading{display:grid;gap:14px}.host-block-room-actions{width:100%}.host-block-room-actions .btn-secondary{flex:1}.host-room-picker{grid-template-columns:1fr;gap:9px}.host-room-choice{min-height:68px;width:100%}.host-block-room-panel{padding-bottom:22px!important}
   .host-block-submit{position:sticky;bottom:calc(82px + env(safe-area-inset-bottom));z-index:18;box-shadow:0 10px 30px #0003}
 }
+
+/* Dashboard reservation tiles, shrunk — the Overview page lost its heavy
+   analytics section, so the remaining cards no longer need full size. */
+.host-reservation-grid-compact .host-reservation-card{padding:16px 16px 0!important;border-radius:22px!important}
+.host-reservation-grid-compact .host-guest-avatar{width:56px!important;height:56px!important;margin:14px auto 12px!important;font-size:22px!important}
+.host-reservation-grid-compact .host-guest-avatar img{width:28px!important;height:28px!important;bottom:-3px!important;right:-8px!important;border-width:2px!important}
+.host-reservation-grid-compact .host-reservation-card h3{font-size:16px!important}
+.host-reservation-grid-compact .host-reservation-card>p{font-size:11px!important;margin:4px 0 12px!important}
+.host-reservation-grid-compact .host-card-top{font-size:11px!important}
+.host-reservation-grid-compact .host-card-bottom{padding:10px 0!important;font-size:9px!important}
+@media(max-width:430px){.host-reservation-grid-compact .host-reservation-card{padding-left:16px!important;padding-right:16px!important}}
+
+/* Universal calendar — every room's bookings in one place on the dashboard. */
+.host-universal-calendar{margin-top:8px}
+.host-month-compact{gap:6px}
+.host-month-compact .host-day{min-height:76px;padding:8px 7px;gap:6px}
+.host-month-compact .host-day-number{font-size:13px}
+.host-month-compact .host-day-guest{font-size:9px;padding:3px 6px}
+.host-universal-panel{position:static!important;margin:20px 0 0!important;max-width:none!important;width:100%}
+.host-universal-day-list{display:grid;gap:14px;margin-top:4px}
+.host-universal-booking{border:1px solid #3a3b37;border-radius:16px;padding:14px;background:#2a2b28}
+.host-universal-booking+.host-universal-booking{margin-top:0}
+.host-universal-booking-room{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#9aa89d;margin:0 0 4px}
+@media(max-width:700px){
+  .host-month-compact .host-day{min-height:64px;padding:6px 4px;gap:4px}
+  .host-month-compact .host-day-number{font-size:12px}
+  .host-month-compact .host-day-guest{font-size:8px;padding:2px 4px}
+  .host-universal-day-list{gap:10px}
+  .host-universal-booking{padding:12px}
+}
+@media(max-width:430px){
+  .host-month-compact{gap:4px}
+  .host-month-compact .host-day{min-height:52px;padding:4px 3px;border-radius:9px}
+  .host-month-compact .host-day-number{font-size:11px}
+  .host-month-compact .host-day-guest{display:none}
+  .host-month-compact .host-day.is-booked:after{content:'';position:absolute;bottom:6px;right:6px;width:6px;height:6px;border-radius:50%;background:var(--host-accent,#d90850)}
+}

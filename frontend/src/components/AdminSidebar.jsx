@@ -11,6 +11,7 @@ import {
   DocumentTextIcon,
   GiftIcon,
   HomeModernIcon,
+  PresentationChartLineIcon,
   QuestionMarkCircleIcon,
   Squares2X2Icon,
   UserGroupIcon,
@@ -40,6 +41,7 @@ export const groups = [
     label: 'Data',
     items: [
       { label: 'Reports', to: '/admin/reports', icon: ChartBarIcon },
+      { label: 'Performance', to: '/admin/performance', icon: PresentationChartLineIcon },
       { label: 'Sheets Sync', to: '/admin/sync', icon: ArrowPathRoundedSquareIcon },
       { label: 'Customers', to: '/admin/users', icon: UsersIcon },
     ],
