@@ -7,6 +7,7 @@ import {
   ChartBarIcon,
   CheckBadgeIcon,
   ClipboardDocumentCheckIcon,
+  ClockIcon,
   ArrowPathRoundedSquareIcon,
   DocumentTextIcon,
   GiftIcon,
@@ -29,6 +30,7 @@ export const groups = [
   {
     label: 'Bookings',
     items: [
+      { label: "Today's Stays", to: '/admin/reservations', icon: ClockIcon },
       { label: 'Listings', to: '/admin/listings', icon: HomeModernIcon },
       { label: 'Block Rooms', to: '/admin/block-rooms', icon: ArchiveBoxIcon },
       { label: 'Bookings', to: '/admin/bookings', icon: DocumentTextIcon },

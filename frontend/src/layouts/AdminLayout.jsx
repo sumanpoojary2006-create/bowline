@@ -15,7 +15,8 @@ const tabs = [
 ];
 const sectionNames = {
   overview: 'Today', calendar: 'Calendar', listings: 'Listings', bookings: 'Reservations',
-  'block-rooms': 'Block rooms', pricing: 'Pricing', coupons: 'Coupons', reports: 'Reports',
+  reservations: "Today's stays", 'block-rooms': 'Block rooms', pricing: 'Pricing', coupons: 'Coupons',
+  reports: 'Reports', performance: 'Performance',
   sync: 'Calendar sync', users: 'Customers', employees: 'Employees', attendance: 'Attendance',
   'staff-calendar': 'Staff calendar', laundry: 'Laundry', checklists: 'Checklists',
   'checklist-editor': 'Checklist editor', faqs: 'Website FAQs',
