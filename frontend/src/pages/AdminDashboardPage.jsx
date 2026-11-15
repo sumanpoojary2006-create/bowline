@@ -204,7 +204,7 @@ function AdminDashboardPage() {
 
   const syncButton = (
     <button
-      className="btn-secondary flex shrink-0 items-center gap-2"
+      className="btn-primary flex shrink-0 items-center gap-2"
       onClick={syncAllAirbnb}
       disabled={syncing}
     >
@@ -217,6 +217,13 @@ function AdminDashboardPage() {
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.5rem] border border-lime-100/15 bg-white/5 px-5 py-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7c8a76]">Keep availability accurate</p>
+          <p className="mt-1 text-sm text-[#cdd6c9]">Sync every room's Airbnb calendar to catch new bookings and blocked dates.</p>
+        </div>
+        {syncButton}
+      </div>
       <HostReservations />
       <details className="host-performance" open={performanceOpen} onToggle={event => setPerformanceOpen(event.currentTarget.open)}><summary>Performance & operations <span>Revenue, reports and calendar sync</span></summary>
       <div className="host-divider" />
@@ -224,7 +231,6 @@ function AdminDashboardPage() {
         eyebrow="PERFORMANCE & OPERATIONS"
         title="The bigger picture"
         description="A snapshot of confirmed bookings, revenue, and what needs your attention."
-        action={syncButton}
       />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
